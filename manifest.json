@@ -1,0 +1,25 @@
+{
+  "name": "SLMsys - Sistema de Vendas",
+  "short_name": "SLMsys",
+  "description": "Sistema de vendas, estoque e caixa da loja",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#151110",
+  "theme_color": "#151110",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "ic.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "ic.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
