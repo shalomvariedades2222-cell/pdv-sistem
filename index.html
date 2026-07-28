@@ -644,13 +644,13 @@ html.is-mobile .navBtn[data-view="testador"]{display:flex;}
 .wifiIcon.offline .wBar,.wifiIcon.offline .wDot{stroke:var(--text-dim);fill:var(--text-dim);}
 .wifiIcon.offline .wSlash{opacity:1;}
 
-/* sinal "boa": as 3 ondas acendem em sequência, como um sinal se espalhando pra fora */
-@keyframes wifiPulseGood{0%,55%,100%{opacity:.32;}20%{opacity:1;}}
-.wifiIcon.boa .wBar1{animation:wifiPulseGood 1.9s ease-in-out infinite;}
-.wifiIcon.boa .wBar2{animation:wifiPulseGood 1.9s ease-in-out .16s infinite;}
-.wifiIcon.boa .wBar3{animation:wifiPulseGood 1.9s ease-in-out .32s infinite;}
-.wifiIcon.boa .wDot{animation:wifiDotGood 1.9s ease-in-out infinite;}
-@keyframes wifiDotGood{0%,100%{opacity:1;transform:scale(1);}50%{opacity:1;transform:scale(1.2);}}
+/* sinal "boa": brilho suave e lento, tipo respiração — antes era um piscar rápido em sequência */
+@keyframes wifiPulseGood{0%,100%{opacity:.78;}50%{opacity:1;}}
+.wifiIcon.boa .wBar1{animation:wifiPulseGood 3.4s ease-in-out infinite;}
+.wifiIcon.boa .wBar2{animation:wifiPulseGood 3.4s ease-in-out .25s infinite;}
+.wifiIcon.boa .wBar3{animation:wifiPulseGood 3.4s ease-in-out .5s infinite;}
+.wifiIcon.boa .wDot{animation:wifiDotGood 3.4s ease-in-out infinite;}
+@keyframes wifiDotGood{0%,100%{opacity:1;transform:scale(1);}50%{opacity:1;transform:scale(1.06);}}
 
 /* sinal "instável": a onda externa pisca de forma irregular, avisando oscilação */
 @keyframes wifiFlicker{
@@ -2680,6 +2680,14 @@ async function checkRemoteVersion(){
   // a resposta chegar) — isso fecha a antiga corrida em que essa checagem podia rodar
   // no meio do nosso próprio salvamento e confundir ele com uma mudança de outro aparelho.
   if(_ghSaveTimer || _fotosSaveTimer || _salvandoAgora) return;
+  // Enquanto o carregamento inicial deste aparelho ainda não terminou, driveVersion
+  // continua null — e comparar "null" com a versão do servidor sempre dá diferente,
+  // mesmo que nenhum outro aparelho tenha salvo nada. Isso fazia o aviso de
+  // "sincronizando com outro aparelho" aparecer à toa logo na abertura do app (e,
+  // em conexões mais lentas, aparecer 2x seguidas, pois mais de um ciclo dessa
+  // checagem passava antes do carregamento inicial concluir). Então só comparamos
+  // depois que já temos uma versão de referência de verdade.
+  if(driveVersion === null) return;
   const modalAberto = document.getElementById('modalBg').classList.contains('active');
   if(modalAberto) return;
   _syncPolling = true;
