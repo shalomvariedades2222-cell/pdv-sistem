@@ -1721,12 +1721,11 @@ html.is-mobile .btn::before{ display:none; }
 
             <div id="scannerModeNovo">
               <h3>Escanear Código de Barras Novo</h3>
-              <div class="dimSmall" style="margin-bottom:10px;">Use esta tela apenas para códigos de barras que ainda não existem no sistema. Aponte o leitor (ou digite o código manualmente) no campo abaixo e pressione Enter.</div>
+              <div class="dimSmall" style="margin-bottom:10px;">Use esta tela apenas para códigos de barras que ainda não existem no sistema. Aponte o leitor (ou digite o código manualmente) no campo abaixo e pressione Enter. Cada código diferente vira um item novo no grupo em uso; escanear o mesmo código de novo só soma +1 na quantidade dele.</div>
               <div class="field">
                 <label>Código de barras</label>
                 <input id="scannerCodeInput" placeholder="Escaneie ou digite o código aqui..." autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();scannerProcessCode();}">
               </div>
-              <div class="dimSmall">Se escanear a mesma etiqueta de novo antes de salvar, o estoque do item pendente sobe +1 automaticamente.</div>
               <div id="scannerFormArea" style="margin-top:14px;"></div>
             </div>
 
@@ -4796,14 +4795,116 @@ function imprimirEtiquetaAposCadastro(productId){
 }
 /* =========================================================
    ESCANEAR CÓDIGO DE BARRAS (cadastro rápido de código novo)
-   Fluxo: escaneia um código -> se já existe em algum produto, avisa e não
-   deixa prosseguir (essa tela é só pra código que ainda não está no sistema).
-   Se for novo, abre um formulário pendente (nome/categoria/preços/estoque).
-   Escaneando a MESMA etiqueta de novo antes de salvar soma +1 no estoque
-   do item pendente. O código escaneado é gravado como o barcode do produto
-   ao salvar.
+   Fluxo: cada leitura de um código NOVO vira um item dentro do "grupo"
+   (categoria/nome/preços) que estiver em uso no momento. Escanear a MESMA
+   etiqueta de novo só soma +1 na quantidade daquele item. Para cadastrar
+   produtos com outra categoria/nome/preço, cria-se um novo grupo (barrinha
+   separando visualmente do grupo anterior) — o preço definido em cada
+   grupo é aplicado automaticamente a todos os códigos escaneados dentro
+   dele. Tudo fica salvo automaticamente (rascunho) para poder ser
+   recuperado se a aba for fechada ou o app for fechado antes de aplicar.
+   Só quando "Despejar tudo no estoque" é clicado é que os itens viram
+   produtos de verdade em DB.products.
 ========================================================= */
-let scannerPending = null;
+const SCANNER_DRAFT_KEY = 'slmsys_scanner_draft';
+let scannerBatches = [];
+let scannerActiveBatchId = null;
+let scannerDraftDismissed = false; // depois de recuperar/descartar uma vez, não pergunta de novo na mesma sessão
+
+function scannerSaveDraft(){
+  try{
+    const temItens = scannerBatches.some(b=>b.items.length>0);
+    if(temItens) localStorage.setItem(SCANNER_DRAFT_KEY, JSON.stringify({batches:scannerBatches, activeId:scannerActiveBatchId}));
+    else localStorage.removeItem(SCANNER_DRAFT_KEY);
+  }catch(e){}
+}
+function scannerLoadDraftRaw(){
+  try{
+    const raw = localStorage.getItem(SCANNER_DRAFT_KEY);
+    if(!raw) return null;
+    const parsed = JSON.parse(raw);
+    if(parsed && Array.isArray(parsed.batches) && parsed.batches.some(b=>b.items && b.items.length>0)) return parsed;
+  }catch(e){}
+  return null;
+}
+function scannerHasUnrecoveredDraft(){
+  if(scannerDraftDismissed) return false;
+  if(scannerBatches.some(b=>b.items.length>0)) return false; // já está carregado na memória
+  return !!scannerLoadDraftRaw();
+}
+function scannerRecoverDraft(){
+  const draft = scannerLoadDraftRaw();
+  scannerDraftDismissed = true;
+  if(draft){
+    scannerBatches = draft.batches;
+    scannerActiveBatchId = (draft.activeId && scannerBatches.some(b=>b.id===draft.activeId)) ? draft.activeId : (scannerBatches[0] && scannerBatches[0].id);
+  }
+  renderScannerPendingForm();
+  toast('Alterações recuperadas.', 'ok');
+  const i=document.getElementById('scannerCodeInput'); if(i) i.focus();
+}
+function scannerDiscardDraft(){
+  confirmModal('Descartar as alterações não aplicadas? Os itens escaneados pendentes serão perdidos.', function(){
+    try{ localStorage.removeItem(SCANNER_DRAFT_KEY); }catch(e){}
+    scannerDraftDismissed = true;
+    scannerBatches = [];
+    scannerActiveBatchId = null;
+    renderScannerPendingForm();
+  }, { titulo:'Descartar alterações?', textoBtn:'Sim, descartar' });
+}
+function scannerEnsureActiveBatch(){
+  if(scannerActiveBatchId && scannerBatches.some(b=>b.id===scannerActiveBatchId)) return;
+  if(!scannerBatches.length){
+    scannerBatches.push({id:uid('sgrp'), categoria:'', nome:'', custo:0, venda:0, items:[]});
+  }
+  scannerActiveBatchId = scannerBatches[scannerBatches.length-1].id;
+}
+function scannerNewBatch(){
+  scannerBatches.push({id:uid('sgrp'), categoria:'', nome:'', custo:0, venda:0, items:[]});
+  scannerActiveBatchId = scannerBatches[scannerBatches.length-1].id;
+  renderScannerPendingForm();
+  scannerSaveDraft();
+}
+function scannerSetActiveBatch(id){
+  if(!scannerBatches.some(b=>b.id===id)) return;
+  scannerActiveBatchId = id;
+  renderScannerPendingForm();
+  const i=document.getElementById('scannerCodeInput'); if(i) i.focus();
+}
+function scannerRemoveBatch(id){
+  const b = scannerBatches.find(x=>x.id===id);
+  if(!b) return;
+  confirmModal('Remover este grupo'+(b.items.length?' e os '+b.items.length+' código(s) escaneados nele':'')+'? Nada disso será cadastrado no estoque.', function(){
+    scannerBatches = scannerBatches.filter(x=>x.id!==id);
+    if(scannerActiveBatchId===id) scannerActiveBatchId = null;
+    renderScannerPendingForm();
+    scannerSaveDraft();
+  }, { titulo:'Remover grupo?', textoBtn:'Sim, remover' });
+}
+function scannerBatchFieldChange(batchId, field, val){
+  const b = scannerBatches.find(x=>x.id===batchId);
+  if(!b) return;
+  b[field] = val;
+  scannerSaveDraft();
+}
+function scannerAdjustItemEstoque(batchId, barcode, delta){
+  const b = scannerBatches.find(x=>x.id===batchId);
+  if(!b) return;
+  const it = b.items.find(x=>x.barcode===barcode);
+  if(!it) return;
+  it.estoque = Math.max(1, it.estoque + delta);
+  renderScannerPendingForm();
+  scannerSaveDraft();
+}
+function scannerRemoveItem(batchId, barcode){
+  const b = scannerBatches.find(x=>x.id===batchId);
+  if(!b) return;
+  confirmModal('Remover o código '+barcode+' deste grupo?', function(){
+    b.items = b.items.filter(x=>x.barcode!==barcode);
+    renderScannerPendingForm();
+    scannerSaveDraft();
+  }, { titulo:'Remover código?', textoBtn:'Sim, remover' });
+}
 function scannerProcessCode(){
   const input = document.getElementById('scannerCodeInput');
   if(!input) return;
@@ -4818,128 +4919,173 @@ function scannerProcessCode(){
     return;
   }
 
-  if(scannerPending && scannerPending.barcode===code){
-    scannerAdjustEstoque(1);
-    toast('+1 no estoque do item pendente (total: '+scannerPending.estoque+')', 'ok');
-    input.focus();
-    return;
+  // Código já escaneado em algum grupo pendente: só soma +1, não importa em qual grupo esteja.
+  for(const b of scannerBatches){
+    const it = b.items.find(x=>x.barcode===code);
+    if(it){
+      it.estoque += 1;
+      scannerActiveBatchId = b.id;
+      renderScannerPendingForm();
+      scannerSaveDraft();
+      toast('+1 no código '+code+' (total: '+it.estoque+')', 'ok');
+      input.focus();
+      return;
+    }
   }
 
-  if(scannerPending && scannerPending.barcode!==code){
-    confirmModal(
-      'Você tem um produto pendente de cadastro (código '+scannerPending.barcode+') ainda não salvo. Deseja descartá-lo e começar um novo com o código escaneado agora?',
-      function(){
-        scannerPending = {barcode:code, nome:'', categoria:'', custo:0, venda:0, estoque:1};
-        renderScannerPendingForm();
-        setTimeout(()=>{ const i=document.getElementById('scannerCodeInput'); if(i) i.focus(); }, 50);
-      },
-      { titulo:'Descartar item pendente?', textoBtn:'Sim, começar novo' }
-    );
-    return;
-  }
-
-  scannerPending = {barcode:code, nome:'', categoria:'', custo:0, venda:0, estoque:1};
+  // Código novo: entra como item novo no grupo em uso no momento.
+  scannerEnsureActiveBatch();
+  const ativo = scannerBatches.find(b=>b.id===scannerActiveBatchId);
+  ativo.items.push({barcode:code, estoque:1});
   renderScannerPendingForm();
+  scannerSaveDraft();
   input.focus();
-}
-function scannerFieldChange(field, val){
-  if(!scannerPending) return;
-  scannerPending[field] = val;
-}
-function scannerAdjustEstoque(delta){
-  if(!scannerPending) return;
-  scannerPending.estoque = Math.max(1, scannerPending.estoque + delta);
-  const el = document.getElementById('sc_estoqueVal');
-  if(el) el.textContent = scannerPending.estoque;
-}
-function scannerDiscardPending(){
-  if(!scannerPending) return;
-  confirmModal('Descartar este item pendente (código '+scannerPending.barcode+')? Ele não será cadastrado.', function(){
-    scannerPending = null;
-    renderScannerPendingForm();
-    const i=document.getElementById('scannerCodeInput'); if(i) i.focus();
-  }, { titulo:'Descartar item?', textoBtn:'Sim, descartar' });
 }
 function renderScannerPendingForm(){
   const area = document.getElementById('scannerFormArea');
   if(!area) return;
-  if(!scannerPending){
-    area.innerHTML = '<div class="dimSmall">Nenhum código pendente. Escaneie um código de barras para começar o cadastro.</div>';
+
+  if(scannerHasUnrecoveredDraft()){
+    area.innerHTML = `
+      <div class="panel" style="background:var(--panel2);margin:0;border:1px solid var(--yellow);">
+        <div style="display:flex;gap:10px;align-items:flex-start;">
+          <div style="font-size:22px;line-height:1;">⚠️</div>
+          <div style="flex:1;">
+            <div style="font-weight:700;margin-bottom:4px;">Tem alterações não aplicadas</div>
+            <div class="dimSmall" style="margin-bottom:12px;">Você tinha códigos escaneados que ainda não foram jogados no estoque (a aba foi fechada, ou o app, antes de aplicar). Deseja recuperar de onde parou?</div>
+            <div style="display:flex;gap:8px;">
+              <button type="button" class="btn secondary" style="flex:1;" onclick="scannerDiscardDraft()">Descartar</button>
+              <button type="button" class="btn" style="flex:1;" onclick="scannerRecoverDraft()">Recuperar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
     return;
   }
-  const sp = scannerPending;
-  area.innerHTML = `
-    <div class="panel" style="background:var(--panel2);margin:0;">
-      <div class="dimSmall">Código escaneado (ainda não cadastrado no sistema)</div>
-      <div style="font-family:'Courier New',monospace;font-weight:700;font-size:17px;margin:2px 0 12px;">${sp.barcode}</div>
-      <div class="formGrid">
-        <div class="field pickerWrap"><label>Nome</label>
-          <input id="sc_nome" value="${(sp.nome||'').replace(/"/g,'&quot;')}" placeholder="Clique para ver os nomes cadastrados" autocomplete="off" onclick="openPicker('sc_nome','nome')" oninput="filterPicker('sc_nome','nome');scannerFieldChange('nome',this.value)">
-          <div class="pickerDropdown" id="sc_nome_dd"></div>
-        </div>
-        <div class="field pickerWrap"><label>Categoria</label>
-          <input id="sc_categoria" value="${(sp.categoria||'').replace(/"/g,'&quot;')}" placeholder="Clique para ver as categorias cadastradas" autocomplete="off" onclick="openPicker('sc_categoria','categoria')" oninput="filterPicker('sc_categoria','categoria');scannerFieldChange('categoria',this.value)">
-          <div class="pickerDropdown" id="sc_categoria_dd"></div>
-        </div>
-        <div class="field"><label>Preço de custo (R$)</label><input id="sc_custo" type="text" inputmode="decimal" value="${sp.custo?fmtMoneyInput(sp.custo):''}" placeholder="0,00" oninput="maskMoneyInput(this);scannerFieldChange('custo',moneyVal('sc_custo'))"></div>
-        <div class="field"><label>Preço de venda (R$)</label><input id="sc_venda" type="text" inputmode="decimal" value="${sp.venda?fmtMoneyInput(sp.venda):''}" placeholder="0,00" oninput="maskMoneyInput(this);scannerFieldChange('venda',moneyVal('sc_venda'))"></div>
-      </div>
-      <div class="field" style="margin-top:4px;">
-        <label>Estoque (quantidade de etiquetas escaneadas)</label>
-        <div style="display:flex;align-items:center;gap:10px;">
-          <button type="button" class="btn secondary small" onclick="scannerAdjustEstoque(-1)">-</button>
-          <b id="sc_estoqueVal" style="min-width:26px;text-align:center;font-size:16px;">${sp.estoque}</b>
-          <button type="button" class="btn secondary small" onclick="scannerAdjustEstoque(1)">+</button>
-        </div>
-        <div class="dimSmall" style="margin-top:4px;">Escaneie a mesma etiqueta de novo para somar automaticamente.</div>
-      </div>
-      <div style="display:flex;gap:8px;margin-top:14px;">
-        <button class="btn secondary" style="flex:1;" onclick="scannerDiscardPending()">Descartar</button>
-        <button class="btn" data-perm="estoque" style="flex:1;" onclick="scannerSaveProduct()">Cadastrar Produto</button>
-      </div>
+
+  if(!scannerBatches.length || !scannerBatches.some(b=>b.items.length>0)){
+    area.innerHTML = `
+      <div class="dimSmall" style="margin-bottom:10px;">Nenhum código pendente. Escaneie um código de barras acima para começar.</div>
+      ${scannerBatches.length ? scannerBatches.map((b,idx)=>scannerRenderBatchCard(b, idx)).join('') : ''}
+      <button type="button" class="btn secondary" style="margin-top:10px;" onclick="scannerNewBatch()">➕ Novo grupo (categoria/nome diferente)</button>
+    `;
+    return;
+  }
+
+  area.innerHTML = scannerBatches.map((b,idx)=>scannerRenderBatchCard(b, idx)).join('') + `
+    <div style="display:flex;gap:8px;margin-top:14px;">
+      <button type="button" class="btn secondary" style="flex:1;" onclick="scannerNewBatch()">➕ Novo grupo (categoria/nome diferente)</button>
+      <button type="button" class="btn" data-perm="estoque" style="flex:1;" onclick="scannerCommitAll()">📦 Despejar tudo no estoque</button>
     </div>
   `;
 }
-function scannerSaveProduct(){
-  if(!scannerPending) return;
+function scannerRenderBatchCard(b, idx){
+  const isActive = b.id === scannerActiveBatchId;
+  const totalUnidades = b.items.reduce((s,it)=>s+it.estoque,0);
+  return `
+    ${idx>0 ? `<div style="height:1px;background:var(--line);margin:18px 0;position:relative;"><span style="position:absolute;top:-9px;left:50%;transform:translateX(-50%);background:var(--panel);padding:0 10px;color:var(--text-dim);font-size:11px;letter-spacing:.5px;">GRUPO SEPARADO</span></div>` : ''}
+    <div class="panel" style="background:var(--panel2);margin:0 0 10px;border:1px solid ${isActive?'var(--orange)':'var(--line)'};cursor:pointer;" onclick="scannerSetActiveBatch('${b.id}')">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;">
+        <div class="chip" style="${isActive?'':'opacity:.55;'}">${isActive ? '🎯 Escaneando aqui' : 'Grupo '+(idx+1)}</div>
+        <button type="button" class="btn secondary small" onclick="event.stopPropagation();scannerRemoveBatch('${b.id}')">Remover grupo</button>
+      </div>
+      <div class="formGrid" onclick="event.stopPropagation();">
+        <div class="field pickerWrap"><label>Nome</label>
+          <input id="sb_nome_${b.id}" value="${(b.nome||'').replace(/"/g,'&quot;')}" placeholder="Clique para ver os nomes cadastrados" autocomplete="off" onclick="openPicker('sb_nome_${b.id}','nome')" oninput="filterPicker('sb_nome_${b.id}','nome');scannerBatchFieldChange('${b.id}','nome',this.value)">
+          <div class="pickerDropdown" id="sb_nome_${b.id}_dd"></div>
+        </div>
+        <div class="field pickerWrap"><label>Categoria</label>
+          <input id="sb_categoria_${b.id}" value="${(b.categoria||'').replace(/"/g,'&quot;')}" placeholder="Clique para ver as categorias cadastradas" autocomplete="off" onclick="openPicker('sb_categoria_${b.id}','categoria')" oninput="filterPicker('sb_categoria_${b.id}','categoria');scannerBatchFieldChange('${b.id}','categoria',this.value)">
+          <div class="pickerDropdown" id="sb_categoria_${b.id}_dd"></div>
+        </div>
+        <div class="field"><label>Preço de custo (R$)</label><input id="sb_custo_${b.id}" type="text" inputmode="decimal" value="${b.custo?fmtMoneyInput(b.custo):''}" placeholder="0,00" oninput="maskMoneyInput(this);scannerBatchFieldChange('${b.id}','custo',moneyVal('sb_custo_${b.id}'))"></div>
+        <div class="field"><label>Preço de venda (R$)</label><input id="sb_venda_${b.id}" type="text" inputmode="decimal" value="${b.venda?fmtMoneyInput(b.venda):''}" placeholder="0,00" oninput="maskMoneyInput(this);scannerBatchFieldChange('${b.id}','venda',moneyVal('sb_venda_${b.id}'))"></div>
+      </div>
+      <div class="dimSmall" style="margin:8px 0 4px;">O preço definido acima é aplicado automaticamente a todos os códigos deste grupo · ${b.items.length} código(s) · ${totalUnidades} unidade(s) no total</div>
+      ${b.items.length ? `
+      <table style="margin-top:6px;">
+        <thead><tr><th>Código</th><th>Qtd</th><th></th></tr></thead>
+        <tbody>
+          ${b.items.map(it=>`
+            <tr>
+              <td style="font-family:'Courier New',monospace;">${it.barcode}</td>
+              <td>
+                <div style="display:flex;align-items:center;gap:6px;" onclick="event.stopPropagation();">
+                  <button type="button" class="btn secondary small" onclick="scannerAdjustItemEstoque('${b.id}','${it.barcode}',-1)">-</button>
+                  <b>${it.estoque}</b>
+                  <button type="button" class="btn secondary small" onclick="scannerAdjustItemEstoque('${b.id}','${it.barcode}',1)">+</button>
+                </div>
+              </td>
+              <td><button type="button" class="btn secondary small" onclick="event.stopPropagation();scannerRemoveItem('${b.id}','${it.barcode}')">Remover</button></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>` : '<div class="dimSmall">Nenhum código escaneado neste grupo ainda.</div>'}
+    </div>
+  `;
+}
+function scannerCommitAll(){
   if(modoTeste){ alert('No modo teste o cadastro de produtos fica bloqueado. Os itens de teste já vêm pré-configurados.'); return; }
   if(!requirePerm(getPerms().canEditStock)) return;
-  const nome = (document.getElementById('sc_nome')?.value||'').trim();
-  if(!nome){ alert('Informe o nome do produto.'); return; }
-  if(DB.products.some(x=>x.barcode===scannerPending.barcode)){
-    alert('Esse código de barras já foi cadastrado em outro produto enquanto este ficava pendente. Escaneie novamente.');
-    scannerPending = null;
-    renderScannerPendingForm();
-    return;
+  const gruposComItens = scannerBatches.filter(b=>b.items.length>0);
+  if(!gruposComItens.length){ alert('Nenhum código escaneado para jogar no estoque.'); return; }
+
+  // Validação: todo grupo com itens precisa de nome definido.
+  for(const b of gruposComItens){
+    const nome = (b.nome||'').trim();
+    if(!nome){
+      alert('Informe o nome do produto no grupo com o código '+b.items[0].barcode+' antes de despejar no estoque.');
+      const i = document.getElementById('sb_nome_'+b.id); if(i) i.focus();
+      return;
+    }
   }
-  const categoria = (document.getElementById('sc_categoria')?.value||'').trim();
-  const custo = moneyVal('sc_custo');
-  const venda = moneyVal('sc_venda');
-  if(!DB.productNames.some(n=>n.nome.toLowerCase()===nome.toLowerCase())){
-    DB.productNames.push({id:uid('pn'), nome});
+
+  let criados = 0, pulados = 0;
+  const produtosNovos = [];
+  for(const b of gruposComItens){
+    const nome = (b.nome||'').trim();
+    const categoria = (b.categoria||'').trim();
+    const custo = Number(b.custo)||0;
+    const venda = Number(b.venda)||0;
+    if(!DB.productNames.some(n=>n.nome.toLowerCase()===nome.toLowerCase())){
+      DB.productNames.push({id:uid('pn'), nome});
+    }
+    if(categoria && !DB.categories.some(c=>c.nome.toLowerCase()===categoria.toLowerCase())){
+      DB.categories.push({id:uid('cat'), nome:categoria, groupId:''});
+    }
+    for(const it of b.items){
+      if(DB.products.some(x=>x.barcode===it.barcode)){
+        pulados++;
+        continue; // código foi cadastrado por outra via enquanto ficava pendente aqui
+      }
+      const p = {
+        id: uid('prod'),
+        nome, categoria,
+        tamanho:'', cor:'',
+        custo, venda,
+        estoque: it.estoque,
+        estoqueMin: 3,
+        barcode: it.barcode,
+        foto:'',
+        dataCadastro: todayISO(),
+        cadastradoPor: currentUser ? currentUser.nome : '-'
+      };
+      DB.products.push(p);
+      produtosNovos.push(p);
+      criados++;
+    }
   }
-  if(categoria && !DB.categories.some(c=>c.nome.toLowerCase()===categoria.toLowerCase())){
-    DB.categories.push({id:uid('cat'), nome:categoria, groupId:''});
-  }
-  const p = {
-    id: uid('prod'),
-    nome, categoria,
-    tamanho:'', cor:'',
-    custo, venda,
-    estoque: scannerPending.estoque,
-    estoqueMin: 3,
-    barcode: scannerPending.barcode,
-    foto:'',
-    dataCadastro: todayISO(),
-    cadastradoPor: currentUser ? currentUser.nome : '-'
-  };
-  DB.products.push(p);
-  log('Produto cadastrado via escaneamento: '+nome+' (código '+p.barcode+', estoque inicial '+p.estoque+')');
-  registrarAdicaoRecente(p);
-  scannerPending = null;
+  produtosNovos.forEach(p=>registrarAdicaoRecente(p));
+  if(criados) log('Despejo de estoque via escaneamento: '+criados+' produto(s) cadastrado(s) em '+gruposComItens.length+' grupo(s).');
+
+  scannerBatches = [];
+  scannerActiveBatchId = null;
+  try{ localStorage.removeItem(SCANNER_DRAFT_KEY); }catch(e){}
   renderCatalogDatalists();
   renderScannerPendingForm();
   renderEstoqueLista();
+  toast(criados+' produto(s) jogado(s) no estoque'+(pulados?' ('+pulados+' código(s) ignorado(s) por já existirem)':'')+'.', 'ok');
   const i=document.getElementById('scannerCodeInput'); if(i) i.focus();
 }
 /* =========================================================
