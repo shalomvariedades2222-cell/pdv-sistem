@@ -1150,6 +1150,15 @@ html.is-mobile .recentAddsPanel{width:100%;}
 }
 .dragHandleProduto:hover{color:var(--orange);background:var(--glass-bg-soft);}
 
+/* --- Lista de produtos excluídos (lixeira), aberta ao clicar/tocar no ícone flutuante --- */
+.lixeiraItem{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:10px 12px;border-radius:10px;
+  background:var(--glass-bg-soft);border:1px solid var(--glass-border-strong);
+}
+.lixeiraItemInfo{min-width:0;}
+.lixeiraItemNome{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
 /* --- ripple ao clicar nos botões (efeito de onda a partir do ponto do clique) --- */
 .btn{position:relative;overflow:hidden;}
 .rippleEffect{position:absolute;border-radius:50%;background:rgba(255,255,255,.55);transform:scale(0);animation:rippleAnim .6s ease-out;pointer-events:none;}
@@ -1388,6 +1397,10 @@ html.is-mobile .btn::before{ display:none; }
   .loginBox{ width:88vw; max-width:340px; padding:26px 20px 22px; }
   table{ display:block; overflow-x:auto; white-space:nowrap; }
   .statCard .val{ font-size:18px; }
+
+  /* Alvos maiores pro toque: arrastar produto até a lixeira, ou tocar na lixeira pra abrir os excluídos */
+  .dragHandleProduto{ padding:9px 11px; font-size:20px; }
+  .floatingTrashBtn{ width:62px; height:62px; font-size:27px; bottom:100px; }
 }
 </style>
 </head>
@@ -1619,7 +1632,7 @@ html.is-mobile .btn::before{ display:none; }
         <div id="stockAccessBanner" style="display:none;"></div>
         <!-- Lixeira flutuante: arraste com o mouse (ou dedo) pra qualquer canto da tela;
              arraste um produto até aqui (pelo ícone ✥ na linha dele) para excluí-lo. -->
-        <div class="floatingTrashBtn" id="estoqueTrashBtn" title="Arraste um produto até aqui para excluir">🗑️</div>
+        <div class="floatingTrashBtn" id="estoqueTrashBtn" title="Toque para ver produtos excluídos (recuperáveis por 6h) · arraste um produto até aqui para excluir">🗑️</div>
         <div class="tabs">
           <button class="tabBtn active" data-tab="lista" onclick="setEstoqueTab('lista')">Produtos</button>
           <button class="tabBtn" id="tabBtnCadastrar" data-tab="novo" onclick="setEstoqueTab('novo')">Cadastrar</button>
@@ -2376,6 +2389,7 @@ let DB = {
   categoryGroups: [], // grupos de categorias {id, nome}
   categories: [],      // categorias {id, nome, groupId}
   productNames: [],    // catálogo de nomes de peças {id, nome}
+  trashProducts: [],   // lixeira: cópias completas de produtos excluídos {id, product, deletedAt} — recuperáveis por 6h, ver limparLixeiraExpirada()
   deleted: {},         // "lápides" de exclusão: deleted[campo][id] = timestamp — ver garantirEstruturaDeletados()
   settings: { nomeLoja:'Shalom Variedades', contato:'', logo:'', impressora:'', papel:'80mm', etiquetaQr:'', etiquetaMostrarQr:true }
 };
@@ -2390,7 +2404,7 @@ let modoTeste = false; // true quando conectado com a chave "teste" — nada é 
 (function restoreFromLocalStorage(){
   try{
     const raw = localStorage.getItem('slmsys_db');
-    if(raw){ DB = JSON.parse(raw); if(!DB.deleted) DB.deleted = {}; }
+    if(raw){ DB = JSON.parse(raw); if(!DB.deleted) DB.deleted = {}; if(!Array.isArray(DB.trashProducts)) DB.trashProducts = []; }
   }catch(e){ console.error('Falha ao restaurar dados salvos:', e); }
 })();
 
@@ -2563,6 +2577,7 @@ async function loadFromGitHub(){
     const tombstonesAntesDoPull = (DB && DB.deleted) ? DB.deleted : null;
     DB = json.data;
     if(!DB.deleted) DB.deleted = {};
+    if(!Array.isArray(DB.trashProducts)) DB.trashProducts = [];
     if(tombstonesAntesDoPull) aplicarTombstonesLocais_(tombstonesAntesDoPull);
     driveVersion = json.version || 0;
     migrarFotosLegado_();
@@ -2601,7 +2616,7 @@ async function loadFromGitHub(){
    nas listas principais; por conteúdo, nas listas tipo log/caixa),
    e tenta salvar de novo com o resultado combinado.
 ------------------------------------------------------------ */
-const CAMPOS_POR_ID = ['products','customers','sales','employees','cashSessions','contas','incomingStock','outgoingStock','kits','categoryGroups','categories','productNames','stockRequests'];
+const CAMPOS_POR_ID = ['products','customers','sales','employees','cashSessions','contas','incomingStock','outgoingStock','kits','categoryGroups','categories','productNames','stockRequests','trashProducts'];
 const CAMPOS_SEM_ID = ['ledger','logs'];
 
 /* ------------------------------------------------------------
@@ -6724,9 +6739,11 @@ function deleteProduct(id){
   if(!requirePerm(getPerms().isTotal)) return;
   const p = DB.products.find(x=>x.id===id);
   if(!p) return;
-  confirmModal(`Excluir o produto <b>"${p.nome}"</b>? Essa ação não pode ser desfeita.`, ()=>{
+  confirmModal(`Excluir o produto <b>"${p.nome}"</b>? Ele fica na lixeira 🗑️ e pode ser recuperado nas próximas 6 horas — depois disso é apagado definitivamente do servidor.`, ()=>{
     DB.products = DB.products.filter(x=>x.id!==id);
     marcarExcluido('products', id);
+    if(!Array.isArray(DB.trashProducts)) DB.trashProducts = [];
+    DB.trashProducts.push({ id: uid('trash'), product: p, deletedAt: Date.now() });
     if(p.foto) marcarFotoAlterada(chaveFotoProduto(p.id), null);
     log('Produto excluído: '+p.nome);
     flashSaving();
@@ -6795,17 +6812,27 @@ function soltarProdutoSobreLixeira(e){
       btn.style.bottom = 'auto';
     }
   }catch(err){}
-  let arrastandoBtn = false, offX = 0, offY = 0;
+  /* Precisa diferenciar "arrastar o ícone pra outro canto" de "só tocar/clicar pra
+     abrir a lista de produtos excluídos": só conta como arrasto de verdade se o
+     ponteiro se mover mais que LIMIAR_ARRASTO pixels; senão, no soltar, é um clique. */
+  const LIMIAR_ARRASTO = 6;
+  let pressionando = false, moveu = false, offX = 0, offY = 0, downX = 0, downY = 0;
   btn.addEventListener('pointerdown', function(e){
-    arrastandoBtn = true;
+    pressionando = true;
+    moveu = false;
+    downX = e.clientX; downY = e.clientY;
     const r = btn.getBoundingClientRect();
     offX = e.clientX - r.left;
     offY = e.clientY - r.top;
     btn.setPointerCapture(e.pointerId);
-    btn.classList.add('arrastando');
   });
   btn.addEventListener('pointermove', function(e){
-    if(!arrastandoBtn) return;
+    if(!pressionando) return;
+    if(!moveu){
+      if(Math.abs(e.clientX-downX) <= LIMIAR_ARRASTO && Math.abs(e.clientY-downY) <= LIMIAR_ARRASTO) return;
+      moveu = true;
+      btn.classList.add('arrastando');
+    }
     let x = e.clientX - offX, y = e.clientY - offY;
     x = Math.max(4, Math.min(window.innerWidth - btn.offsetWidth - 4, x));
     y = Math.max(4, Math.min(window.innerHeight - btn.offsetHeight - 4, y));
@@ -6815,16 +6842,105 @@ function soltarProdutoSobreLixeira(e){
     btn.style.bottom = 'auto';
   });
   function soltarBtn(){
-    if(!arrastandoBtn) return;
-    arrastandoBtn = false;
+    if(!pressionando) return;
+    pressionando = false;
     btn.classList.remove('arrastando');
-    try{
-      localStorage.setItem(POS_KEY, JSON.stringify({ x: parseInt(btn.style.left)||0, y: parseInt(btn.style.top)||0 }));
-    }catch(err){}
+    if(moveu){
+      try{
+        localStorage.setItem(POS_KEY, JSON.stringify({ x: parseInt(btn.style.left)||0, y: parseInt(btn.style.top)||0 }));
+      }catch(err){}
+    } else {
+      abrirLixeiraProdutos(); // não arrastou: foi um toque/clique -> abre os produtos excluídos
+    }
   }
   btn.addEventListener('pointerup', soltarBtn);
-  btn.addEventListener('pointercancel', soltarBtn);
+  btn.addEventListener('pointercancel', function(){ pressionando = false; moveu = false; btn.classList.remove('arrastando'); });
 })();
+
+/* ---------------- Lixeira de produtos excluídos (recuperação em até 6h) ----------------
+   deleteProduct() guarda uma cópia completa do produto em DB.trashProducts junto com o
+   horário da exclusão. Tocar/clicar (sem arrastar) na lixeira flutuante abre essa lista,
+   com um botão de "Recuperar" em cada item. Passadas 6 horas, o item é removido para
+   sempre — some da lixeira e do servidor, igual uma exclusão normal. */
+const LIXEIRA_PRAZO_MS = 6 * 60 * 60 * 1000; // 6 horas
+
+function limparLixeiraExpirada(){
+  if(!Array.isArray(DB.trashProducts) || !DB.trashProducts.length) return false;
+  const agora = Date.now();
+  const validos = [];
+  let removeuAlgum = false;
+  DB.trashProducts.forEach(function(entry){
+    if(entry && (agora - entry.deletedAt) < LIXEIRA_PRAZO_MS){
+      validos.push(entry);
+    } else if(entry){
+      marcarExcluido('trashProducts', entry.id); // registra a "lápide" pra não ressuscitar via sync com outro aparelho
+      removeuAlgum = true;
+    }
+  });
+  if(removeuAlgum){
+    DB.trashProducts = validos;
+    flashSaving();
+  }
+  return removeuAlgum;
+}
+// Reavalia periodicamente mesmo com a tela aberta, pra sumir da lista sozinho quando o prazo acabar
+setInterval(function(){
+  const mudou = limparLixeiraExpirada();
+  const painelAberto = document.getElementById('lixeiraProdutosLista');
+  if(mudou && painelAberto) renderLixeiraProdutosModal();
+}, 60*1000);
+
+function fmtTempoRestanteLixeira(deletedAt){
+  const restanteMs = LIXEIRA_PRAZO_MS - (Date.now() - deletedAt);
+  if(restanteMs <= 0) return 'expirando...';
+  const totalMin = Math.ceil(restanteMs/60000);
+  const h = Math.floor(totalMin/60), m = totalMin%60;
+  if(h>0) return `expira em ${h}h${m>0?(' '+m+'min'):''}`;
+  return `expira em ${m}min`;
+}
+
+function abrirLixeiraProdutos(){
+  if(!requirePerm(getPerms().isTotal)) return;
+  limparLixeiraExpirada();
+  renderLixeiraProdutosModal();
+}
+
+function renderLixeiraProdutosModal(){
+  const itens = (DB.trashProducts||[]).slice().sort((a,b)=>b.deletedAt-a.deletedAt);
+  const linhas = itens.map(function(entry){
+    const p = entry.product || {};
+    return `<div class="lixeiraItem">
+      <div class="lixeiraItemInfo">
+        <div class="lixeiraItemNome">${p.nome||'(sem nome)'}</div>
+        <div class="dimSmall">${fmtTempoRestanteLixeira(entry.deletedAt)}</div>
+      </div>
+      <button class="btn small" onclick="recuperarProdutoLixeira('${entry.id}')">↩️ Recuperar</button>
+    </div>`;
+  }).join('') || '<p class="dimSmall">A lixeira está vazia. Produtos excluídos aparecem aqui por até 6 horas.</p>';
+  showModal(`
+    <button class="modalClose" onclick="closeModal()">×</button>
+    <h3>🗑️ Produtos excluídos</h3>
+    <div class="dimSmall" style="margin-bottom:14px;">Ficam guardados aqui por 6 horas. Depois disso, são apagados definitivamente do servidor.</div>
+    <div id="lixeiraProdutosLista" style="display:flex;flex-direction:column;gap:8px;max-height:60vh;overflow-y:auto;">${linhas}</div>
+  `);
+}
+
+function recuperarProdutoLixeira(trashId){
+  const idx = (DB.trashProducts||[]).findIndex(e=>e && e.id===trashId);
+  if(idx<0) return;
+  const entry = DB.trashProducts[idx];
+  const p = entry.product;
+  DB.trashProducts.splice(idx,1);
+  marcarExcluido('trashProducts', trashId);
+  if(!p){ flashSaving(); renderLixeiraProdutosModal(); return; }
+  DB.products.push(p);
+  if(DB.deleted && DB.deleted.products) delete DB.deleted.products[p.id]; // remove a lápide pra não ser excluído de novo no próximo sync
+  log('Produto restaurado da lixeira: '+p.nome);
+  flashSaving();
+  renderEstoqueLista();
+  renderLixeiraProdutosModal();
+  toast('Produto restaurado.');
+}
 
 function fixDuplicateBarcodes(){
   const seen = new Set();
