@@ -10,13 +10,13 @@
   "orientation": "any",
   "icons": [
     {
-      "src": "ic.png",
+      "src": "ice.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "ic.png",
+      "src": "ice.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
