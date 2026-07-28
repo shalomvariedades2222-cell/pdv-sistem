@@ -1113,6 +1113,43 @@ html.is-mobile .recentAddsPanel{width:100%;}
 .logoOptionBtn:hover,.btn.small:hover{transform:translateY(-2px);}
 .logoOptionBtn.active{animation:navActiveGlow 1s ease;}
 
+/* --- Lixeira flutuante do Estoque (arrastável com mouse ou dedo) ---
+   Fica visível só enquanto a tela de Estoque está aberta. O usuário pode
+   arrastar o próprio ícone pra qualquer canto da tela (posição é lembrada),
+   e também pode arrastar um produto da lista até em cima dela pra excluir. */
+.floatingTrashBtn{
+  position:fixed;right:22px;bottom:90px;
+  width:56px;height:56px;border-radius:50%;
+  display:none;align-items:center;justify-content:center;
+  font-size:24px;line-height:1;
+  background:var(--glass-bg-strong);
+  border:1.5px solid var(--glass-border-strong);
+  box-shadow:0 8px 24px rgba(0,0,0,.4);
+  backdrop-filter:blur(var(--glass-blur)) saturate(160%);
+  -webkit-backdrop-filter:blur(var(--glass-blur)) saturate(160%);
+  cursor:grab;z-index:1500;touch-action:none;user-select:none;
+  transition:transform .15s ease, box-shadow .15s ease, background .15s ease, border-color .15s ease;
+}
+.floatingTrashBtn.visible{display:flex;}
+.floatingTrashBtn.arrastando{cursor:grabbing;transform:scale(1.06);}
+.floatingTrashBtn.dragOver{
+  background:linear-gradient(160deg, rgba(224,80,63,.45), var(--glass-bg-strong));
+  border-color:var(--red);transform:scale(1.18);
+  box-shadow:0 10px 30px rgba(224,80,63,.45);
+}
+.dragGhostProduto{
+  position:fixed;top:0;left:0;z-index:1600;pointer-events:none;
+  background:var(--glass-bg-strong);border:1px solid var(--glass-border-strong);
+  border-radius:8px;padding:6px 12px;font-size:13px;white-space:nowrap;
+  box-shadow:0 6px 18px rgba(0,0,0,.4);transform:translate(-50%,-50%);
+  opacity:.94;
+}
+.dragHandleProduto{
+  cursor:grab;padding:4px 7px;border-radius:6px;font-size:15px;
+  color:var(--text-dim);touch-action:none;user-select:none;
+}
+.dragHandleProduto:hover{color:var(--orange);background:var(--glass-bg-soft);}
+
 /* --- ripple ao clicar nos botões (efeito de onda a partir do ponto do clique) --- */
 .btn{position:relative;overflow:hidden;}
 .rippleEffect{position:absolute;border-radius:50%;background:rgba(255,255,255,.55);transform:scale(0);animation:rippleAnim .6s ease-out;pointer-events:none;}
@@ -1195,6 +1232,19 @@ html.anim-off-modal .modalBox, html.anim-off-modal .modalBg{animation:none !impo
 
 /* 9) Vidro desfocado (blur de fundo em painéis, sidebar, modais etc.) */
 html.anim-off-blur *{backdrop-filter:none !important;-webkit-backdrop-filter:none !important;}
+/* Com o blur desligado, o fundo "vendo através" fica estranho sem o desfoque —
+   por isso, em vez de continuar transparente, os painéis passam a usar um
+   preenchimento OPACO com um tom laranja bem fraco (discreto), no lugar do
+   degradê semitransparente do "vidro derretido". Como tudo já usa var(--glass-*),
+   basta redefinir essas variáveis aqui que todo o app muda de uma vez. */
+html.anim-off-blur{
+  --glass-bg:#251d17;
+  --glass-bg-strong:#2a2119;
+  --glass-bg-soft:#211a15;
+  --glass-border:rgba(255,172,112,.16);
+  --glass-border-strong:rgba(255,172,112,.24);
+  --glass-highlight:rgba(255,222,190,.10);
+}
 
 /* 10) Notificações (toasts) */
 html.anim-off-toast .toast{animation:none !important;transition:none !important;}
@@ -1539,6 +1589,9 @@ html.is-mobile .btn::before{ display:none; }
       <!-- ============ ESTOQUE ============ -->
       <div class="view" id="view-estoque">
         <div id="stockAccessBanner" style="display:none;"></div>
+        <!-- Lixeira flutuante: arraste com o mouse (ou dedo) pra qualquer canto da tela;
+             arraste um produto até aqui (pelo ícone ✥ na linha dele) para excluí-lo. -->
+        <div class="floatingTrashBtn" id="estoqueTrashBtn" title="Arraste um produto até aqui para excluir">🗑️</div>
         <div class="tabs">
           <button class="tabBtn active" data-tab="lista" onclick="setEstoqueTab('lista')">Produtos</button>
           <button class="tabBtn" id="tabBtnCadastrar" data-tab="novo" onclick="setEstoqueTab('novo')">Cadastrar</button>
@@ -3824,6 +3877,8 @@ function showView(name){
   document.getElementById('viewTitle').textContent = viewTitles[name];
   if(name==='vendas'){ renderProductGrid(); focusSearchBox(); }
   if(name==='estoque') renderEstoqueLista();
+  const trashBtn = document.getElementById('estoqueTrashBtn');
+  if(trashBtn) trashBtn.classList.toggle('visible', name==='estoque');
   if(name==='clientes') renderClientesLista();
   if(name==='caixa') renderCaixa();
   if(name==='relatorios') renderRelatorios();
@@ -5223,6 +5278,7 @@ function renderEstoqueLista(){
           ${perm.isTotal?`<button class="btn small secondary" onclick="editProduct('${p.id}')">Editar</button>`:''}
           <button class="btn small secondary" onclick="openLabelPicker('${p.id}')">Etiqueta</button>
           ${perm.isTotal?`<button class="btn small danger" onclick="deleteProduct('${p.id}')">Excluir</button>`:''}
+          ${perm.isTotal?`<span class="dragHandleProduto" title="Arraste até a lixeira flutuante para excluir" onpointerdown="iniciarArrastarProdutoParaLixeira(event,'${p.id}')">✥</span>`:''}
         </td>
       </tr>`;
     }).join('');
@@ -6628,6 +6684,99 @@ function deleteProduct(id){
     renderEstoqueLista();
   }, {textoBtn:'Excluir'});
 }
+/* ---------------- Lixeira flutuante do Estoque (arrastar para excluir) ----------------
+   Duas coisas independentes usam ponteiro (mouse OU dedo, via Pointer Events):
+   1) Arrastar o PRÓPRIO ícone da lixeira pra qualquer canto da tela (posição
+      salva neste aparelho, em localStorage).
+   2) Arrastar um PRODUTO (pela alcinha ✥ da linha dele) até em cima da lixeira,
+      soltando ali para excluir (reaproveita a mesma confirmação de deleteProduct). */
+let arrastandoProdutoParaLixeira = null;
+function iniciarArrastarProdutoParaLixeira(e, id){
+  if(!getPerms().isTotal) return;
+  e.preventDefault();
+  const p = DB.products.find(x=>x.id===id);
+  if(!p) return;
+  const ghost = document.createElement('div');
+  ghost.className = 'dragGhostProduto';
+  ghost.textContent = '🗑️ '+p.nome;
+  document.body.appendChild(ghost);
+  arrastandoProdutoParaLixeira = { id, ghost };
+  moverGhostProduto(e);
+  document.addEventListener('pointermove', moverGhostProduto);
+  document.addEventListener('pointerup', soltarProdutoSobreLixeira);
+  document.addEventListener('pointercancel', soltarProdutoSobreLixeira);
+}
+function moverGhostProduto(e){
+  if(!arrastandoProdutoParaLixeira) return;
+  arrastandoProdutoParaLixeira.ghost.style.left = e.clientX+'px';
+  arrastandoProdutoParaLixeira.ghost.style.top = e.clientY+'px';
+  const trash = document.getElementById('estoqueTrashBtn');
+  if(trash){
+    const r = trash.getBoundingClientRect();
+    const dentro = e.clientX>=r.left && e.clientX<=r.right && e.clientY>=r.top && e.clientY<=r.bottom;
+    trash.classList.toggle('dragOver', dentro);
+  }
+}
+function soltarProdutoSobreLixeira(e){
+  document.removeEventListener('pointermove', moverGhostProduto);
+  document.removeEventListener('pointerup', soltarProdutoSobreLixeira);
+  document.removeEventListener('pointercancel', soltarProdutoSobreLixeira);
+  if(!arrastandoProdutoParaLixeira) return;
+  const { id, ghost } = arrastandoProdutoParaLixeira;
+  ghost.remove();
+  arrastandoProdutoParaLixeira = null;
+  const trash = document.getElementById('estoqueTrashBtn');
+  if(!trash) return;
+  trash.classList.remove('dragOver');
+  const r = trash.getBoundingClientRect();
+  const dentro = e.clientX>=r.left && e.clientX<=r.right && e.clientY>=r.top && e.clientY<=r.bottom;
+  if(dentro) deleteProduct(id);
+}
+(function initFloatingTrashBtn(){
+  const btn = document.getElementById('estoqueTrashBtn');
+  if(!btn) return;
+  const POS_KEY = 'slmsys_trashBtnPos';
+  try{
+    const raw = localStorage.getItem(POS_KEY);
+    if(raw){
+      const pos = JSON.parse(raw);
+      btn.style.left = pos.x+'px';
+      btn.style.top = pos.y+'px';
+      btn.style.right = 'auto';
+      btn.style.bottom = 'auto';
+    }
+  }catch(err){}
+  let arrastandoBtn = false, offX = 0, offY = 0;
+  btn.addEventListener('pointerdown', function(e){
+    arrastandoBtn = true;
+    const r = btn.getBoundingClientRect();
+    offX = e.clientX - r.left;
+    offY = e.clientY - r.top;
+    btn.setPointerCapture(e.pointerId);
+    btn.classList.add('arrastando');
+  });
+  btn.addEventListener('pointermove', function(e){
+    if(!arrastandoBtn) return;
+    let x = e.clientX - offX, y = e.clientY - offY;
+    x = Math.max(4, Math.min(window.innerWidth - btn.offsetWidth - 4, x));
+    y = Math.max(4, Math.min(window.innerHeight - btn.offsetHeight - 4, y));
+    btn.style.left = x+'px';
+    btn.style.top = y+'px';
+    btn.style.right = 'auto';
+    btn.style.bottom = 'auto';
+  });
+  function soltarBtn(){
+    if(!arrastandoBtn) return;
+    arrastandoBtn = false;
+    btn.classList.remove('arrastando');
+    try{
+      localStorage.setItem(POS_KEY, JSON.stringify({ x: parseInt(btn.style.left)||0, y: parseInt(btn.style.top)||0 }));
+    }catch(err){}
+  }
+  btn.addEventListener('pointerup', soltarBtn);
+  btn.addEventListener('pointercancel', soltarBtn);
+})();
+
 function fixDuplicateBarcodes(){
   const seen = new Set();
   let fixed = 0;
