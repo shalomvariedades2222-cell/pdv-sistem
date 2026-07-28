@@ -1188,6 +1188,34 @@ html.is-mobile .recentAddsPanel{width:100%;}
 @keyframes confettiFall{0%{transform:translateY(-10px) rotate(0deg);opacity:1;}100%{transform:translateY(280px) rotate(540deg);opacity:0;}}
 
 /* =========================================================
+   ESTILO DOS PAINÉIS: vidro derretido (padrão) ou opaco
+   (Configurações → Animações do Sistema). Escolha 100% local
+   a este aparelho — assim como o resto desta seção.
+========================================================= */
+html.painel-opaco *{backdrop-filter:none !important;-webkit-backdrop-filter:none !important;}
+html.painel-opaco{
+  --glass-bg:#251d17;
+  --glass-bg-strong:#2a2119;
+  --glass-bg-soft:#211a15;
+  --glass-border:rgba(255,172,112,.16);
+  --glass-border-strong:rgba(255,172,112,.24);
+  --glass-highlight:rgba(255,222,190,.10);
+}
+
+/* =========================================================
+   ESTILO DO FUNDO DO APP: vidro derretido animado (padrão),
+   vidro opaco (sem as manchas em movimento) ou cor sólida
+   escolhida pelo usuário. Escolha 100% local a este aparelho.
+========================================================= */
+html.fundo-opaco body::before, html.fundo-opaco body::after,
+html.fundo-cor body::before, html.fundo-cor body::after{
+  display:none !important;
+}
+html.fundo-cor body{
+  background:var(--fundo-custom-color, var(--bg)) !important;
+}
+
+/* =========================================================
    CONTROLE INDIVIDUAL DE ANIMAÇÕES (Configurações → Aparência)
    Cada categoria pode ser ligada/desligada separadamente.
 ========================================================= */
@@ -2150,7 +2178,28 @@ html.is-mobile .btn::before{ display:none; }
         <div class="panel" style="max-width:520px;">
           <h3>✨ Animações do Sistema</h3>
           <p class="dimSmall" style="margin-top:-6px;">O sistema usa animações suaves nos botões, cards, telas e janelas para ficar mais agradável de usar. Todos os interruptores ficam reunidos aqui, em um único grupo — deixe ligado o que gosta e desligue o resto (útil também se o aparelho for mais fraco). Área protegida por senha.</p>
-          <div id="animTogglesWrap"></div>
+          <div class="field" style="margin-top:6px;border-top:1px solid var(--line);padding-top:10px;">
+            <label>🫧 Estilo dos Painéis (cards, telas, janelas)</label>
+            <div class="dimSmall" style="margin-bottom:6px;">Escolha a aparência dos painéis do sistema: efeito de vidro derretido (translúcido, com desfoque) ou opaco (sólido, sem transparência). Guardado só neste aparelho.</div>
+            <select id="cfg_painelEstilo" onchange="mudarPainelEstilo(this.value)">
+              <option value="vidro">🫧 Vidro derretido (padrão)</option>
+              <option value="opaco">⬜ Opaco</option>
+            </select>
+          </div>
+          <div class="field" style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px;">
+            <label>🎨 Estilo do Fundo do App</label>
+            <div class="dimSmall" style="margin-bottom:6px;">Escolha o fundo por trás de tudo: vidro derretido animado (padrão), vidro opaco (sem as manchas animadas) ou uma cor sólida à sua escolha. Guardado só neste aparelho.</div>
+            <select id="cfg_fundoEstilo" onchange="mudarFundoEstilo(this.value)">
+              <option value="vidro">🫧 Vidro derretido (padrão)</option>
+              <option value="opaco">⬜ Vidro opaco</option>
+              <option value="cor">🎨 Cor sólida</option>
+            </select>
+            <div id="cfg_fundoCorWrap" style="display:none;margin-top:8px;align-items:center;gap:8px;">
+              <input type="color" id="cfg_fundoCor" value="#151110" onchange="mudarFundoCor(this.value)" style="width:50px;height:36px;padding:2px;border:1px solid var(--line);border-radius:8px;background:none;">
+              <span class="dimSmall">Cor de fundo escolhida</span>
+            </div>
+          </div>
+          <div id="animTogglesWrap" style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px;"></div>
         </div>
         <div class="panel" style="max-width:520px;">
           <h3>Etiqueta de Produtos</h3>
@@ -7833,11 +7882,79 @@ function renderConfig(){
   document.getElementById('cfg_etiquetaCor').value = DB.settings.etiquetaCor || '#000000';
   document.getElementById('cfg_etiquetaModoCustom').checked = !!DB.settings.etiquetaModoCustom;
   updateLogoOptionUI();
+  renderVisualConfigUI();
   renderAnimTogglesUI();
   renderConfigLog();
   renderTelaCheiaBtn();
   renderAutoLoginBtn();
   renderAutostartBtn();
+}
+
+/* ================= Estilo dos painéis e do fundo (vidro/opaco/cor) =================
+   Assim como as animações, isso é 100% LOCAL a este aparelho: nunca é enviado
+   nem lido do servidor (Apps Script), então cada aparelho pode ter uma
+   preferência visual diferente. Não é protegido por senha, pois é só um
+   ajuste de aparência, sem impacto nos dados da loja. */
+const VISUAL_LOCAL_KEY = 'slmsys_visualConfig_local';
+function lerVisualConfigLocal_(){
+  try{
+    const raw = localStorage.getItem(VISUAL_LOCAL_KEY);
+    if(raw) return JSON.parse(raw);
+  }catch(e){}
+  return null;
+}
+function salvarVisualConfigLocal_(cfg){
+  try{ localStorage.setItem(VISUAL_LOCAL_KEY, JSON.stringify(cfg)); }catch(e){}
+}
+function ensureVisualConfig(){
+  let cfg = lerVisualConfigLocal_();
+  if(!cfg) cfg = {};
+  if(cfg.painelEstilo!=='opaco') cfg.painelEstilo = 'vidro';
+  if(!['vidro','opaco','cor'].includes(cfg.fundoEstilo)) cfg.fundoEstilo = 'vidro';
+  if(!cfg.fundoCor) cfg.fundoCor = '#151110';
+  salvarVisualConfigLocal_(cfg);
+  return cfg;
+}
+function aplicarVisualConfig(){
+  const cfg = ensureVisualConfig();
+  document.documentElement.classList.toggle('painel-opaco', cfg.painelEstilo==='opaco');
+  document.documentElement.classList.toggle('fundo-opaco', cfg.fundoEstilo==='opaco');
+  document.documentElement.classList.toggle('fundo-cor', cfg.fundoEstilo==='cor');
+  document.documentElement.style.setProperty('--fundo-custom-color', cfg.fundoEstilo==='cor' ? cfg.fundoCor : '');
+}
+function renderVisualConfigUI(){
+  const cfg = ensureVisualConfig();
+  const selPainel = document.getElementById('cfg_painelEstilo');
+  const selFundo = document.getElementById('cfg_fundoEstilo');
+  const corWrap = document.getElementById('cfg_fundoCorWrap');
+  const corInput = document.getElementById('cfg_fundoCor');
+  if(selPainel) selPainel.value = cfg.painelEstilo;
+  if(selFundo) selFundo.value = cfg.fundoEstilo;
+  if(corInput) corInput.value = cfg.fundoCor;
+  if(corWrap) corWrap.style.display = cfg.fundoEstilo==='cor' ? 'flex' : 'none';
+}
+function mudarPainelEstilo(v){
+  const cfg = ensureVisualConfig();
+  cfg.painelEstilo = (v==='opaco') ? 'opaco' : 'vidro';
+  salvarVisualConfigLocal_(cfg);
+  aplicarVisualConfig();
+  toast('Estilo dos painéis: '+(cfg.painelEstilo==='vidro'?'vidro derretido':'opaco')+' (só neste aparelho)', 'ok');
+}
+function mudarFundoEstilo(v){
+  const cfg = ensureVisualConfig();
+  cfg.fundoEstilo = ['vidro','opaco','cor'].includes(v) ? v : 'vidro';
+  salvarVisualConfigLocal_(cfg);
+  aplicarVisualConfig();
+  renderVisualConfigUI();
+  const label = cfg.fundoEstilo==='vidro' ? 'vidro derretido' : (cfg.fundoEstilo==='opaco' ? 'vidro opaco' : 'cor sólida');
+  toast('Estilo do fundo: '+label+' (só neste aparelho)', 'ok');
+}
+function mudarFundoCor(v){
+  const cfg = ensureVisualConfig();
+  cfg.fundoCor = v || '#151110';
+  salvarVisualConfigLocal_(cfg);
+  aplicarVisualConfig();
+  toast('Cor de fundo atualizada (só neste aparelho)', 'ok');
 }
 
 /* ================= Controle individual de animações ================= */
@@ -8624,6 +8741,7 @@ normalizePerfis();
 fixDuplicateBarcodes();
 ensureCatalogDefaults();
 aplicarAnimacoesGlobais();
+aplicarVisualConfig();
 renderLoginAvatars();
 tentarLoginAutomatico();
 
