@@ -24,7 +24,7 @@ const ARQUIVOS_DO_APP = [
   './',
   './index.html',
   './manifest.json',
-  './ic.png'
+  './ice.png'
 ];
 
 // Bibliotecas externas usadas pelo app (código de barras, QR code, PDF,
