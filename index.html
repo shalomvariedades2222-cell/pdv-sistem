@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SLMsys — Shalom Variedades</title>
-<link rel="shortcut icon" href="ice.png" type="image/x-icon">
+<link rel="shortcut icon" href="ic.png" type="image/x-icon">
 <link rel="manifest" href="manifest.json">
-<link rel="apple-touch-icon" href="ice.png">
+<link rel="apple-touch-icon" href="ic.png">
 <meta name="theme-color" content="#151110">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1478,6 +1478,7 @@ html.is-mobile .btn::before{ display:none; }
         <span class="avatarCircle" id="selectedAvatarCircle"></span>
         <span class="avatarName" id="selectedAvatarName"></span>
       </div>
+      <div class="loginHint" id="loginTestPassHint" style="display:none;color:var(--yellow);"></div>
       <input id="loginPass" type="password" placeholder="Senha" autocomplete="current-password" onkeydown="if(event.key==='Enter'){event.preventDefault();doLogin();}">
       <div class="field" style="display:flex;align-items:center;gap:8px;margin-top:4px;">
         <input type="checkbox" id="loginManterConectado" style="width:auto;margin:0;">
@@ -2512,7 +2513,7 @@ function ativarModoTeste(){
     customers: [],
     sales: [],
     employees: [
-      {id:'u1', nome:'Administrador (Teste)', usuario:'admin', senha:'admin', perfil:'total', comissao:0}
+      {id:'u1', nome:'Teste', usuario:'teste', senha:'teste', perfil:'total', comissao:0}
     ],
     cashSessions: [],
     cashCurrentOpenId: null,
@@ -2528,15 +2529,6 @@ function ativarModoTeste(){
     productNames: nomesTeste,
     settings: { nomeLoja:'Shalom Variedades (MODO TESTE)', contato:'', logo:'', impressora:'', papel:'80mm', etiquetaQr:'', etiquetaMostrarQr:true }
   };
-  mostrarBannerModoTeste();
-}
-function mostrarBannerModoTeste(){
-  if(document.getElementById('modoTesteBanner')) return;
-  const b = document.createElement('div');
-  b.id = 'modoTesteBanner';
-  b.textContent = '🧪 MODO TESTE — nada está sendo salvo (nem no servidor, nem neste navegador)';
-  b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:5000;background:var(--yellow);color:#241a10;font-weight:800;font-size:12px;text-align:center;padding:6px 10px;letter-spacing:.3px;';
-  document.body.appendChild(b);
 }
 
 // true quando a ÚLTIMA falha de loadFromGitHub foi por falta de conexão (sem
@@ -3739,6 +3731,14 @@ function selectLoginAvatar(id){
   document.getElementById('loginPass').value = '';
   document.getElementById('loginPassErr').textContent = '';
   document.getElementById('forgotPassBox').style.display = 'none';
+  // Dica de senha: só aparece no modo teste, pra quem está testando o sistema
+  // saber que a senha é "teste" sem precisar adivinhar. Nunca aparece com
+  // dados reais.
+  const hint = document.getElementById('loginTestPassHint');
+  if(hint){
+    if(modoTeste){ hint.style.display = ''; hint.textContent = '🧪 Modo teste — a senha é: teste'; }
+    else { hint.style.display = 'none'; hint.textContent = ''; }
+  }
   setTimeout(()=>document.getElementById('loginPass').focus(), 60);
 }
 function backToAvatars(){
@@ -4668,6 +4668,29 @@ function registrarAdicaoRecente(p){
   renderRecentAdds();
   setTimeout(function(){ expirarAdicaoRecente(item.id); }, RECENT_ADD_MS);
 }
+// Formata um intervalo em milissegundos como HH:MM:SS (sempre com as 3 partes,
+// mesmo quando ainda não passou 1 minuto), pra mostrar há quanto tempo cada
+// produto foi cadastrado no painel "Adicionados agora".
+function formatElapsedHMS(ms){
+  const totalSeg = Math.max(0, Math.floor(ms/1000));
+  const h = Math.floor(totalSeg/3600);
+  const m = Math.floor((totalSeg%3600)/60);
+  const s = totalSeg%60;
+  const pad = function(n){ return String(n).padStart(2,'0'); };
+  return pad(h)+':'+pad(m)+':'+pad(s);
+}
+// Chamada a cada segundo (via tickClock) pra atualizar só o texto do tempo
+// decorrido de cada item já renderizado, sem precisar redesenhar a lista
+// inteira (evita perder o hover/estado do botão "Tentar imprimir novamente").
+function atualizarTemposRecentAdds(){
+  if(!recentAdds.length) return;
+  recentAdds.forEach(function(item){
+    ['recentAddsCadastro','recentAddsLista'].forEach(function(containerId){
+      const el = document.getElementById('recentAddTime-'+containerId+'-'+item.id);
+      if(el) el.textContent = formatElapsedHMS(Date.now()-item.ts)+' atrás';
+    });
+  });
+}
 // Passados os 30s: se a pessoa ainda estiver na Área de Cadastro, o destaque
 // NÃO some agora — continua visível até ela sair de lá (ver
 // limparAdicoesRecentesExpiradas, chamada ao trocar de aba/tela).
@@ -4685,22 +4708,23 @@ function limparAdicoesRecentesExpiradas(){
   if(recentAdds.length !== antes) renderRecentAdds();
 }
 function renderRecentAdds(){
-  const html = recentAdds.length
-    ? recentAdds.map(function(item){
-        const nomeSeguro = (item.nome||'').replace(/</g,'&lt;');
-        return `
-        <div class="recentAddItem">
-          <div class="recentAddInfo">
-            <span class="recentAddBadge">✔ Adicionado agora</span>
-            <div class="recentAddName" title="${nomeSeguro}">${nomeSeguro}</div>
-          </div>
-          <button type="button" class="btn secondary small" onclick="imprimirEtiquetaAposCadastro('${item.id}')">Tentar imprimir novamente</button>
-        </div>`;
-      }).join('')
-    : '<div class="recentAddsEmpty">Nenhum produto cadastrado nos últimos 30 segundos.</div>';
-  ['recentAddsCadastro','recentAddsLista'].forEach(function(id){
-    const el = document.getElementById(id);
-    if(el) el.innerHTML = html;
+  ['recentAddsCadastro','recentAddsLista'].forEach(function(containerId){
+    const el = document.getElementById(containerId);
+    if(!el) return;
+    el.innerHTML = recentAdds.length
+      ? recentAdds.map(function(item){
+          const nomeSeguro = (item.nome||'').replace(/</g,'&lt;');
+          return `
+          <div class="recentAddItem">
+            <div class="recentAddInfo">
+              <span class="recentAddBadge">✔ Adicionado agora</span>
+              <div class="recentAddName" title="${nomeSeguro}">${nomeSeguro}</div>
+              <div class="dimSmall" id="recentAddTime-${containerId}-${item.id}">${formatElapsedHMS(Date.now()-item.ts)} atrás</div>
+            </div>
+            <button type="button" class="btn secondary small" onclick="imprimirEtiquetaAposCadastro('${item.id}')">Tentar imprimir novamente</button>
+          </div>`;
+        }).join('')
+      : '<div class="recentAddsEmpty">Nenhum produto cadastrado nos últimos 30 segundos.</div>';
   });
 }
 function saveNewProduct(){
@@ -8992,6 +9016,7 @@ function renderAll(){
 }
 function tickClock(){
   document.getElementById('clockLabel').textContent = new Date().toLocaleString('pt-BR');
+  atualizarTemposRecentAdds();
   if(currentUser){
     atualizarBadgeNotificacoes();
     const banner = document.getElementById('stockAccessBanner');
