@@ -5191,15 +5191,14 @@ function scannerLookupAddFound(prod){
   if(item){ item.qtd++; item.produto=prod; }
   else scannerLookupFound.push({id:prod.id,produto:prod,qtd:1});
   renderScannerLookupHistory();
-  const diferenca=item ? item.qtd-Number(prod.estoque||0) : 1-Number(prod.estoque||0);
+  const qtdLida=item ? item.qtd : 1;
+  const estoqueNoSistema=Number(prod.estoque)||0;
+  const diferenca=qtdLida-estoqueNoSistema;
   if(diferenca>0){
-    if(!getPerms().canEditStock){
-      toast('Foram lidas mais etiquetas que o estoque, mas seu acesso não permite adicionar unidades.', 'erro');
-      return false;
-    }
     confirmModal(
-      `Foram lidas <b>${item ? item.qtd : 1}</b> etiqueta(s) de <b>${scannerSafeText(prod.nome)}</b>, mas o sistema possui <b>${Number(prod.estoque)||0}</b> unidade(s). Deseja adicionar <b>${diferenca}</b> unidade(s) ao estoque?`,
+      `Foram lidas <b>${qtdLida}</b> etiqueta(s) de <b>${scannerSafeText(prod.nome)}</b>, mas o sistema possui <b>${estoqueNoSistema}</b> unidade(s). Deseja adicionar <b>${diferenca}</b> unidade(s) ao estoque?`,
       function(){
+        if(!requirePerm(getPerms().canEditStock)){ scannerLookupFocus(); return; }
         prod.estoque = (Number(prod.estoque)||0) + diferenca;
         DB.incomingStock.push({id:uid('inc'), date:todayISO(), productId:prod.id, productName:prod.nome, fornecedor:'Conferência por etiqueta', qtd:diferenca});
         log(`Estoque ajustado pela consulta de etiqueta: +${diferenca}x ${prod.nome}`);
