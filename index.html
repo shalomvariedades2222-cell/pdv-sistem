@@ -1113,30 +1113,49 @@ html.is-mobile .recentAddsPanel{width:100%;}
 .logoOptionBtn:hover,.btn.small:hover{transform:translateY(-2px);}
 .logoOptionBtn.active{animation:navActiveGlow 1s ease;}
 
-/* --- Lixeira flutuante do Estoque (arrastável com mouse ou dedo) ---
-   Fica visível só enquanto a tela de Estoque está aberta. O usuário pode
-   arrastar o próprio ícone pra qualquer canto da tela (posição é lembrada),
-   e também pode arrastar um produto da lista até em cima dela pra excluir. */
-.floatingTrashBtn{
-  position:fixed;right:22px;bottom:90px;
-  width:56px;height:56px;border-radius:50%;
-  display:none;align-items:center;justify-content:center;
-  font-size:24px;line-height:1;
+/* --- Lixeira fixa do Estoque ---
+   A seta fica sempre no canto direito. Ao clicar, a lixeira aparece ao lado.
+   Produtos continuam podendo ser arrastados até ela, mas o botão não muda mais
+   de lugar. */
+.floatingTrashWrap{
+  position:fixed;right:0;bottom:90px;z-index:1500;
+  display:none;flex-direction:row-reverse;align-items:center;
+}
+.floatingTrashWrap.visible{display:flex;}
+.floatingTrashToggle,.floatingTrashBtn{
   background:var(--glass-bg-strong);
   border:1.5px solid var(--glass-border-strong);
   box-shadow:0 8px 24px rgba(0,0,0,.4);
   backdrop-filter:blur(var(--glass-blur)) saturate(160%);
   -webkit-backdrop-filter:blur(var(--glass-blur)) saturate(160%);
-  cursor:grab;z-index:1500;touch-action:none;user-select:none;
-  transition:transform .15s ease, box-shadow .15s ease, background .15s ease, border-color .15s ease;
+  color:var(--text);line-height:1;cursor:pointer;
+  transition:transform .18s ease, box-shadow .18s ease, background .18s ease, border-color .18s ease, width .22s ease, opacity .18s ease, margin .22s ease;
 }
-.floatingTrashBtn.visible{display:flex;}
-.floatingTrashBtn.arrastando{cursor:grabbing;transform:scale(1.06);}
+.floatingTrashToggle{
+  width:38px;height:52px;border-radius:10px 0 0 10px;
+  font-size:20px;display:flex;align-items:center;justify-content:center;
+}
+.floatingTrashToggle:hover{background:var(--glass-bg-strong);border-color:var(--orange);}
+.floatingTrashBtn{
+  width:0;height:56px;margin-right:0;border-radius:50%;
+  padding:0;opacity:0;overflow:hidden;pointer-events:none;
+  display:flex;align-items:center;justify-content:center;font-size:24px;
+  position:relative;
+}
+.floatingTrashWrap.open .floatingTrashBtn{
+  width:56px;margin-right:8px;opacity:1;pointer-events:auto;
+}
 .floatingTrashBtn.dragOver{
   background:linear-gradient(160deg, rgba(224,80,63,.45), var(--glass-bg-strong));
   border-color:var(--red);transform:scale(1.18);
   box-shadow:0 10px 30px rgba(224,80,63,.45);
 }
+.trashFullBadge{
+  display:none;position:absolute;right:1px;top:1px;width:15px;height:15px;
+  border-radius:50%;background:var(--red);border:2px solid var(--panel);
+  box-shadow:0 0 10px rgba(224,80,63,.7);
+}
+.floatingTrashWrap.hasItems .trashFullBadge{display:block;}
 .dragGhostProduto{
   position:fixed;top:0;left:0;z-index:1600;pointer-events:none;
   background:var(--glass-bg-strong);border:1px solid var(--glass-border-strong);
@@ -1400,7 +1419,8 @@ html.is-mobile .btn::before{ display:none; }
 
   /* Alvos maiores pro toque: arrastar produto até a lixeira, ou tocar na lixeira pra abrir os excluídos */
   .dragHandleProduto{ padding:9px 11px; font-size:20px; }
-  .floatingTrashBtn{ width:62px; height:62px; font-size:27px; bottom:100px; }
+  .floatingTrashWrap{ bottom:100px; }
+  .floatingTrashWrap.open .floatingTrashBtn{ width:62px; height:62px; font-size:27px; }
 }
 </style>
 </head>
@@ -1631,9 +1651,12 @@ html.is-mobile .btn::before{ display:none; }
       <!-- ============ ESTOQUE ============ -->
       <div class="view" id="view-estoque">
         <div id="stockAccessBanner" style="display:none;"></div>
-        <!-- Lixeira flutuante: arraste com o mouse (ou dedo) pra qualquer canto da tela;
-             arraste um produto até aqui (pelo ícone ✥ na linha dele) para excluí-lo. -->
-        <div class="floatingTrashBtn" id="estoqueTrashBtn" title="Toque para ver produtos excluídos (recuperáveis por 6h) · arraste um produto até aqui para excluir">🗑️</div>
+        <!-- Lixeira fixa: clique na seta para mostrar a lixeira; arraste um produto
+             pelo ícone ✥ até ela para excluir. -->
+        <div class="floatingTrashWrap" id="estoqueTrashWrap">
+          <button type="button" class="floatingTrashToggle" id="estoqueTrashToggle" title="Mostrar lixeira" aria-label="Mostrar lixeira" aria-expanded="false">◀</button>
+          <button type="button" class="floatingTrashBtn" id="estoqueTrashBtn" title="Ver produtos excluídos · arraste um produto até aqui para excluir"><span>🗑️</span><span class="trashFullBadge" title="Lixeira com itens"></span></button>
+        </div>
         <div class="tabs">
           <button class="tabBtn active" data-tab="lista" onclick="setEstoqueTab('lista')">Produtos</button>
           <button class="tabBtn" id="tabBtnCadastrar" data-tab="novo" onclick="setEstoqueTab('novo')">Cadastrar</button>
@@ -3954,8 +3977,9 @@ function showView(name){
   document.getElementById('viewTitle').textContent = viewTitles[name];
   if(name==='vendas'){ renderProductGrid(); focusSearchBox(); }
   if(name==='estoque') renderEstoqueLista();
-  const trashBtn = document.getElementById('estoqueTrashBtn');
-  if(trashBtn) trashBtn.classList.toggle('visible', name==='estoque');
+  const trashWrap = document.getElementById('estoqueTrashWrap');
+  if(trashWrap) trashWrap.classList.toggle('visible', name==='estoque');
+  if(name==='estoque') atualizarBotaoLixeira();
   if(name==='clientes') renderClientesLista();
   if(name==='caixa') renderCaixa();
   if(name==='relatorios') renderRelatorios();
@@ -7047,6 +7071,7 @@ function deleteProduct(id){
     if(p.foto) marcarFotoAlterada(chaveFotoProduto(p.id), null);
     log('Produto excluído: '+p.nome);
     flashSaving();
+    atualizarBotaoLixeira();
     renderEstoqueLista();
   }, {textoBtn:'Excluir'});
 }
@@ -7062,6 +7087,7 @@ function iniciarArrastarProdutoParaLixeira(e, id){
   e.preventDefault();
   const p = DB.products.find(x=>x.id===id);
   if(!p) return;
+  abrirLixeiraFlutuante(true);
   const ghost = document.createElement('div');
   ghost.className = 'dragGhostProduto';
   ghost.textContent = '🗑️ '+p.nome;
@@ -7098,63 +7124,32 @@ function soltarProdutoSobreLixeira(e){
   const dentro = e.clientX>=r.left && e.clientX<=r.right && e.clientY>=r.top && e.clientY<=r.bottom;
   if(dentro) deleteProduct(id);
 }
+function abrirLixeiraFlutuante(aberta){
+  const wrap=document.getElementById('estoqueTrashWrap');
+  const toggle=document.getElementById('estoqueTrashToggle');
+  if(!wrap || !toggle) return;
+  const abrir = (aberta===undefined) ? !wrap.classList.contains('open') : !!aberta;
+  wrap.classList.toggle('open', abrir);
+  toggle.textContent = abrir ? '▶' : '◀';
+  toggle.title = abrir ? 'Esconder lixeira' : 'Mostrar lixeira';
+  toggle.setAttribute('aria-label', toggle.title);
+  toggle.setAttribute('aria-expanded', String(abrir));
+}
+function atualizarBotaoLixeira(){
+  const wrap=document.getElementById('estoqueTrashWrap');
+  const btn=document.getElementById('estoqueTrashBtn');
+  if(!wrap || !btn) return;
+  const quantidade=(DB.trashProducts||[]).length;
+  wrap.classList.toggle('hasItems', quantidade>0);
+  btn.title=quantidade ? `Lixeira com ${quantidade} item(ns) · clique para abrir` : 'Lixeira vazia · clique para abrir';
+}
 (function initFloatingTrashBtn(){
-  const btn = document.getElementById('estoqueTrashBtn');
-  if(!btn) return;
-  const POS_KEY = 'slmsys_trashBtnPos';
-  try{
-    const raw = localStorage.getItem(POS_KEY);
-    if(raw){
-      const pos = JSON.parse(raw);
-      btn.style.left = pos.x+'px';
-      btn.style.top = pos.y+'px';
-      btn.style.right = 'auto';
-      btn.style.bottom = 'auto';
-    }
-  }catch(err){}
-  /* Precisa diferenciar "arrastar o ícone pra outro canto" de "só tocar/clicar pra
-     abrir a lista de produtos excluídos": só conta como arrasto de verdade se o
-     ponteiro se mover mais que LIMIAR_ARRASTO pixels; senão, no soltar, é um clique. */
-  const LIMIAR_ARRASTO = 6;
-  let pressionando = false, moveu = false, offX = 0, offY = 0, downX = 0, downY = 0;
-  btn.addEventListener('pointerdown', function(e){
-    pressionando = true;
-    moveu = false;
-    downX = e.clientX; downY = e.clientY;
-    const r = btn.getBoundingClientRect();
-    offX = e.clientX - r.left;
-    offY = e.clientY - r.top;
-    btn.setPointerCapture(e.pointerId);
-  });
-  btn.addEventListener('pointermove', function(e){
-    if(!pressionando) return;
-    if(!moveu){
-      if(Math.abs(e.clientX-downX) <= LIMIAR_ARRASTO && Math.abs(e.clientY-downY) <= LIMIAR_ARRASTO) return;
-      moveu = true;
-      btn.classList.add('arrastando');
-    }
-    let x = e.clientX - offX, y = e.clientY - offY;
-    x = Math.max(4, Math.min(window.innerWidth - btn.offsetWidth - 4, x));
-    y = Math.max(4, Math.min(window.innerHeight - btn.offsetHeight - 4, y));
-    btn.style.left = x+'px';
-    btn.style.top = y+'px';
-    btn.style.right = 'auto';
-    btn.style.bottom = 'auto';
-  });
-  function soltarBtn(){
-    if(!pressionando) return;
-    pressionando = false;
-    btn.classList.remove('arrastando');
-    if(moveu){
-      try{
-        localStorage.setItem(POS_KEY, JSON.stringify({ x: parseInt(btn.style.left)||0, y: parseInt(btn.style.top)||0 }));
-      }catch(err){}
-    } else {
-      abrirLixeiraProdutos(); // não arrastou: foi um toque/clique -> abre os produtos excluídos
-    }
-  }
-  btn.addEventListener('pointerup', soltarBtn);
-  btn.addEventListener('pointercancel', function(){ pressionando = false; moveu = false; btn.classList.remove('arrastando'); });
+  const btn=document.getElementById('estoqueTrashBtn');
+  const toggle=document.getElementById('estoqueTrashToggle');
+  if(!btn || !toggle) return;
+  toggle.addEventListener('click', function(){ abrirLixeiraFlutuante(); });
+  btn.addEventListener('click', abrirLixeiraProdutos);
+  atualizarBotaoLixeira();
 })();
 
 /* ---------------- Lixeira de produtos excluídos (recuperação em até 6h) ----------------
@@ -7180,6 +7175,7 @@ function limparLixeiraExpirada(){
   if(removeuAlgum){
     DB.trashProducts = validos;
     flashSaving();
+    atualizarBotaoLixeira();
   }
   return removeuAlgum;
 }
@@ -7237,6 +7233,7 @@ function recuperarProdutoLixeira(trashId){
   if(DB.deleted && DB.deleted.products) delete DB.deleted.products[p.id]; // remove a lápide pra não ser excluído de novo no próximo sync
   log('Produto restaurado da lixeira: '+p.nome);
   flashSaving();
+  atualizarBotaoLixeira();
   renderEstoqueLista();
   renderLixeiraProdutosModal();
   toast('Produto restaurado.');
