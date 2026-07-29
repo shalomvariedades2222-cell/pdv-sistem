@@ -5191,6 +5191,29 @@ function scannerLookupAddFound(prod){
   if(item){ item.qtd++; item.produto=prod; }
   else scannerLookupFound.push({id:prod.id,produto:prod,qtd:1});
   renderScannerLookupHistory();
+  const diferenca=item ? item.qtd-Number(prod.estoque||0) : 1-Number(prod.estoque||0);
+  if(diferenca>0){
+    if(!getPerms().canEditStock){
+      toast('Foram lidas mais etiquetas que o estoque, mas seu acesso não permite adicionar unidades.', 'erro');
+      return false;
+    }
+    confirmModal(
+      `Foram lidas <b>${item ? item.qtd : 1}</b> etiqueta(s) de <b>${scannerSafeText(prod.nome)}</b>, mas o sistema possui <b>${Number(prod.estoque)||0}</b> unidade(s). Deseja adicionar <b>${diferenca}</b> unidade(s) ao estoque?`,
+      function(){
+        prod.estoque = (Number(prod.estoque)||0) + diferenca;
+        DB.incomingStock.push({id:uid('inc'), date:todayISO(), productId:prod.id, productName:prod.nome, fornecedor:'Conferência por etiqueta', qtd:diferenca});
+        log(`Estoque ajustado pela consulta de etiqueta: +${diferenca}x ${prod.nome}`);
+        flashSaving();
+        renderEstoqueLista();
+        renderScannerLookupHistory();
+        toast(`Estoque de "${prod.nome}" atualizado: +${diferenca}.`, 'ok');
+        scannerLookupFocus();
+      },
+      {titulo:'Adicionar ao estoque?', textoBtn:'Sim, adicionar'}
+    );
+    return true;
+  }
+  return false;
 }
 function scannerLookupCleanup(){
   if(scannerLookupIsOpen()){
@@ -5224,9 +5247,9 @@ function scannerLookupProcessCode(){
         <div style="font-weight:700;font-size:18px;margin-top:7px;">${scannerSafeText(prod.nome)}</div>
         <div class="dimSmall" style="margin-top:5px;">Código: <b>${scannerSafeText(prod.barcode)}</b> · Estoque: <b>${Number(prod.estoque)||0}</b> · Preço: <b>${fmtMoney(Number(prod.venda)||0)}</b></div>
       </div>`;
-    scannerLookupAddFound(prod);
+    const pediuAjuste=scannerLookupAddFound(prod);
     toast('Produto no sistema: '+prod.nome, 'ok');
-    scannerLookupFocus();
+    if(!pediuAjuste) scannerLookupFocus();
     return;
   }
   message.innerHTML=`
@@ -5234,10 +5257,10 @@ function scannerLookupProcessCode(){
       <div style="font-weight:800;color:var(--yellow);font-size:16px;">⚠ Esse produto não está no sistema</div>
       <div class="dimSmall" style="margin:6px 0 12px;">Preencha as informações abaixo para cadastrá-lo. Código lido: <b>${scannerSafeText(code)}</b></div>
       <div class="formGrid">
-        <div class="field pickerWrap"><label>Nome</label><input id="scannerQuickNome" autocomplete="off" placeholder="Clique para ver os nomes cadastrados" onclick="openPicker('scannerQuickNome','nome')" oninput="filterPicker('scannerQuickNome','nome')"><div class="pickerDropdown" id="scannerQuickNome_dd"></div></div>
-        <div class="field pickerWrap"><label>Categoria</label><input id="scannerQuickCategoria" autocomplete="off" placeholder="Clique para ver as categorias cadastradas" onclick="openPicker('scannerQuickCategoria','categoria')" oninput="filterPicker('scannerQuickCategoria','categoria')"><div class="pickerDropdown" id="scannerQuickCategoria_dd"></div></div>
-        <div class="field"><label>Estoque inicial</label><input id="scannerQuickEstoque" type="number" min="0" value="1"></div>
-        <div class="field"><label>Preço de venda (R$)</label><input id="scannerQuickPreco" type="text" inputmode="decimal" placeholder="0,00" oninput="maskMoneyInput(this)"></div>
+        <div class="field pickerWrap"><label>Nome</label><input id="scannerQuickNome" autocomplete="off" placeholder="Clique para ver os nomes cadastrados" onclick="openPicker('scannerQuickNome','nome')" oninput="filterPicker('scannerQuickNome','nome')" onkeydown="if(event.key==='Enter'){event.preventDefault();scannerQuickRegister('${code.replace(/'/g,"\\'")}')}"><div class="pickerDropdown" id="scannerQuickNome_dd"></div></div>
+        <div class="field pickerWrap"><label>Categoria</label><input id="scannerQuickCategoria" autocomplete="off" placeholder="Clique para ver as categorias cadastradas" onclick="openPicker('scannerQuickCategoria','categoria')" oninput="filterPicker('scannerQuickCategoria','categoria')" onkeydown="if(event.key==='Enter'){event.preventDefault();scannerQuickRegister('${code.replace(/'/g,"\\'")}')}"><div class="pickerDropdown" id="scannerQuickCategoria_dd"></div></div>
+        <div class="field"><label>Estoque inicial</label><input id="scannerQuickEstoque" type="number" min="0" value="1" onkeydown="if(event.key==='Enter'){event.preventDefault();scannerQuickRegister('${code.replace(/'/g,"\\'")}')}"></div>
+        <div class="field"><label>Preço de venda (R$)</label><input id="scannerQuickPreco" type="text" inputmode="decimal" placeholder="0,00" oninput="maskMoneyInput(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();scannerQuickRegister('${code.replace(/'/g,"\\'")}')}"></div>
       </div>
       <button type="button" class="btn" style="margin-top:10px;" onclick="scannerQuickRegister('${code.replace(/'/g,"\\'")}')">Cadastrar produto</button>
     </div>`;
