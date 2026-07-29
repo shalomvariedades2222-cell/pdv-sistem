@@ -1677,7 +1677,10 @@ html.is-mobile .btn::before{ display:none; }
                 <input id="estoqueFilter" placeholder="Filtrar por nome..." style="width:220px" oninput="renderEstoqueLista()">
                 <input id="estoqueBarcodeFilter" placeholder="🔎 Buscar só por código de barras..." autocomplete="off" style="width:250px" oninput="renderEstoqueLista()" onkeydown="if(event.key==='Enter'){event.preventDefault();buscarProdutoPorCodigoBarras();}">
               </div>
-              <div class="dimSmall" id="lowStockAlert"></div>
+              <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;">
+                <div class="dimSmall" id="estoqueTotalStock" style="font-weight:700;color:var(--orange);"></div>
+                <div class="dimSmall" id="lowStockAlert"></div>
+              </div>
             </div>
             <div class="dimSmall" style="margin:-4px 0 8px;">O campo de código de barras filtra a lista apenas pelo código; pressione Enter para abrir direto o produto encontrado. Produtos ficam organizados por categoria e cada bloco mostra 25 por vez — use “Mostrar mais” quando precisar.</div>
             <table id="estoqueTable">
@@ -5763,6 +5766,12 @@ function renderEstoqueLista(manerScroll){
 
   const lowCount = DB.products.filter(p=>p.estoque<=p.estoqueMin).length;
   document.getElementById('lowStockAlert').textContent = lowCount>0 ? `⚠ ${lowCount} produto(s) com estoque baixo` : '';
+
+  // Total geral de estoque (soma da quantidade de todas as peças cadastradas, sem excluídos)
+  const totalPecasEstoque = DB.products.reduce((soma,p)=>soma+(Number(p.estoque)||0),0);
+  const totalProdutosEstoque = DB.products.length;
+  const totalStockEl = document.getElementById('estoqueTotalStock');
+  if(totalStockEl) totalStockEl.textContent = `📦 Total em estoque: ${totalPecasEstoque} peça${totalPecasEstoque===1?'':'s'} em ${totalProdutosEstoque} produto${totalProdutosEstoque===1?'':'s'}`;
   if(scrollAntes!==null) requestAnimationFrame(function(){ content.scrollTop=scrollAntes; });
 }
 /* =========================================================
