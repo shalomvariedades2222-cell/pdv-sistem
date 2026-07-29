@@ -1716,11 +1716,22 @@ html.is-mobile .btn::before{ display:none; }
         <div id="estoqueTab-scanner" style="display:none;">
           <div class="panel" style="max-width:640px;">
             <div class="tabs" style="margin-bottom:14px;">
+              <button type="button" class="tabBtn active" id="scannerModeBtnConsulta" onclick="scannerSetMode('consulta')">🔎 Consultar etiqueta</button>
               <button type="button" class="tabBtn active" id="scannerModeBtnNovo" onclick="scannerSetMode('novo')">📷 Código Novo</button>
               <button type="button" class="tabBtn" id="scannerModeBtnAdd" onclick="scannerModeAddClick()">➕ Adicionar Estoque (Código Existente)</button>
             </div>
 
-            <div id="scannerModeNovo">
+            <div id="scannerModeConsulta">
+              <h3>Consultar etiqueta no sistema</h3>
+              <div class="dimSmall" style="margin-bottom:10px;">Deixe o cursor neste campo e passe as etiquetas. Se o código existir, o produto será mostrado. Se não existir, aparecerá um cadastro rápido. Depois de cada leitura ou cadastro, o leitor volta automaticamente para este campo.</div>
+              <div class="field">
+                <label>Leitor de etiqueta / código de barras</label>
+                <input id="scannerLookupInput" placeholder="Escaneie ou digite o código aqui..." autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();scannerLookupProcessCode();}">
+              </div>
+              <div id="scannerLookupResult" style="margin-top:14px;"></div>
+            </div>
+
+            <div id="scannerModeNovo" style="display:none;">
               <h3>Escanear Código de Barras Novo</h3>
               <div class="dimSmall" style="margin-bottom:10px;">Use esta tela apenas para códigos de barras que ainda não existem no sistema. Aponte o leitor (ou digite o código manualmente) no campo abaixo e pressione Enter. Cada código diferente vira um item novo no grupo em uso; escanear o mesmo código de novo só soma +1 na quantidade dele.</div>
               <div class="field">
@@ -4549,9 +4560,9 @@ function setEstoqueTab(tab){
   if(tab==='lista') renderEstoqueLista();
   if(tab==='novo'){ const bc=document.getElementById('p_barcode'); if(bc && !bc.value) bc.value=genBarcode(); renderCatalogDatalists(); }
   if(tab==='scanner'){
-    scannerSetMode('novo');
+    scannerSetMode('consulta');
     renderScannerPendingForm();
-    setTimeout(()=>{ const i=document.getElementById('scannerCodeInput'); if(i) i.focus(); }, 60);
+    setTimeout(()=>{ const i=document.getElementById('scannerLookupInput'); if(i) i.focus(); }, 60);
   }
   if(tab==='categorias') renderCategoriasTab();
   if(tab==='entrada'){ populateEntradaProdutoSelect(); renderEntradaHist(); }
@@ -5121,17 +5132,90 @@ function scannerCommitAll(){
    a tela de "Código Novo" já com esse código preenchido.
 ========================================================= */
 let addEstoqueSessionCount = 0;
+
+/* Consulta rápida de etiquetas: feita para leitores USB/Bluetooth que digitam
+   o código e enviam Enter. Não muda de tela e, ao terminar, devolve o foco ao
+   leitor para que várias etiquetas possam ser conferidas em sequência. */
+function scannerSafeText(v){
+  return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function scannerLookupFocus(){
+  setTimeout(function(){
+    const i=document.getElementById('scannerLookupInput');
+    if(i){ i.value=''; i.focus(); }
+  }, 40);
+}
+function scannerLookupProcessCode(){
+  const input=document.getElementById('scannerLookupInput');
+  const code=(input&&input.value||'').trim();
+  if(!code) return;
+  const area=document.getElementById('scannerLookupResult');
+  const prod=DB.products.find(function(p){ return String(p.barcode||'')===code; });
+  if(prod){
+    area.innerHTML=`
+      <div class="panel" style="background:var(--panel2);margin:0;border:1px solid var(--green);">
+        <div style="font-weight:800;color:var(--green);font-size:16px;">✓ Produto no sistema</div>
+        <div style="font-weight:700;font-size:18px;margin-top:7px;">${scannerSafeText(prod.nome)}</div>
+        <div class="dimSmall" style="margin-top:5px;">Código: <b>${scannerSafeText(prod.barcode)}</b> · Estoque: <b>${Number(prod.estoque)||0}</b> · Preço: <b>${fmtMoney(Number(prod.venda)||0)}</b></div>
+      </div>`;
+    toast('Produto no sistema: '+prod.nome, 'ok');
+    scannerLookupFocus();
+    return;
+  }
+  area.innerHTML=`
+    <div class="panel" style="background:var(--panel2);margin:0;border:1px solid var(--yellow);">
+      <div style="font-weight:800;color:var(--yellow);font-size:16px;">⚠ Esse produto não está no sistema</div>
+      <div class="dimSmall" style="margin:6px 0 12px;">Preencha as informações abaixo para cadastrá-lo. Código lido: <b>${scannerSafeText(code)}</b></div>
+      <div class="formGrid">
+        <div class="field"><label>Nome</label><input id="scannerQuickNome" autocomplete="off" placeholder="Nome do produto"></div>
+        <div class="field"><label>Estoque inicial</label><input id="scannerQuickEstoque" type="number" min="0" value="1"></div>
+        <div class="field"><label>Preço de venda (R$)</label><input id="scannerQuickPreco" type="text" inputmode="decimal" placeholder="0,00" oninput="maskMoneyInput(this)"></div>
+      </div>
+      <button type="button" class="btn" style="margin-top:10px;" onclick="scannerQuickRegister('${code.replace(/'/g,"\\'")}')">Cadastrar produto</button>
+    </div>`;
+  if(input) input.value='';
+  setTimeout(function(){ const n=document.getElementById('scannerQuickNome'); if(n) n.focus(); },40);
+}
+function scannerQuickRegister(code){
+  if(modoTeste){ alert('No modo teste o cadastro de produtos fica bloqueado.'); return; }
+  if(!requirePerm(getPerms().canEditStock)) return;
+  if(DB.products.some(function(p){ return String(p.barcode||'')===String(code); })){
+    toast('Esse código acabou de ser cadastrado em outro lugar.', 'erro');
+    scannerLookupFocus();
+    return;
+  }
+  const nome=(document.getElementById('scannerQuickNome').value||'').trim();
+  const estoque=Math.max(0, Number(document.getElementById('scannerQuickEstoque').value)||0);
+  const venda=moneyVal('scannerQuickPreco');
+  if(!nome){ toast('Informe o nome do produto.', 'erro'); document.getElementById('scannerQuickNome').focus(); return; }
+  if(venda<=0){ toast('Informe um preço de venda maior que zero.', 'erro'); document.getElementById('scannerQuickPreco').focus(); return; }
+  const produto={id:uid('prod'),nome:nome,categoria:'',tamanho:'',cor:'',custo:0,venda:venda,estoque:estoque,estoqueMin:3,barcode:String(code),foto:'',dataCadastro:todayISO(),cadastradoPor:currentUser?currentUser.nome:'-'};
+  DB.products.push(produto);
+  log('Produto cadastrado pela consulta de etiqueta: '+nome);
+  renderEstoqueLista();
+  renderCatalogDatalists();
+  const area=document.getElementById('scannerLookupResult');
+  if(area) area.innerHTML=`<div class="panel" style="background:var(--panel2);margin:0;border:1px solid var(--green);"><div style="font-weight:800;color:var(--green);">✓ Produto cadastrado no sistema</div><div style="margin-top:5px;"><b>${scannerSafeText(nome)}</b> · Código: ${scannerSafeText(code)}</div></div>`;
+  toast('Produto cadastrado: '+nome, 'ok');
+  scannerLookupFocus();
+}
 function scannerSetMode(mode){
+  const btnConsulta = document.getElementById('scannerModeBtnConsulta');
   const btnNovo = document.getElementById('scannerModeBtnNovo');
   const btnAdd = document.getElementById('scannerModeBtnAdd');
+  const areaConsulta = document.getElementById('scannerModeConsulta');
   const areaNovo = document.getElementById('scannerModeNovo');
   const areaAdd = document.getElementById('scannerModeAdd');
-  if(!btnNovo || !btnAdd || !areaNovo || !areaAdd) return;
+  if(!btnConsulta || !btnNovo || !btnAdd || !areaConsulta || !areaNovo || !areaAdd) return;
+  btnConsulta.classList.toggle('active', mode==='consulta');
   btnNovo.classList.toggle('active', mode==='novo');
   btnAdd.classList.toggle('active', mode==='add');
+  areaConsulta.style.display = mode==='consulta' ? '' : 'none';
   areaNovo.style.display = mode==='novo' ? '' : 'none';
   areaAdd.style.display = mode==='add' ? '' : 'none';
-  if(mode==='add'){
+  if(mode==='consulta'){
+    scannerLookupFocus();
+  } else if(mode==='add'){
     setTimeout(()=>{ const i=document.getElementById('addEstoqueCodeInput'); if(i) i.focus(); }, 50);
   } else {
     setTimeout(()=>{ const i=document.getElementById('scannerCodeInput'); if(i) i.focus(); }, 50);
