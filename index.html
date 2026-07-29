@@ -5196,7 +5196,13 @@ function scannerLookupAddFound(prod){
   const diferenca=qtdLida-estoqueNoSistema;
   if(diferenca>0){
     confirmModal(
-      `Foram lidas <b>${qtdLida}</b> etiqueta(s) de <b>${scannerSafeText(prod.nome)}</b>, mas o sistema possui <b>${estoqueNoSistema}</b> unidade(s). Deseja adicionar <b>${diferenca}</b> unidade(s) ao estoque?`,
+      `<div style="display:grid;gap:5px;margin-bottom:12px;">
+        <div><span class="dimSmall">Produto:</span> <b>${scannerSafeText(prod.nome)}</b></div>
+        <div><span class="dimSmall">Categoria:</span> <b>${scannerSafeText(prod.categoria||'Sem categoria')}</b></div>
+        <div><span class="dimSmall">Preço de venda:</span> <b>${fmtMoney(Number(prod.venda)||0)}</b></div>
+      </div>
+      Foram lidas <b>${qtdLida}</b> etiqueta(s) nesta conferência, mas o sistema possui <b>${estoqueNoSistema}</b> unidade(s).<br><br>
+      <b>Deseja adicionar ${diferenca} peça${diferenca===1?'':'s'} desse produto ao estoque?</b>`,
       function(){
         if(!requirePerm(getPerms().canEditStock)){ scannerLookupFocus(); return; }
         prod.estoque = (Number(prod.estoque)||0) + diferenca;
@@ -5208,7 +5214,7 @@ function scannerLookupAddFound(prod){
         toast(`Estoque de "${prod.nome}" atualizado: +${diferenca}.`, 'ok');
         scannerLookupFocus();
       },
-      {titulo:'Adicionar ao estoque?', textoBtn:'Sim, adicionar'}
+      {titulo:'Adicionar peça ao estoque?', textoBtn:`Sim, adicionar ${diferenca}`}
     );
     return true;
   }
