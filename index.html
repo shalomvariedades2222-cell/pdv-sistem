@@ -1679,7 +1679,7 @@ html.is-mobile .btn::before{ display:none; }
               </div>
               <div class="dimSmall" id="lowStockAlert"></div>
             </div>
-            <div class="dimSmall" style="margin:-4px 0 8px;">O campo de código de barras filtra a lista apenas pelo código; pressione Enter para abrir direto o produto encontrado.</div>
+            <div class="dimSmall" style="margin:-4px 0 8px;">O campo de código de barras filtra a lista apenas pelo código; pressione Enter para abrir direto o produto encontrado. Produtos ficam organizados por categoria e cada bloco mostra 25 por vez — use “Mostrar mais” quando precisar.</div>
             <table id="estoqueTable">
               <thead><tr><th></th><th>Nome</th><th>Categoria</th><th>Tam/Cor</th><th>Código</th><th>Custo</th><th>Venda</th><th>Margem</th><th>Estoque</th><th>Entrada</th><th></th></tr></thead>
             </table>
@@ -5590,6 +5590,10 @@ document.addEventListener('click', function(e){
   if(!e.target.closest('.pickerWrap')) closeAllPickers();
 });
 let estoqueCollapsedCats = new Set();
+// A lista de estoque pode ter milhares de itens. Para a rolagem continuar
+// leve, cada categoria mostra os primeiros itens e carrega mais sob demanda.
+const ESTOQUE_ITENS_POR_BLOCO = 25;
+let estoqueGroupLimits = {};
 function catGroupNameOf(catName){
   const cat = DB.categories.find(c=>c.nome.toLowerCase()===String(catName).toLowerCase());
   if(!cat || !cat.groupId) return '';
@@ -5599,11 +5603,11 @@ function catGroupNameOf(catName){
 function toggleEstoqueGroup(safeId, catName){
   if(estoqueCollapsedCats.has(catName)) estoqueCollapsedCats.delete(catName);
   else estoqueCollapsedCats.add(catName);
-  const tbody = document.getElementById('body_'+safeId);
-  const arrow = document.getElementById('arrow_'+safeId);
-  const collapsed = estoqueCollapsedCats.has(catName);
-  if(tbody) tbody.style.display = collapsed ? 'none' : '';
-  if(arrow) arrow.textContent = collapsed ? '▸' : '▾';
+  renderEstoqueLista(true);
+}
+function mostrarMaisEstoqueGrupo(catName){
+  estoqueGroupLimits[catName] = (estoqueGroupLimits[catName] || ESTOQUE_ITENS_POR_BLOCO) + ESTOQUE_ITENS_POR_BLOCO;
+  renderEstoqueLista(true);
 }
 function buscarProdutoPorCodigoBarras(){
   const campo = document.getElementById('estoqueBarcodeFilter');
@@ -5618,8 +5622,10 @@ function buscarProdutoPorCodigoBarras(){
     toast('Nenhum produto encontrado com esse código de barras.', 'erro');
   }
 }
-function renderEstoqueLista(){
+function renderEstoqueLista(manerScroll){
   renderStockAccessBanner();
+  const content = document.getElementById('content');
+  const scrollAntes = manerScroll && content ? content.scrollTop : null;
   const filter = (document.getElementById('estoqueFilter').value||'').toLowerCase();
   const bcFilter = (document.getElementById('estoqueBarcodeFilter')?.value||'').trim();
   const table = document.getElementById('estoqueTable');
@@ -5640,17 +5646,28 @@ function renderEstoqueLista(){
     return a.localeCompare(b,'pt-BR');
   });
 
+  // Calcula a última entrada só uma vez por produto. Antes, o código fazia
+  // uma busca completa no histórico para cada linha, o que pesava muito em
+  // estoques grandes.
+  const ultimaEntradaPorProduto = {};
+  DB.incomingStock.forEach(function(e){
+    if(!e || !e.productId) return;
+    if(!ultimaEntradaPorProduto[e.productId] || new Date(e.date) > new Date(ultimaEntradaPorProduto[e.productId].date)) ultimaEntradaPorProduto[e.productId] = e;
+  });
+
   const colCount = 11;
   const html = catNames.map(catName=>{
     const items = groups[catName];
     const groupLabel = catGroupNameOf(catName);
     const safeId = 'catgrp_'+catName.replace(/[^a-zA-Z0-9]/g,'_');
     const collapsed = estoqueCollapsedCats.has(catName);
-    const rows = items.map(p=>{
+    const limite = estoqueGroupLimits[catName] || ESTOQUE_ITENS_POR_BLOCO;
+    const itensVisiveis = collapsed ? [] : items.slice(0, limite);
+    const rows = itensVisiveis.map(p=>{
       const margem = p.custo>0 ? (((p.venda-p.custo)/p.custo)*100).toFixed(1)+'%' : '—';
       const low = p.estoque <= p.estoqueMin;
       // última entrada de mercadoria registrada para esta peça (se houver); senão, usa a data de cadastro
-      const ultimaEntrada = DB.incomingStock.filter(e=>e.productId===p.id).sort((a,b)=> new Date(b.date)-new Date(a.date))[0];
+      const ultimaEntrada = ultimaEntradaPorProduto[p.id];
       const dataEntradaMostrar = ultimaEntrada ? ultimaEntrada.date : p.dataCadastro;
       const recemAdicionado = p.dataCadastro && (Date.now() - new Date(p.dataCadastro).getTime()) < ESTOQUE_AURA_RECENTE_MS;
       return `<tr class="${recemAdicionado?'recemAdicionadoRow':''}">
@@ -5670,6 +5687,8 @@ function renderEstoqueLista(){
         </td>
       </tr>`;
     }).join('');
+    const restantes = Math.max(0, items.length-itensVisiveis.length);
+    const carregarMais = !collapsed && restantes>0 ? `<tr><td colspan="${colCount}" style="text-align:center;padding:12px;"><button class="btn secondary small" onclick="event.stopPropagation();mostrarMaisEstoqueGrupo('${catName.replace(/'/g,"\\'")}')">Mostrar mais ${Math.min(ESTOQUE_ITENS_POR_BLOCO,restantes)} produto(s) · faltam ${restantes}</button></td></tr>` : '';
     return `<tbody>
       <tr class="estGroupHeader" onclick="toggleEstoqueGroup('${safeId}','${catName.replace(/'/g,"\\'")}')">
         <td colspan="${colCount}">
@@ -5680,7 +5699,7 @@ function renderEstoqueLista(){
         </td>
       </tr>
     </tbody>
-    <tbody id="body_${safeId}" style="${collapsed?'display:none;':''}">${rows}</tbody>`;
+    <tbody id="body_${safeId}" style="${collapsed?'display:none;':''}">${rows}${carregarMais}</tbody>`;
   }).join('') || `<tbody><tr><td colspan="${colCount}" class="dimSmall">Nenhum produto cadastrado.</td></tr></tbody>`;
 
   table.querySelectorAll('tbody').forEach(tb=>tb.remove());
@@ -5688,6 +5707,7 @@ function renderEstoqueLista(){
 
   const lowCount = DB.products.filter(p=>p.estoque<=p.estoqueMin).length;
   document.getElementById('lowStockAlert').textContent = lowCount>0 ? `⚠ ${lowCount} produto(s) com estoque baixo` : '';
+  if(scrollAntes!==null) requestAnimationFrame(function(){ content.scrollTop=scrollAntes; });
 }
 /* =========================================================
    ETIQUETAS — modelos Premium / Normal, preview, impressão e PDF
