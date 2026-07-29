@@ -5168,6 +5168,13 @@ function scannerSafeText(v){
 }
 let scannerLookupFound = [];
 let scannerLookupLeftAt = null;
+/* Timers de "debounce" por produto: enquanto o leitor continua escaneando o
+   mesmo código em sequência, o contador só vai subindo, sem perguntar nada.
+   O pop-up perguntando se quer ajustar o estoque só aparece depois que passar
+   um tempinho sem novas leituras DAQUELE produto (ou seja, quando a pessoa
+   parou de escanear aquele item e já terminou a conferência dele). */
+let scannerLookupPendingTimers = {};
+const SCANNER_LOOKUP_DEBOUNCE_MS = 1500;
 function scannerLookupIsOpen(){
   return estoqueTab==='scanner' && !!document.getElementById('scannerModeConsulta') && document.getElementById('scannerModeConsulta').style.display!=='none';
 }
@@ -5191,34 +5198,53 @@ function scannerLookupAddFound(prod){
   if(item){ item.qtd++; item.produto=prod; }
   else scannerLookupFound.push({id:prod.id,produto:prod,qtd:1});
   renderScannerLookupHistory();
-  const qtdLida=item ? item.qtd : 1;
+  // Não pergunta nada agora — só agenda a checagem. Se vier outra leitura
+  // desse mesmo produto antes do tempo passar, o agendamento reinicia e o
+  // contador continua só subindo (é assim que uma sequência de etiquetas
+  // do mesmo produto não fica interrompendo com pop-up a cada peça).
+  scannerLookupScheduleDiffCheck(prod.id);
+}
+function scannerLookupScheduleDiffCheck(prodId){
+  if(scannerLookupPendingTimers[prodId]) clearTimeout(scannerLookupPendingTimers[prodId]);
+  scannerLookupPendingTimers[prodId] = setTimeout(function(){
+    delete scannerLookupPendingTimers[prodId];
+    scannerLookupAskDiff(prodId);
+  }, SCANNER_LOOKUP_DEBOUNCE_MS);
+}
+/* Só quando o leitor "parou" de escanear aquele produto (passou o tempo de
+   debounce sem nova leitura dele) é que verificamos se o total lido superou
+   o estoque cadastrado, e aí sim perguntamos, de uma vez só, se quer somar
+   a diferença toda ao estoque — com nome, categoria e preço do produto. */
+function scannerLookupAskDiff(prodId){
+  const item=scannerLookupFound.find(function(x){ return x.id===prodId; });
+  if(!item) return;
+  const prod=DB.products.find(function(p){ return p.id===prodId; }) || item.produto;
+  if(!prod) return;
+  const qtdLida=item.qtd;
   const estoqueNoSistema=Number(prod.estoque)||0;
   const diferenca=qtdLida-estoqueNoSistema;
-  if(diferenca>0){
-    confirmModal(
-      `<div style="display:grid;gap:5px;margin-bottom:12px;">
-        <div><span class="dimSmall">Produto:</span> <b>${scannerSafeText(prod.nome)}</b></div>
-        <div><span class="dimSmall">Categoria:</span> <b>${scannerSafeText(prod.categoria||'Sem categoria')}</b></div>
-        <div><span class="dimSmall">Preço de venda:</span> <b>${fmtMoney(Number(prod.venda)||0)}</b></div>
-      </div>
-      Foram lidas <b>${qtdLida}</b> etiqueta(s) nesta conferência, mas o sistema possui <b>${estoqueNoSistema}</b> unidade(s).<br><br>
-      <b>Deseja adicionar ${diferenca} peça${diferenca===1?'':'s'} desse produto ao estoque?</b>`,
-      function(){
-        if(!requirePerm(getPerms().canEditStock)){ scannerLookupFocus(); return; }
-        prod.estoque = (Number(prod.estoque)||0) + diferenca;
-        DB.incomingStock.push({id:uid('inc'), date:todayISO(), productId:prod.id, productName:prod.nome, fornecedor:'Conferência por etiqueta', qtd:diferenca});
-        log(`Estoque ajustado pela consulta de etiqueta: +${diferenca}x ${prod.nome}`);
-        flashSaving();
-        renderEstoqueLista();
-        renderScannerLookupHistory();
-        toast(`Estoque de "${prod.nome}" atualizado: +${diferenca}.`, 'ok');
-        scannerLookupFocus();
-      },
-      {titulo:'Adicionar peça ao estoque?', textoBtn:`Sim, adicionar ${diferenca}`}
-    );
-    return true;
-  }
-  return false;
+  if(diferenca<=0) return;
+  confirmModal(
+    `<div style="display:grid;gap:5px;margin-bottom:12px;">
+      <div><span class="dimSmall">Produto:</span> <b>${scannerSafeText(prod.nome)}</b></div>
+      <div><span class="dimSmall">Categoria:</span> <b>${scannerSafeText(prod.categoria||'Sem categoria')}</b></div>
+      <div><span class="dimSmall">Preço de venda:</span> <b>${fmtMoney(Number(prod.venda)||0)}</b></div>
+    </div>
+    Foram lidas <b>${qtdLida}</b> etiqueta(s) desse produto nesta conferência, mas o sistema possui apenas <b>${estoqueNoSistema}</b> unidade(s) cadastrada(s).<br><br>
+    <b>Deseja adicionar ${diferenca} peça${diferenca===1?'':'s'} ao estoque?</b>`,
+    function(){
+      if(!requirePerm(getPerms().canEditStock)){ scannerLookupFocus(); return; }
+      prod.estoque = (Number(prod.estoque)||0) + diferenca;
+      DB.incomingStock.push({id:uid('inc'), date:todayISO(), productId:prod.id, productName:prod.nome, fornecedor:'Conferência por etiqueta', qtd:diferenca});
+      log(`Estoque ajustado pela consulta de etiqueta: +${diferenca}x ${prod.nome}`);
+      flashSaving();
+      renderEstoqueLista();
+      renderScannerLookupHistory();
+      toast(`Estoque de "${prod.nome}" atualizado: +${diferenca}.`, 'ok');
+      scannerLookupFocus();
+    },
+    {titulo:'Adicionar peça(s) ao estoque?', textoBtn:`Sim, adicionar ${diferenca}`}
+  );
 }
 function scannerLookupCleanup(){
   if(scannerLookupIsOpen()){
@@ -5230,6 +5256,8 @@ function scannerLookupCleanup(){
   if(Date.now()-scannerLookupLeftAt>=30000){
     scannerLookupFound=[];
     scannerLookupLeftAt=null;
+    Object.keys(scannerLookupPendingTimers).forEach(function(k){ clearTimeout(scannerLookupPendingTimers[k]); });
+    scannerLookupPendingTimers={};
     renderScannerLookupHistory();
   }
 }
@@ -5252,9 +5280,9 @@ function scannerLookupProcessCode(){
         <div style="font-weight:700;font-size:18px;margin-top:7px;">${scannerSafeText(prod.nome)}</div>
         <div class="dimSmall" style="margin-top:5px;">Código: <b>${scannerSafeText(prod.barcode)}</b> · Estoque: <b>${Number(prod.estoque)||0}</b> · Preço: <b>${fmtMoney(Number(prod.venda)||0)}</b></div>
       </div>`;
-    const pediuAjuste=scannerLookupAddFound(prod);
+    scannerLookupAddFound(prod);
     toast('Produto no sistema: '+prod.nome, 'ok');
-    if(!pediuAjuste) scannerLookupFocus();
+    scannerLookupFocus();
     return;
   }
   message.innerHTML=`
