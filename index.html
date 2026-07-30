@@ -2697,8 +2697,16 @@ async function loadFromGitHub(){
     return true;
   }catch(e){
     console.error('Falha ao carregar dados do Drive:', e);
-    msg.textContent = 'Sem conexão. Verifique a internet e tente de novo.';
-    _ultimaFalhaFoiDeRede = true;
+    // Quando a tela foi atualizada mas o Apps Script ainda está na versão
+    // antiga, ele responde HTML/erro ao receber a leitura por POST. Isso não
+    // é falta de internet e precisa de uma orientação clara para o dono.
+    if(e instanceof SyntaxError){
+      msg.textContent = 'Servidor desatualizado: atualize e implante o arquivo Code.gs no Google Apps Script.';
+      _ultimaFalhaFoiDeRede = false;
+    }else{
+      msg.textContent = 'Sem conexão. Verifique a internet e tente de novo.';
+      _ultimaFalhaFoiDeRede = true;
+    }
     return false;
   }
 }
