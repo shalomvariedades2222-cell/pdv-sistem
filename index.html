@@ -1461,14 +1461,17 @@ html.is-mobile .btn::before{ display:none; }
       <input id="ghToken" type="password" placeholder="Chave de acesso" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();cloudLogin();}">
     </div>
     <label class="rememberRow">
-      <input type="checkbox" id="ghRemember"> Lembrar só nesta sessão
+      <input type="checkbox" id="ghRemember"> Lembrar neste dispositivo
     </label>
     <button class="btn" onclick="cloudLogin()">Conectar</button>
-    <button id="requestAccessBtn" class="btn accessRequestBtn" onclick="solicitarAutorizacaoDeAcesso()">Pedir autorização</button>
+    <label class="rememberRow" style="margin-top:10px;margin-bottom:0;">
+      <input type="checkbox" id="accessRememberDevice" checked> Ficar logado neste dispositivo se for aprovado
+    </label>
+    <button id="requestAccessBtn" class="btn accessRequestBtn" onclick="solicitarAutorizacaoDeAcesso()">Pedir autorização sem key</button>
     <div id="cloudGateMsg" class="loginHint"></div>
     <div id="accessWaiting" class="accessWaiting" style="display:none;">
       <div class="rings"><i></i><i></i><i></i></div>
-      <b>Aguardando confirmação</b><div class="loginHint" style="margin-top:5px;">A solicitação foi enviada ao responsável.</div>
+      <b>Aguardando confirmação</b><div class="loginHint" id="accessWaitingStatus" style="margin-top:5px;">A solicitação foi enviada ao responsável.</div>
     </div>
     <div class="gateFooterNote">🔒 Seus dados ficam sincronizados na nuvem</div>
   </div>
@@ -2498,11 +2501,13 @@ function existeAlteracaoPendenteSalva(){
 const APPSCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxjBdKx5_QyApMU0nUZkQw4pmmYmHjtOhPKsSDwkfYz_yaj63FIal4hxPZ5n5-jiiyt/exec'; // ex: 'https://script.google.com/macros/s/AKfycb.../exec'
 
 let ghToken = null;      // chave de acesso (mesmo nome interno de antes, só que agora não é token do GitHub)
+let deviceAccessToken = null; // autorização alternativa, vinculada a este dispositivo
 let driveVersion = null; // controle de versão do arquivo, pra evitar um dispositivo sobrescrever o outro
 
 const KEY_GUARD_STORAGE = 'slmsys_key_guard_v1';
 const DEVICE_ID_STORAGE = 'slmsys_device_id_v1';
 const ACCESS_REQUEST_STORAGE = 'slmsys_access_request_v1';
+const ACCESS_DEVICE_TOKEN_STORAGE = 'slmsys_device_access_token_v1';
 const KEY_MAX_ATTEMPTS = 3, KEY_LOCK_MS = 5 * 60 * 1000;
 function cloudPost(payload, options={}){ return fetch(APPSCRIPT_URL, Object.assign({method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)},options)); }
 function getKeyGuard(){ try{return JSON.parse(localStorage.getItem(KEY_GUARD_STORAGE)||'{}');}catch(e){return{};} }
@@ -2517,6 +2522,8 @@ function updateKeyGuardMessage(){
 }
 function registerKeyFailure(){ const guard=getKeyGuard(), failures=(Number(guard.failures)||0)+1; if(failures>=KEY_MAX_ATTEMPTS){setKeyGuard({failures:0,blockedUntil:Date.now()+KEY_LOCK_MS});updateKeyGuardMessage();return;} setKeyGuard({failures}); const msg=document.getElementById('cloudGateMsg');msg.className='loginHint';msg.textContent='Chave inválida ou sem permissão. Restam '+(KEY_MAX_ATTEMPTS-failures)+' tentativa(s).'; }
 function clearKeyGuard(){ try{localStorage.removeItem(KEY_GUARD_STORAGE);}catch(e){} }
+function hasCloudCredential(){ return !!(ghToken || deviceAccessToken); }
+function cloudCredentials(){ return {key:ghToken||'',deviceToken:deviceAccessToken||''}; }
 setInterval(updateKeyGuardMessage,1000);
 
 async function cloudLogin(){
@@ -2548,8 +2555,7 @@ async function cloudLogin(){
   const ok = await loadFromGitHub();
   if(!ok){ if(!_ultimaFalhaFoiDeRede) registerKeyFailure(); return; }
   clearKeyGuard();
-  // A chave é sensível: nunca fica no localStorage persistente.
-  if(remember){ try{ sessionStorage.setItem('slmsys_gh_token', key); }catch(e){} }
+  if(remember){ try{ localStorage.setItem('slmsys_gh_token', key); }catch(e){} }
   renderLoginAvatars();
   tentarLoginAutomatico();
   hideGateScreen(document.getElementById('cloudGate'));
@@ -2558,32 +2564,49 @@ async function cloudLogin(){
 
 let _accessRequestTimer=null;
 async function solicitarAutorizacaoDeAcesso(){
-  const key=document.getElementById('ghToken').value.trim(), msg=document.getElementById('cloudGateMsg');
-  if(updateKeyGuardMessage()) return;
-  if(!key){ msg.textContent='Informe a chave recebida para enviar a solicitação.'; return; }
+  const msg=document.getElementById('cloudGateMsg');
   msg.className='loginHint'; msg.textContent='Enviando solicitação...';
   try{
-    const res=await cloudPost(Object.assign({tipo:'solicitarAcessoDispositivo',key:key},getDeviceRequestInfo()));
+    const res=await cloudPost(Object.assign({tipo:'solicitarAcessoDispositivo',lembrarDispositivo:document.getElementById('accessRememberDevice').checked},getDeviceRequestInfo()));
     const json=await res.json();
-    if(!res.ok || !json.ok){ if(json && /chave inválida|sem permissão/i.test(json.error||'')) registerKeyFailure(); else msg.textContent=(json&&json.error)||'Não foi possível enviar a solicitação.'; return; }
-    clearKeyGuard(); localStorage.setItem(ACCESS_REQUEST_STORAGE,json.requestId);
+    if(!res.ok || !json.ok){ msg.textContent=(json&&json.error)||'Não foi possível enviar a solicitação.'; return; }
+    localStorage.setItem(ACCESS_REQUEST_STORAGE,JSON.stringify({id:json.requestId,lembrar:document.getElementById('accessRememberDevice').checked}));
     document.getElementById('accessWaiting').style.display='block';
     msg.textContent='Solicitação enviada. Aguarde a confirmação do responsável.';
     clearInterval(_accessRequestTimer);
-    _accessRequestTimer=setInterval(()=>consultarAutorizacaoDeAcesso(key,json.requestId),5000);
-    consultarAutorizacaoDeAcesso(key,json.requestId);
+    _accessRequestTimer=setInterval(()=>consultarAutorizacaoDeAcesso(json.requestId),5000);
+    consultarAutorizacaoDeAcesso(json.requestId);
   }catch(e){ msg.textContent='Sem conexão para enviar a solicitação.'; }
 }
-async function consultarAutorizacaoDeAcesso(key,requestId){
+async function consultarAutorizacaoDeAcesso(requestId){
   try{
-    const res=await cloudPost({tipo:'consultarSolicitacaoAcesso',key:key,requestId:requestId,deviceId:getDeviceId()});
+    const res=await cloudPost({tipo:'consultarSolicitacaoAcesso',requestId:requestId,deviceId:getDeviceId()});
     const json=await res.json(); if(!json.ok) return;
     const msg=document.getElementById('cloudGateMsg');
     if(json.status==='aceito'){
-      clearInterval(_accessRequestTimer); localStorage.removeItem(ACCESS_REQUEST_STORAGE); document.getElementById('accessWaiting').style.display='none'; msg.textContent='✅ Acesso autorizado. Clique em Conectar.';
+      clearInterval(_accessRequestTimer);
+      const saved=JSON.parse(localStorage.getItem(ACCESS_REQUEST_STORAGE)||'{}');
+      if(json.deviceToken){
+        deviceAccessToken=json.deviceToken;
+        if(saved.lembrar) localStorage.setItem(ACCESS_DEVICE_TOKEN_STORAGE,deviceAccessToken);
+        else sessionStorage.setItem(ACCESS_DEVICE_TOKEN_STORAGE,deviceAccessToken);
+      }
+      localStorage.removeItem(ACCESS_REQUEST_STORAGE); document.getElementById('accessWaiting').style.display='none'; msg.textContent='✅ Acesso autorizado. Entrando...';
+      const ok=await loadFromGitHub(); if(ok){ renderLoginAvatars(); tentarLoginAutomatico(); hideGateScreen(document.getElementById('cloudGate')); revealLoginScreen(); }
     }else if(json.status==='recusado'){
       clearInterval(_accessRequestTimer); localStorage.removeItem(ACCESS_REQUEST_STORAGE); document.getElementById('accessWaiting').style.display='none'; msg.textContent='A solicitação foi recusada pelo responsável.';
     }
+  }catch(e){}
+}
+function restaurarPedidoDeAcessoPendente(){
+  try{
+    const saved=JSON.parse(localStorage.getItem(ACCESS_REQUEST_STORAGE)||'{}');
+    if(!saved.id) return;
+    document.getElementById('accessWaiting').style.display='block';
+    document.getElementById('accessWaitingStatus').textContent='Status: aguardando confirmação do responsável.';
+    clearInterval(_accessRequestTimer);
+    _accessRequestTimer=setInterval(()=>consultarAutorizacaoDeAcesso(saved.id),5000);
+    consultarAutorizacaoDeAcesso(saved.id);
   }catch(e){}
 }
 
@@ -2658,11 +2681,13 @@ async function loadFromGitHub(){
   const msg = document.getElementById('cloudGateMsg');
   _ultimaFalhaFoiDeRede = false;
   try{
+    const credParam = ghToken ? 'key='+encodeURIComponent(ghToken) : 'deviceToken='+encodeURIComponent(deviceAccessToken||'');
+    const url = APPSCRIPT_URL+'?'+credParam+'&_='+Date.now();
     const controller = new AbortController();
     const timeoutId = setTimeout(()=>controller.abort(), TIMEOUT_CONEXAO_MS);
     let res;
     try{
-      res = await cloudPost({tipo:'lerDados', key:ghToken}, {signal:controller.signal, cache:'no-store'});
+      res = await fetch(url, {signal:controller.signal, cache:'no-store'});
     } finally {
       clearTimeout(timeoutId);
     }
@@ -2697,16 +2722,8 @@ async function loadFromGitHub(){
     return true;
   }catch(e){
     console.error('Falha ao carregar dados do Drive:', e);
-    // Quando a tela foi atualizada mas o Apps Script ainda está na versão
-    // antiga, ele responde HTML/erro ao receber a leitura por POST. Isso não
-    // é falta de internet e precisa de uma orientação clara para o dono.
-    if(e instanceof SyntaxError){
-      msg.textContent = 'Servidor desatualizado: atualize e implante o arquivo Code.gs no Google Apps Script.';
-      _ultimaFalhaFoiDeRede = false;
-    }else{
-      msg.textContent = 'Sem conexão. Verifique a internet e tente de novo.';
-      _ultimaFalhaFoiDeRede = true;
-    }
+    msg.textContent = 'Sem conexão. Verifique a internet e tente de novo.';
+    _ultimaFalhaFoiDeRede = true;
     return false;
   }
 }
@@ -2906,9 +2923,10 @@ function migrarFotosLegado_(){
 let _fotosEmEnvio = {};
 
 async function carregarFotosDoServidor(){
-  if(!ghToken) return;
+  if(!hasCloudCredential()) return;
   try{
-    const res = await cloudPost({tipo:'lerFotos',key:ghToken}, {cache:'no-store'});
+    const url=APPSCRIPT_URL+'?'+(ghToken?'key='+encodeURIComponent(ghToken):'deviceToken='+encodeURIComponent(deviceAccessToken))+'&fotos=1&_='+Date.now();
+    const res = await fetch(url, {cache:'no-store'});
     if(res.ok){
       const json = await res.json();
       if(json.ok){
@@ -2941,7 +2959,7 @@ function agendarSalvarFotos(){
 }
 
 async function salvarFotosNoServidor(){
-  if(!ghToken || Object.keys(_fotosPendentes).length===0) return;
+  if(!hasCloudCredential() || Object.keys(_fotosPendentes).length===0) return;
   const paraEnviar = _fotosPendentes;
   _fotosPendentes = {};
   Object.assign(_fotosEmEnvio, paraEnviar); // marca como "em envio" ANTES do fetch, pra proteger contra sincronizações concorrentes
@@ -2949,7 +2967,7 @@ async function salvarFotosNoServidor(){
     const res = await fetch(APPSCRIPT_URL, {
       method:'POST',
       headers: {'Content-Type':'text/plain;charset=utf-8'},
-      body: JSON.stringify({ key: ghToken, tipo:'fotos', fotos: paraEnviar })
+      body: JSON.stringify(Object.assign({ tipo:'fotos', fotos:paraEnviar }, cloudCredentials()))
     });
     const json = res.ok ? await res.json() : { ok:false };
     if(!json.ok){
@@ -2979,11 +2997,11 @@ async function salvarFotosNoServidor(){
    que simplesmente perder a foto).
 ------------------------------------------------------------ */
 function flushFotosPendentesAoSair_(){
-  if(!ghToken) return;
+  if(!hasCloudCredential()) return;
   const pendentes = Object.assign({}, _fotosPendentes, _fotosEmEnvio);
   if(Object.keys(pendentes).length===0) return;
   try{
-    const blob = new Blob([JSON.stringify({ key: ghToken, tipo:'fotos', fotos: pendentes })], {type:'text/plain;charset=utf-8'});
+    const blob = new Blob([JSON.stringify(Object.assign({tipo:'fotos',fotos:pendentes},cloudCredentials()))], {type:'text/plain;charset=utf-8'});
     navigator.sendBeacon(APPSCRIPT_URL, blob);
   }catch(e){}
 }
@@ -3004,13 +3022,13 @@ function prepararDadosSemFotos_(db){
 // vinda de outro aparelho (ver checkRemoteVersion mais abaixo).
 let _salvandoAgora = false;
 async function saveToGitHubNow(){
-  if(!ghToken){ setSaveStatus('Salvo neste aparelho', fmtAgora()); return false; }
+  if(!hasCloudCredential()){ setSaveStatus('Salvo neste aparelho', fmtAgora()); return false; }
   _salvandoAgora = true;
   try{
     const res = await fetch(APPSCRIPT_URL, {
       method:'POST',
       headers: {'Content-Type':'text/plain;charset=utf-8'}, // evita preflight CORS no Apps Script
-      body: JSON.stringify({ key: ghToken, version: driveVersion, data: prepararDadosSemFotos_(DB) })
+      body: JSON.stringify(Object.assign({version:driveVersion,data:prepararDadosSemFotos_(DB)},cloudCredentials()))
     });
     if(!res.ok){
       console.error('Falha ao salvar no Drive:', res.status);
@@ -3072,8 +3090,8 @@ async function backupCompletoNuvem(){
     alert('Você está no modo teste — não existe nuvem pra fazer backup aqui. Os dados somem ao recarregar a página.');
     return;
   }
-  if(!ghToken){
-    alert('Este aparelho ainda não está conectado à nuvem. Configure a chave de acesso na tela inicial antes de usar o backup de contingência.');
+  if(!hasCloudCredential()){
+    alert('Este aparelho ainda não está conectado à nuvem. Entre com a chave ou aguarde a autorização do dispositivo antes de usar o backup de contingência.');
     return;
   }
   const btn = document.getElementById('btnBackupContingencia');
@@ -3133,7 +3151,7 @@ async function backupCompletoNuvem(){
 ------------------------------------------------------------ */
 let _despejandoAposReconexao = false;
 async function despejarAlteracoesPendentesAoReconectar(){
-  if(!ghToken || modoTeste || _despejandoAposReconexao) return;
+  if(!hasCloudCredential() || modoTeste || _despejandoAposReconexao) return;
   _despejandoAposReconexao = true;
   setSaveStatus('Despejando arquivos para o servidor...', fmtAgora());
   // Guarda o que está neste aparelho ANTES de qualquer busca ao servidor
@@ -3198,7 +3216,7 @@ window.addEventListener('online', despejarAlteracoesPendentesAoReconectar);
    seguinte, se o app continuar aberto).
 ------------------------------------------------------------ */
 setInterval(function(){
-  if(!ghToken || modoTeste) return;
+  if(!hasCloudCredential() || modoTeste) return;
   if(!navigator.onLine) return; // sem internet mesmo: o evento 'online' cuida de avisar quando voltar
   if(existeAlteracaoPendenteSalva()) despejarAlteracoesPendentesAoReconectar();
 }, 3*60*1000); // a cada 3 minutos
@@ -3264,7 +3282,7 @@ let _syncPolling = false;
 let _ultimoAvisoSyncTs = 0; // controla o intervalo mínimo entre um "aviso de outro aparelho" e outro (evita piscar 2x pra uma mesma ação)
 let _avisoSyncAtivo = false; // true enquanto um aviso está em andamento (do momento em que aparece até terminar de carregar) — trava extra contra o aviso disparar de novo no meio do processo
 async function checkRemoteVersion(){
-  if(!ghToken || _syncPolling) return;
+  if(!hasCloudCredential() || _syncPolling) return;
   // _salvandoAgora cobre TODO o tempo do nosso próprio envio (do início do fetch até
   // a resposta chegar) — isso fecha a antiga corrida em que essa checagem podia rodar
   // no meio do nosso próprio salvamento e confundir ele com uma mudança de outro aparelho.
@@ -3281,7 +3299,8 @@ async function checkRemoteVersion(){
   if(modalAberto) return;
   _syncPolling = true;
   try{
-    const res = await cloudPost({tipo:'lerVersao',key:ghToken}, {cache:'no-store'});
+    const url=APPSCRIPT_URL+'?'+(ghToken?'key='+encodeURIComponent(ghToken):'deviceToken='+encodeURIComponent(deviceAccessToken))+'&onlyVersion=1&_='+Date.now();
+    const res = await fetch(url, {cache:'no-store'});
     if(res.ok){
       const json = await res.json();
       // só chega aqui quando o servidor tem uma versão diferente da nossa — ou seja,
@@ -3341,17 +3360,18 @@ reiniciarLoopSincronizacao();
    finishAutoConnect(): se tiver chave salva, mostra a tela "Conectando ao servidor" (com
    uma animação) até a conexão terminar; senão, mostra a tela de primeiro acesso (chave). */
 let _savedTokenAtLoad = null;
-try{ _savedTokenAtLoad = sessionStorage.getItem('slmsys_gh_token'); }catch(e){}
-// Limpa a chave persistente deixada por versões antigas.
-try{ localStorage.removeItem('slmsys_gh_token'); }catch(e){}
+let _savedDeviceTokenAtLoad = null;
+try{ _savedTokenAtLoad = localStorage.getItem('slmsys_gh_token'); }catch(e){}
+try{ _savedDeviceTokenAtLoad = localStorage.getItem(ACCESS_DEVICE_TOKEN_STORAGE) || sessionStorage.getItem(ACCESS_DEVICE_TOKEN_STORAGE); }catch(e){}
 // Guarda como o DB estava (vindo do cache local) ANTES de qualquer busca ao
 // servidor sobrescrever ele — é a "foto" de tudo que já estava neste
 // aparelho, incluindo qualquer alteração feita offline que ainda não tinha
 // sido confirmada pelo servidor da última vez que o app foi usado.
 const _dbAoAbrirApp = DB;
 let _autoConnectPromise = null;
-if(_savedTokenAtLoad){
+if(_savedTokenAtLoad || _savedDeviceTokenAtLoad){
   ghToken = _savedTokenAtLoad;
+  deviceAccessToken = _savedDeviceTokenAtLoad;
   _autoConnectPromise = loadFromGitHub(); // já começa a buscar os dados, em paralelo com a splash
 }
 function showGateScreen(el){
@@ -3375,8 +3395,9 @@ function revealLoginScreen(){
 async function finishAutoConnect(){
   const connEl = document.getElementById('connectingScreen');
   const gateEl = document.getElementById('cloudGate');
-  if(!_savedTokenAtLoad){
+  if(!_savedTokenAtLoad && !_savedDeviceTokenAtLoad){
     showGateScreen(gateEl);
+    restaurarPedidoDeAcessoPendente();
     return;
   }
   showGateScreen(connEl);
@@ -3434,8 +3455,8 @@ async function finishAutoConnect(){
     }
     // Falha que não foi de rede (chave recusada pelo servidor, por exemplo):
     // aí sim pede a chave de novo, como antes.
-    ghToken = null;
-    try{ sessionStorage.removeItem('slmsys_gh_token'); }catch(e){}
+    ghToken = null; deviceAccessToken = null;
+    try{ localStorage.removeItem('slmsys_gh_token'); localStorage.removeItem(ACCESS_DEVICE_TOKEN_STORAGE); sessionStorage.removeItem(ACCESS_DEVICE_TOKEN_STORAGE); }catch(e){}
     const subEl = document.getElementById('connSubText');
     if(subEl) subEl.textContent = 'Não foi possível conectar. Informe a chave novamente.';
     setTimeout(()=>{
@@ -3743,7 +3764,7 @@ function flashSaving(){
   // proteção: se por algum motivo a confirmação do servidor demorar demais,
   // some com o estado "salvando" depois de um tempo, pra não ficar preso
   window._saveTimer = setTimeout(()=>{
-    if(!ghToken) setSaveStatus('Salvo neste aparelho', fmtAgora());
+    if(!hasCloudCredential()) setSaveStatus('Salvo neste aparelho', fmtAgora());
   }, 4000);
   autoSaveLocal();
   autoSaveToFile();
@@ -4769,12 +4790,17 @@ function renderNotificacoesModal(){
     </tbody></table>
   `;
 }
-function decidirAcessoDispositivo(id,status){
+async function decidirAcessoDispositivo(id,status){
   if(!requirePerm(getPerms().isTotal)) return;
   const req=(DB.accessRequests||[]).find(r=>r.id===id && r.status==='pendente');
   if(!req) return;
-  req.status=status; req.decidedAt=new Date().toISOString(); req.decidedBy=currentUser ? currentUser.nome : 'Responsável';
-  flashSaving(); atualizarBadgeNotificacoes(); renderNotificacoesModal();
+  try{
+    const res=await cloudPost(Object.assign({tipo:'decidirAcessoDispositivo',requestId:id,status:status,decidedBy:currentUser?currentUser.nome:'Responsável'},cloudCredentials()));
+    const json=await res.json();
+    if(!res.ok || !json.ok){ toast((json&&json.error)||'Não foi possível registrar a decisão.','erro'); return; }
+    req.status=status; req.decidedAt=new Date().toISOString(); req.decidedBy=currentUser ? currentUser.nome : 'Responsável'; driveVersion=json.version||driveVersion;
+    autoSaveLocal(); atualizarBadgeNotificacoes(); renderNotificacoesModal();
+  }catch(e){ toast('Sem conexão para registrar a decisão.','erro'); }
 }
 /* =========================================================
    PAINEL "ADICIONADOS AGORA" (aparece ao lado, nas abas Produtos e Cadastrar)
