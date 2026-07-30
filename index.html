@@ -2530,6 +2530,7 @@ const ACCESS_REQUEST_STORAGE = 'slmsys_access_request_v1';
 const ACCESS_DEVICE_TOKEN_STORAGE = 'slmsys_device_access_token_v1';
 const KEY_MAX_ATTEMPTS = 3, KEY_LOCK_MS = 5 * 60 * 1000;
 function cloudPost(payload, options={}){ return fetch(APPSCRIPT_URL, Object.assign({method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)},options)); }
+function cloudGet(params){ return fetch(APPSCRIPT_URL+'?'+new URLSearchParams(params).toString(), {cache:'no-store'}); }
 function getKeyGuard(){ try{return JSON.parse(localStorage.getItem(KEY_GUARD_STORAGE)||'{}');}catch(e){return{};} }
 function setKeyGuard(v){ try{localStorage.setItem(KEY_GUARD_STORAGE,JSON.stringify(v));}catch(e){} }
 function getDeviceId(){ try{ let id=localStorage.getItem(DEVICE_ID_STORAGE); if(!id){ id=(crypto.randomUUID?crypto.randomUUID():uid('device'))+'-'+Date.now().toString(36); localStorage.setItem(DEVICE_ID_STORAGE,id); } return id; }catch(e){return uid('device');} }
@@ -2597,9 +2598,14 @@ async function solicitarAutorizacaoDeAcesso(){
   if(!document.getElementById('accessConsentCheck').checked) return;
   msg.className='loginHint'; msg.textContent='Enviando solicitação...';
   try{
-    const res=await cloudPost(Object.assign({tipo:'solicitarAcessoDispositivo'},getDeviceRequestInfo()));
+    const res=await cloudGet(Object.assign({acao:'solicitarAcessoDispositivo'},getDeviceRequestInfo()));
     const json=await res.json();
-    if(!res.ok || !json.ok){ msg.textContent=(json&&json.error)||'Não foi possível enviar a solicitação.'; return; }
+    if(!res.ok || !json.ok){
+      msg.textContent=(json && /chave inválida|sem permissão/i.test(json.error||''))
+        ? 'A autorização sem key ainda não foi ativada no servidor. Atualize e implante o Code.gs.'
+        : (json&&json.error)||'Não foi possível enviar a solicitação.';
+      return;
+    }
     localStorage.setItem(ACCESS_REQUEST_STORAGE,JSON.stringify({id:json.requestId}));
     fecharAccessPopover();
     document.getElementById('accessWaiting').style.display='block';
@@ -2611,7 +2617,7 @@ async function solicitarAutorizacaoDeAcesso(){
 }
 async function consultarAutorizacaoDeAcesso(requestId){
   try{
-    const res=await cloudPost({tipo:'consultarSolicitacaoAcesso',requestId:requestId,deviceId:getDeviceId()});
+    const res=await cloudGet({acao:'consultarSolicitacaoAcesso',requestId:requestId,deviceId:getDeviceId()});
     const json=await res.json(); if(!json.ok) return;
     const msg=document.getElementById('cloudGateMsg');
     if(json.status==='aceito'){
