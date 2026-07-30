@@ -323,6 +323,14 @@ html.anim-off-ambient body::before,html.anim-off-ambient body::after{animation:n
   margin-top:16px;font-size:10.5px;color:var(--text-dim);
   display:flex;align-items:center;justify-content:center;gap:5px;
 }
+.accessRequestBtn{background:transparent!important;color:var(--orange)!important;border:1px solid rgba(255,106,26,.48)!important;margin-top:10px!important;}
+.accessRequestBtn:hover{background:rgba(255,106,26,.12)!important;}
+.accessWaiting{margin:14px 0 0;padding:12px;border:1px solid rgba(255,106,26,.26);border-radius:10px;background:rgba(255,106,26,.07);text-align:center;}
+.accessWaiting .rings{height:25px;display:flex;align-items:center;justify-content:center;gap:5px;margin-bottom:5px;}
+.accessWaiting .rings i{display:block;width:7px;height:7px;border-radius:50%;background:var(--orange);animation:accessWait 1.1s ease-in-out infinite;}
+.accessWaiting .rings i:nth-child(2){animation-delay:.16s}.accessWaiting .rings i:nth-child(3){animation-delay:.32s}
+@keyframes accessWait{0%,100%{transform:translateY(0);opacity:.25}50%{transform:translateY(-7px);opacity:1;box-shadow:0 0 14px var(--orange)}}
+.accessLockHint{color:#f09a64!important;font-weight:700;}
 
 /* ---------- TELA "CONECTANDO AO SERVIDOR" (usuário já conectado antes) ---------- */
 #connectingScreen{
@@ -1453,10 +1461,15 @@ html.is-mobile .btn::before{ display:none; }
       <input id="ghToken" type="password" placeholder="Chave de acesso" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();cloudLogin();}">
     </div>
     <label class="rememberRow">
-      <input type="checkbox" id="ghRemember"> Lembrar neste dispositivo
+      <input type="checkbox" id="ghRemember"> Lembrar só nesta sessão
     </label>
     <button class="btn" onclick="cloudLogin()">Conectar</button>
+    <button id="requestAccessBtn" class="btn accessRequestBtn" onclick="solicitarAutorizacaoDeAcesso()">Pedir autorização</button>
     <div id="cloudGateMsg" class="loginHint"></div>
+    <div id="accessWaiting" class="accessWaiting" style="display:none;">
+      <div class="rings"><i></i><i></i><i></i></div>
+      <b>Aguardando confirmação</b><div class="loginHint" style="margin-top:5px;">A solicitação foi enviada ao responsável.</div>
+    </div>
     <div class="gateFooterNote">🔒 Seus dados ficam sincronizados na nuvem</div>
   </div>
 </div>
@@ -2426,6 +2439,7 @@ let DB = {
   kits: [],
   logs: [],
   stockRequests: [], // pedidos de liberação temporária para mexer no estoque {id, employeeId, employeeName, requestedAt, status, decidedAt, decidedBy, expiresAt}
+  accessRequests: [], // pedidos para liberar um novo dispositivo
   categoryGroups: [], // grupos de categorias {id, nome}
   categories: [],      // categorias {id, nome, groupId}
   productNames: [],    // catálogo de nomes de peças {id, nome}
@@ -2486,10 +2500,30 @@ const APPSCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxjBdKx5_QyApMU0n
 let ghToken = null;      // chave de acesso (mesmo nome interno de antes, só que agora não é token do GitHub)
 let driveVersion = null; // controle de versão do arquivo, pra evitar um dispositivo sobrescrever o outro
 
+const KEY_GUARD_STORAGE = 'slmsys_key_guard_v1';
+const DEVICE_ID_STORAGE = 'slmsys_device_id_v1';
+const ACCESS_REQUEST_STORAGE = 'slmsys_access_request_v1';
+const KEY_MAX_ATTEMPTS = 3, KEY_LOCK_MS = 5 * 60 * 1000;
+function cloudPost(payload, options={}){ return fetch(APPSCRIPT_URL, Object.assign({method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)},options)); }
+function getKeyGuard(){ try{return JSON.parse(localStorage.getItem(KEY_GUARD_STORAGE)||'{}');}catch(e){return{};} }
+function setKeyGuard(v){ try{localStorage.setItem(KEY_GUARD_STORAGE,JSON.stringify(v));}catch(e){} }
+function getDeviceId(){ try{ let id=localStorage.getItem(DEVICE_ID_STORAGE); if(!id){ id=(crypto.randomUUID?crypto.randomUUID():uid('device'))+'-'+Date.now().toString(36); localStorage.setItem(DEVICE_ID_STORAGE,id); } return id; }catch(e){return uid('device');} }
+function getDeviceRequestInfo(){ return {deviceId:getDeviceId(),deviceName:(navigator.userAgent||'Navegador não identificado').replace(/[<>]/g,'').slice(0,180),locale:(navigator.language||'').slice(0,20),timezone:(Intl.DateTimeFormat().resolvedOptions().timeZone||'').slice(0,80)}; }
+function updateKeyGuardMessage(){
+  const msg=document.getElementById('cloudGateMsg'), guard=getKeyGuard(), now=Date.now();
+  if(guard.blockedUntil && guard.blockedUntil>now){ const left=Math.ceil((guard.blockedUntil-now)/1000), min=String(Math.floor(left/60)).padStart(2,'0'), sec=String(left%60).padStart(2,'0'); msg.className='loginHint accessLockHint'; msg.textContent='Por segurança, aguarde '+min+':'+sec+' para tentar novamente.'; return true; }
+  if(guard.blockedUntil) setKeyGuard({failures:0});
+  return false;
+}
+function registerKeyFailure(){ const guard=getKeyGuard(), failures=(Number(guard.failures)||0)+1; if(failures>=KEY_MAX_ATTEMPTS){setKeyGuard({failures:0,blockedUntil:Date.now()+KEY_LOCK_MS});updateKeyGuardMessage();return;} setKeyGuard({failures}); const msg=document.getElementById('cloudGateMsg');msg.className='loginHint';msg.textContent='Chave inválida ou sem permissão. Restam '+(KEY_MAX_ATTEMPTS-failures)+' tentativa(s).'; }
+function clearKeyGuard(){ try{localStorage.removeItem(KEY_GUARD_STORAGE);}catch(e){} }
+setInterval(updateKeyGuardMessage,1000);
+
 async function cloudLogin(){
   const key = document.getElementById('ghToken').value.trim();
   const remember = document.getElementById('ghRemember').checked;
   const msg = document.getElementById('cloudGateMsg');
+  if(updateKeyGuardMessage()) return;
   if(!key){ msg.textContent = 'Cole a chave de acesso.'; return; }
 
   /* ---------------- Modo teste local ----------------
@@ -2512,12 +2546,45 @@ async function cloudLogin(){
   ghToken = key;
   msg.textContent = 'Conectando...';
   const ok = await loadFromGitHub();
-  if(!ok) return; // loadFromGitHub já mostrou o erro
-  if(remember){ try{ localStorage.setItem('slmsys_gh_token', key); }catch(e){} }
+  if(!ok){ if(!_ultimaFalhaFoiDeRede) registerKeyFailure(); return; }
+  clearKeyGuard();
+  // A chave é sensível: nunca fica no localStorage persistente.
+  if(remember){ try{ sessionStorage.setItem('slmsys_gh_token', key); }catch(e){} }
   renderLoginAvatars();
   tentarLoginAutomatico();
   hideGateScreen(document.getElementById('cloudGate'));
   revealLoginScreen();
+}
+
+let _accessRequestTimer=null;
+async function solicitarAutorizacaoDeAcesso(){
+  const key=document.getElementById('ghToken').value.trim(), msg=document.getElementById('cloudGateMsg');
+  if(updateKeyGuardMessage()) return;
+  if(!key){ msg.textContent='Informe a chave recebida para enviar a solicitação.'; return; }
+  msg.className='loginHint'; msg.textContent='Enviando solicitação...';
+  try{
+    const res=await cloudPost(Object.assign({tipo:'solicitarAcessoDispositivo',key:key},getDeviceRequestInfo()));
+    const json=await res.json();
+    if(!res.ok || !json.ok){ if(json && /chave inválida|sem permissão/i.test(json.error||'')) registerKeyFailure(); else msg.textContent=(json&&json.error)||'Não foi possível enviar a solicitação.'; return; }
+    clearKeyGuard(); localStorage.setItem(ACCESS_REQUEST_STORAGE,json.requestId);
+    document.getElementById('accessWaiting').style.display='block';
+    msg.textContent='Solicitação enviada. Aguarde a confirmação do responsável.';
+    clearInterval(_accessRequestTimer);
+    _accessRequestTimer=setInterval(()=>consultarAutorizacaoDeAcesso(key,json.requestId),5000);
+    consultarAutorizacaoDeAcesso(key,json.requestId);
+  }catch(e){ msg.textContent='Sem conexão para enviar a solicitação.'; }
+}
+async function consultarAutorizacaoDeAcesso(key,requestId){
+  try{
+    const res=await cloudPost({tipo:'consultarSolicitacaoAcesso',key:key,requestId:requestId,deviceId:getDeviceId()});
+    const json=await res.json(); if(!json.ok) return;
+    const msg=document.getElementById('cloudGateMsg');
+    if(json.status==='aceito'){
+      clearInterval(_accessRequestTimer); localStorage.removeItem(ACCESS_REQUEST_STORAGE); document.getElementById('accessWaiting').style.display='none'; msg.textContent='✅ Acesso autorizado. Clique em Conectar.';
+    }else if(json.status==='recusado'){
+      clearInterval(_accessRequestTimer); localStorage.removeItem(ACCESS_REQUEST_STORAGE); document.getElementById('accessWaiting').style.display='none'; msg.textContent='A solicitação foi recusada pelo responsável.';
+    }
+  }catch(e){}
 }
 
 function ativarModoTeste(){
@@ -2564,6 +2631,7 @@ function ativarModoTeste(){
     kits: [],
     logs: [],
     stockRequests: [],
+    accessRequests: [],
     categoryGroups: [grupoTeste],
     categories: categoriasTeste,
     productNames: nomesTeste,
@@ -2590,12 +2658,11 @@ async function loadFromGitHub(){
   const msg = document.getElementById('cloudGateMsg');
   _ultimaFalhaFoiDeRede = false;
   try{
-    const url = `${APPSCRIPT_URL}?key=${encodeURIComponent(ghToken)}&_=${Date.now()}`;
     const controller = new AbortController();
     const timeoutId = setTimeout(()=>controller.abort(), TIMEOUT_CONEXAO_MS);
     let res;
     try{
-      res = await fetch(url, { signal: controller.signal, cache: 'no-store' });
+      res = await cloudPost({tipo:'lerDados', key:ghToken}, {signal:controller.signal, cache:'no-store'});
     } finally {
       clearTimeout(timeoutId);
     }
@@ -2647,7 +2714,7 @@ async function loadFromGitHub(){
    nas listas principais; por conteúdo, nas listas tipo log/caixa),
    e tenta salvar de novo com o resultado combinado.
 ------------------------------------------------------------ */
-const CAMPOS_POR_ID = ['products','customers','sales','employees','cashSessions','contas','incomingStock','outgoingStock','kits','categoryGroups','categories','productNames','stockRequests','trashProducts'];
+const CAMPOS_POR_ID = ['products','customers','sales','employees','cashSessions','contas','incomingStock','outgoingStock','kits','categoryGroups','categories','productNames','stockRequests','accessRequests','trashProducts'];
 const CAMPOS_SEM_ID = ['ledger','logs'];
 
 /* ------------------------------------------------------------
@@ -2833,8 +2900,7 @@ let _fotosEmEnvio = {};
 async function carregarFotosDoServidor(){
   if(!ghToken) return;
   try{
-    const url = `${APPSCRIPT_URL}?key=${encodeURIComponent(ghToken)}&fotos=1&_=${Date.now()}`;
-    const res = await fetch(url, { cache: 'no-store' });
+    const res = await cloudPost({tipo:'lerFotos',key:ghToken}, {cache:'no-store'});
     if(res.ok){
       const json = await res.json();
       if(json.ok){
@@ -3207,8 +3273,7 @@ async function checkRemoteVersion(){
   if(modalAberto) return;
   _syncPolling = true;
   try{
-    const url = `${APPSCRIPT_URL}?key=${encodeURIComponent(ghToken)}&onlyVersion=1&_=${Date.now()}`;
-    const res = await fetch(url, { cache: 'no-store' });
+    const res = await cloudPost({tipo:'lerVersao',key:ghToken}, {cache:'no-store'});
     if(res.ok){
       const json = await res.json();
       // só chega aqui quando o servidor tem uma versão diferente da nossa — ou seja,
@@ -3268,7 +3333,9 @@ reiniciarLoopSincronizacao();
    finishAutoConnect(): se tiver chave salva, mostra a tela "Conectando ao servidor" (com
    uma animação) até a conexão terminar; senão, mostra a tela de primeiro acesso (chave). */
 let _savedTokenAtLoad = null;
-try{ _savedTokenAtLoad = localStorage.getItem('slmsys_gh_token'); }catch(e){}
+try{ _savedTokenAtLoad = sessionStorage.getItem('slmsys_gh_token'); }catch(e){}
+// Limpa a chave persistente deixada por versões antigas.
+try{ localStorage.removeItem('slmsys_gh_token'); }catch(e){}
 // Guarda como o DB estava (vindo do cache local) ANTES de qualquer busca ao
 // servidor sobrescrever ele — é a "foto" de tudo que já estava neste
 // aparelho, incluindo qualquer alteração feita offline que ainda não tinha
@@ -3360,7 +3427,7 @@ async function finishAutoConnect(){
     // Falha que não foi de rede (chave recusada pelo servidor, por exemplo):
     // aí sim pede a chave de novo, como antes.
     ghToken = null;
-    try{ localStorage.removeItem('slmsys_gh_token'); }catch(e){}
+    try{ sessionStorage.removeItem('slmsys_gh_token'); }catch(e){}
     const subEl = document.getElementById('connSubText');
     if(subEl) subEl.textContent = 'Não foi possível conectar. Informe a chave novamente.';
     setTimeout(()=>{
@@ -3440,6 +3507,7 @@ function ensureCatalogDefaults(){
   if(!Array.isArray(DB.categories)) DB.categories = [];
   if(!Array.isArray(DB.productNames)) DB.productNames = [];
   if(!Array.isArray(DB.stockRequests)) DB.stockRequests = [];
+  if(!Array.isArray(DB.accessRequests)) DB.accessRequests = [];
   DB.sales.forEach(s=>{ if(typeof s.cancelled==='undefined') s.cancelled=false; });
   ensureEmployeeDefaults();
   if(!DB.settings) DB.settings = {};
@@ -4659,15 +4727,15 @@ function atualizarBadgeNotificacoes(){
   const perm = getPerms();
   if(!perm.isTotal){ btn.style.display='none'; return; }
   btn.style.display='';
-  const atrasados = getFiadoAtrasados().length;
-  if(atrasados>0){ badge.style.display=''; badge.textContent = atrasados; }
+  const total = getFiadoAtrasados().length + (DB.accessRequests||[]).filter(r=>r.status==='pendente').length;
+  if(total>0){ badge.style.display=''; badge.textContent = total; }
   else{ badge.style.display='none'; }
 }
 function openNotificacoesModal(){
   if(!requirePerm(getPerms().isTotal)) return;
   showModal(`
     <button class="modalClose" onclick="closeModal()">×</button>
-    <h3>🔔 Notificações — Fiado em Atraso (${FIADO_ATRASO_DIAS}+ dias)</h3>
+    <h3>🔔 Notificações</h3>
     <div id="notifModalBody"></div>
   `, {wide:true});
   renderNotificacoesModal();
@@ -4676,13 +4744,29 @@ function renderNotificacoesModal(){
   const body = document.getElementById('notifModalBody');
   if(!body) return;
   const atrasados = getFiadoAtrasados();
+  const pedidos=(DB.accessRequests||[]).filter(r=>r.status==='pendente').sort((a,b)=>new Date(b.requestedAt)-new Date(a.requestedAt));
+  const esc=v=>String(v||'-').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   body.innerHTML = `
+    <h4 style="margin:0 0 6px;">🔐 Autorizações de dispositivo</h4>
+    <p class="dimSmall" style="margin-top:0;">Revise o horário, navegador/dispositivo e localização aproximada antes de decidir.</p>
+    <table><thead><tr><th>Solicitado em</th><th>Dispositivo</th><th>Local</th><th></th></tr></thead><tbody>
+      ${pedidos.map(r=>`<tr><td>${esc(new Date(r.requestedAt).toLocaleString('pt-BR'))}</td><td>${esc(r.deviceName)}</td><td>${esc([r.locale,r.timezone].filter(Boolean).join(' · '))}</td><td style="white-space:nowrap"><button class="btn small" onclick="decidirAcessoDispositivo('${esc(r.id)}','aceito')">Aprovar</button> <button class="btn small secondary" onclick="decidirAcessoDispositivo('${esc(r.id)}','recusado')">Rejeitar</button></td></tr>`).join('') || '<tr><td colspan="4" class="dimSmall">Nenhuma solicitação aguardando confirmação.</td></tr>'}
+    </tbody></table>
+    <hr style="border:0;border-top:1px solid var(--line);margin:18px 0;">
+    <h4 style="margin:0 0 6px;">Fiado em atraso (${FIADO_ATRASO_DIAS}+ dias)</h4>
     <p class="dimSmall" style="margin-top:0;">Clientes com fiado em aberto há ${FIADO_ATRASO_DIAS} dias ou mais, sem quitação total.</p>
     <table><thead><tr><th>Cliente</th><th>Telefone</th><th>Valor devido</th><th>Dias em atraso</th><th></th></tr></thead><tbody>
       ${atrasados.map(a=>`<tr><td>${a.clienteNome}</td><td>${a.telefone||'-'}</td><td>${fmtMoney(a.restante)}</td><td>${a.diasMax} dias</td>
         <td><button class="btn small secondary" onclick="closeModal();openCustomerDetail('${a.clienteId}')">Ver cliente</button></td></tr>`).join('') || '<tr><td colspan="5" class="dimSmall">Nenhum cliente com fiado em atraso no momento.</td></tr>'}
     </tbody></table>
   `;
+}
+function decidirAcessoDispositivo(id,status){
+  if(!requirePerm(getPerms().isTotal)) return;
+  const req=(DB.accessRequests||[]).find(r=>r.id===id && r.status==='pendente');
+  if(!req) return;
+  req.status=status; req.decidedAt=new Date().toISOString(); req.decidedBy=currentUser ? currentUser.nome : 'Responsável';
+  flashSaving(); atualizarBadgeNotificacoes(); renderNotificacoesModal();
 }
 /* =========================================================
    PAINEL "ADICIONADOS AGORA" (aparece ao lado, nas abas Produtos e Cadastrar)
@@ -5192,9 +5276,28 @@ function renderScannerLookupHistory(){
       const p=DB.products.find(function(x){ return x.id===item.id; }) || item.produto;
       return `<div style="padding:9px 10px;margin-top:6px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);display:flex;justify-content:space-between;gap:10px;align-items:center;">
         <div><b>${scannerSafeText(p.nome)}</b><div class="dimSmall">${p.categoria?scannerSafeText(p.categoria)+' · ':''}Cód: ${scannerSafeText(p.barcode)} · Estoque: ${Number(p.estoque)||0} · ${fmtMoney(Number(p.venda)||0)}</div></div>
-        <span class="chip">${item.qtd}x</span>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span class="chip">${item.qtd}x</span>
+          <button type="button" class="btn secondary small" title="Opções do produto" aria-label="Opções do produto" onclick="scannerAbrirAcoesProduto('${p.id}')">⋮</button>
+        </div>
       </div>`;
     }).join('')}`;
+}
+/* Menu do produto encontrado por etiqueta: reaproveita a edição e a impressão
+   já existentes, sem criar uma segunda cópia dos dados do produto. */
+function scannerAbrirAcoesProduto(productId){
+  if(!requirePerm(getPerms().isTotal)) return;
+  const p=DB.products.find(x=>x.id===productId);
+  if(!p) return;
+  showModal(`
+    <button class="modalClose" onclick="closeModal()">×</button>
+    <h3>Opções — ${scannerSafeText(p.nome)}</h3>
+    <p class="dimSmall" style="margin-top:0;">Código: ${scannerSafeText(p.barcode)} · Preço atual: ${fmtMoney(Number(p.venda)||0)}</p>
+    <div style="display:grid;gap:8px;">
+      <button class="btn" onclick="editProduct('${p.id}')">✏️ Modificar nome, preço e dados</button>
+      <button class="btn secondary" onclick="closeModal();imprimirEtiquetaAposCadastro('${p.id}')">🖨️ Tentar imprimir novamente</button>
+    </div>
+  `);
 }
 function scannerLookupAddFound(prod){
   const item=scannerLookupFound.find(function(x){ return x.id===prod.id; });
@@ -6958,7 +7061,21 @@ function saveEditedProduct(id){
   p.foto = novaFotoProduto;
   log('Produto editado: '+nome);
   closeModal();
+  flashSaving();
   renderEstoqueLista();
+  renderScannerLookupHistory();
+  perguntarImprimirEtiquetaAposEdicao(p.id);
+}
+function perguntarImprimirEtiquetaAposEdicao(productId){
+  showModal(`
+    <button class="modalClose" onclick="closeModal()">×</button>
+    <h3>Alterações aplicadas</h3>
+    <div style="margin:2px 0 18px;color:var(--text);line-height:1.5;">Os dados foram atualizados no sistema. Deseja imprimir essa etiqueta com as informações novas?</div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn secondary" style="flex:1;" onclick="closeModal()">Agora não</button>
+      <button class="btn" style="flex:1;" onclick="closeModal();imprimirEtiquetaAposCadastro('${productId}')">🖨️ Sim, imprimir</button>
+    </div>
+  `);
 }
 /* =========================================================
    STATUS E RELATÓRIOS DO PRODUTO — acessado pelo botão dentro de "Editar"
@@ -8728,7 +8845,7 @@ function importBackupFile(file){
   reader.onload = e=>{
     try{
       const data = JSON.parse(e.target.result);
-      DB = Object.assign({products:[],customers:[],sales:[],employees:[{id:'u1',nome:'Administrador',usuario:'admin',senha:'admin',perfil:'total',comissao:0}],cashSessions:[],cashCurrentOpenId:null,ledger:[],contas:[],incomingStock:[],outgoingStock:[],kits:[],logs:[],stockRequests:[],categoryGroups:[],categories:[],productNames:[],settings:{nomeLoja:'Shalom Variedades',contato:'',logo:'',impressora:'',papel:'80mm',etiquetaQr:'',etiquetaMostrarQr:true}}, data);
+      DB = Object.assign({products:[],customers:[],sales:[],employees:[{id:'u1',nome:'Administrador',usuario:'admin',senha:'admin',perfil:'total',comissao:0}],cashSessions:[],cashCurrentOpenId:null,ledger:[],contas:[],incomingStock:[],outgoingStock:[],kits:[],logs:[],stockRequests:[],accessRequests:[],categoryGroups:[],categories:[],productNames:[],settings:{nomeLoja:'Shalom Variedades',contato:'',logo:'',impressora:'',papel:'80mm',etiquetaQr:'',etiquetaMostrarQr:true}}, data);
       normalizePerfis();
       fixDuplicateBarcodes();
       ensureCatalogDefaults();
