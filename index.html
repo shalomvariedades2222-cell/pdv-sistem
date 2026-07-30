@@ -345,13 +345,11 @@ html.anim-off-ambient body::before,html.anim-off-ambient body::after{animation:n
 .accessFlowCard{width:min(480px,calc(100vw - 32px));max-height:calc(100vh - 42px);position:relative;z-index:2;padding:22px;border-radius:18px;border:1px solid rgba(255,106,26,.32);background:rgba(27,19,16,.94);box-shadow:0 22px 60px rgba(0,0,0,.5);}
 .accessTermsBox{height:250px;overflow:auto;padding:14px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);font-size:12px;line-height:1.55;color:var(--text-dim);}.accessTermsBox h4{color:var(--text);margin:0 0 8px}.accessTermsBox::-webkit-scrollbar{width:8px}.accessTermsBox::-webkit-scrollbar-thumb{background:var(--orange);border-radius:8px}
 .accessTermsAccept{display:flex;gap:8px;align-items:flex-start;margin:12px 0;font-size:12px}.accessTermsAccept input{margin-top:2px;accent-color:var(--orange)}
-.accessConveyor{height:250px;position:relative;overflow:hidden;border-radius:14px;background:linear-gradient(#3e2b20 0 60%,#17100d 60%);margin:14px 0;}.accessBelt{position:absolute;left:-20%;right:-20%;bottom:30px;height:50px;background:repeating-linear-gradient(90deg,#7a5d50 0 42px,#4a3b34 42px 54px);transform:skewX(-12deg);animation:beltMove 1.3s linear infinite}@keyframes beltMove{to{background-position:160px 0}}
-.accessBag{position:absolute;bottom:70px;width:50px;height:60px;border-radius:6px 6px 12px 12px;background:linear-gradient(135deg,#e8b368,#d59b54);box-shadow:inset 0 -12px rgba(0,0,0,.18),0 4px 12px rgba(0,0,0,.3);animation:bagRideDrop 6s ease-in-out infinite;transition:transform .2s ease}.accessBag:before{content:'';position:absolute;width:24px;height:18px;border:4px solid #d59b54;border-bottom:0;border-radius:16px 16px 0 0;left:9px;top:-14px;box-shadow:inset 0 1px 2px rgba(255,255,255,.2)}.accessBag:after{content:'';position:absolute;top:0;left:0;right:0;bottom:0;border-radius:6px 6px 12px 12px;background:linear-gradient(90deg,rgba(255,255,255,.1) 0%,transparent 50%,rgba(0,0,0,.1) 100%)}.bag1{left:-70px;animation-delay:0s}.bag2{left:-70px;animation-delay:2s}.bag3{left:-70px;animation-delay:4s}@keyframes bagRideDrop{0%{transform:translateX(0) translateY(0) rotateZ(0deg);opacity:1}45%{transform:translateX(calc(50vw)) translateY(0) rotateZ(2deg);opacity:1}50%{transform:translateX(calc(50vw)) translateY(8px) rotateZ(-2deg);opacity:1}55%{transform:translateX(calc(50vw)) translateY(0) rotateZ(2deg);opacity:1}100%{transform:translateX(calc(100vw + 120px)) translateY(0) rotateZ(0deg);opacity:0}}
-.accessCloth{position:absolute;top:20px;left:50%;font-size:38px;animation:clothDropEnhanced 4s cubic-bezier(.25,.46,.45,.94) infinite;text-shadow:0 2px 8px rgba(0,0,0,.3);filter:drop-shadow(0 0 2px rgba(255,170,100,.4))}.accessCloth.c2{animation-delay:1.35s;left:calc(50% + 60px)}.accessCloth.c3{animation-delay:2.7s;left:calc(50% - 60px)}.accessCloth.c3:before{animation-delay:2.7s}@keyframes clothDropEnhanced{0%,25%{transform:translate(-50%,-20px);opacity:0;filter:brightness(1.2)}35%{opacity:1;transform:translate(-50%,0);filter:brightness(1)}70%{opacity:1;transform:translate(-50%,110px);filter:brightness(1)}100%{opacity:0;transform:translate(-50%,140px);filter:brightness(.8)}}
+.accessConveyor{height:210px;position:relative;overflow:hidden;border-radius:14px;background:linear-gradient(#3e2b20 0 64%,#17100d 64%);margin:14px 0;}.accessBelt{position:absolute;left:-20%;right:-20%;bottom:25px;height:46px;background:repeating-linear-gradient(90deg,#665044 0 40px,#3e2f29 40px 52px);transform:skewX(-12deg);animation:beltMove 1.2s linear infinite}@keyframes beltMove{to{background-position:160px 0}}
+.accessBag{position:absolute;bottom:56px;width:46px;height:52px;border-radius:5px 5px 9px 9px;background:#d59b54;box-shadow:inset 0 -10px rgba(0,0,0,.12);animation:bagRide 5.2s linear infinite}.accessBag:before{content:'';position:absolute;width:22px;height:15px;border:4px solid #d59b54;border-bottom:0;border-radius:15px 15px 0 0;left:8px;top:-13px}.bag1{left:-60px;animation-delay:0}.bag2{left:-60px;animation-delay:1.7s}.bag3{left:-60px;animation-delay:3.4s}@keyframes bagRide{0%{transform:translateX(0)}100%{transform:translateX(calc(100vw + 120px))}}
+.accessCloth{position:absolute;top:27px;left:50%;font-size:34px;animation:clothDrop 3.6s ease-in infinite}.accessCloth.c2{animation-delay:1.2s}.accessCloth.c3{animation-delay:2.4s}@keyframes clothDrop{0%,30%{transform:translate(-50%,0);opacity:0}48%{opacity:1}70%,100%{transform:translate(-50%,85px);opacity:0}}
 .accessGateDoors{position:absolute;inset:0;display:flex;pointer-events:none;z-index:3;overflow:hidden;border-radius:18px}.accessGateDoors i{display:block;width:50%;background:repeating-linear-gradient(90deg,#5d4437 0 9px,#2c201a 9px 14px);transition:transform .55s ease}.accessGateDoors i:first-child{transform:translateX(-100%)}.accessGateDoors i:last-child{transform:translateX(100%)}.accessFlowCard.closing .accessGateDoors i{transform:translateX(0)}.accessFlowCard.accepted .accessGateDoors i:first-child{transform:translateX(-100%)}.accessFlowCard.accepted .accessGateDoors i:last-child{transform:translateX(100%)}
 .accessProductionError{display:inline-block;color:#ff8a7b;font-weight:800;animation:productionShake .42s linear 3}@keyframes productionShake{25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}
-@keyframes acceptedPulse{0%{transform:scale(.5);opacity:0}50%{transform:scale(1.1)}100%{transform:scale(1);opacity:1}}
-@keyframes rejectedPulse{0%{transform:scale(.5);opacity:0}50%{transform:scale(1.1)}100%{transform:scale(1);opacity:1}}
 
 /* ---------- TELA "CONECTANDO AO SERVIDOR" (usuário já conectado antes) ---------- */
 #connectingScreen{
@@ -2127,9 +2125,10 @@ html.is-mobile .btn::before{ display:none; }
       <!-- ============ FUNCIONÁRIOS ============ -->
       <div class="view" id="view-funcionarios">
         <div class="tabs">
-          <button class="tabBtn active" onclick="setFuncTab('monitoramento')">Monitoramento</button>
+          <button class="tabBtn active" onclick="setFuncTab('cadastro')">Cadastro</button>
+          <button class="tabBtn" onclick="setFuncTab('monitoramento')">Monitoramento</button>
         </div>
-        <div id="funcTab-cadastro" style="display:none;">
+        <div id="funcTab-cadastro">
         <div class="panel" style="max-width:520px;">
           <h3>Novo Funcionário</h3>
           <div class="formGrid">
@@ -2160,6 +2159,10 @@ html.is-mobile .btn::before{ display:none; }
             <b>Pode mudar algumas coisas:</b> vende e edita Clientes/Fiado; o resto fica travado. <b>Acesso total:</b> sem restrições.
           </div>
           <button class="btn" data-perm="admin" onclick="saveEmployee()">Salvar Funcionário</button>
+        </div>
+        <div class="panel">
+          <h3>Funcionários Cadastrados</h3>
+          <table><thead><tr><th></th><th>Nome</th><th>Usuário</th><th>Perfil</th><th>Comissão</th><th></th></tr></thead><tbody id="employeesTableBody"></tbody></table>
         </div>
         </div>
 
@@ -2325,19 +2328,6 @@ html.is-mobile .btn::before{ display:none; }
             </div>
           </div>
           <div id="animTogglesWrap" style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px;"></div>
-        </div>
-        <div class="panel" style="max-width:520px;">
-          <h3>🔔 Notificações e Acesso de Dispositivo</h3>
-          <div class="field" style="display:flex;align-items:center;gap:8px;">
-            <input type="checkbox" id="cfg_enableDeviceAcceptNotif" onchange="saveSettingsLive()" style="width:auto;margin:0;">
-            <label style="margin:0;">Mostrar notificação de aceitar dispositivo ao entrar</label>
-          </div>
-          <div class="dimSmall" style="margin-top:6px;">Quando ativado, uma notificação aparecerá sempre que você entrar no sistema solicitando aceitar recebimento de mensagens. Desative se não quiser ver essa notificação. Você pode reativar a qualquer momento aqui.</div>
-          <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line);">
-            <h4 style="margin:0 0 8px 0;">Status de Autorização de Dispositivo</h4>
-            <p class="dimSmall" id="cfg_deviceStatusInfo">Consultando status...</p>
-            <button class="btn secondary small" onclick="refreshDeviceAuthStatus()">🔄 Atualizar status</button>
-          </div>
         </div>
         <div class="panel" style="max-width:520px;">
           <h3>Etiqueta de Produtos</h3>
@@ -2714,16 +2704,12 @@ async function consultarAutorizacaoDeAcesso(requestId){
       setTimeout(function(){
         flowCard.classList.remove('closing');
         flowCard.classList.add('accepted');
-        flowStatus.innerHTML='<span style="animation:acceptedPulse .8s ease-out;display:inline-block;font-size:18px;font-weight:800;color:var(--green);text-shadow:0 0 20px rgba(63,165,100,.6);">✅ ACEITADO</span>';
-      },30);
+        flowStatus.textContent='👕 Acesso aceito! O portão abriu e seu cadastro está pronto.';
+      },200);
       setTimeout(async function(){ const ok=await loadFromGitHub(); if(ok){ document.getElementById('accessFlowScreen').classList.remove('show'); renderLoginAvatars(); tentarLoginAutomatico(); revealLoginScreen(); } },1900);
     }else if(json.status==='recusado'){
       clearInterval(_accessRequestTimer); localStorage.removeItem(ACCESS_REQUEST_STORAGE); document.getElementById('accessWaiting').style.display='none'; msg.textContent='A solicitação foi recusada pelo responsável.';
-      const flowCard=document.getElementById('accessFlowCard');
-      flowCard.classList.add('closing');
-      setTimeout(function(){
-        document.getElementById('accessFlowStatus').innerHTML='<span style="animation:rejectedPulse .8s ease-out;display:inline-block;font-size:18px;font-weight:800;color:var(--red);text-shadow:0 0 20px rgba(224,80,63,.6);">❌ RECUSADO</span>';
-      },30);
+      document.getElementById('accessFlowStatus').innerHTML='<span class="accessProductionError">Erro na produção: pedido não aceito.</span>';
     }
   }catch(e){}
 }
@@ -8418,11 +8404,11 @@ function saveEditedEmployee(id){
 ========================================================= */
 let funcTab = 'cadastro';
 function setFuncTab(tab){
-  funcTab = tab || 'monitoramento';
+  funcTab = tab;
   document.getElementById('funcTab-cadastro').style.display = (tab==='cadastro') ? '' : 'none';
   document.getElementById('funcTab-monitoramento').style.display = (tab==='monitoramento') ? '' : 'none';
-  document.querySelectorAll('#view-funcionarios .tabBtn').forEach((b,i)=> b.classList.toggle('active', (i===0 && funcTab==='monitoramento')));
-  if(funcTab==='monitoramento'){ populateMonEmpSelect(); renderMonitoramento(); }
+  document.querySelectorAll('#view-funcionarios .tabBtn').forEach((b,i)=> b.classList.toggle('active', ['cadastro','monitoramento'][i]===tab));
+  if(tab==='monitoramento'){ populateMonEmpSelect(); renderMonitoramento(); }
 }
 function populateMonEmpSelect(){
   const sel = document.getElementById('monEmpSelect');
@@ -8718,36 +8704,9 @@ function saveMetaCrescimento(){
 /* =========================================================
    CONFIGURAÇÕES / BACKUP
 ========================================================= */
-/* ================= GERENCIAR NOTIFICAÇÕES DE ACEITAR DISPOSITIVO ================= */
-const DEVICE_NOTIF_KEY = 'slmsys_enableDeviceNotif';
-function isDeviceAcceptNotifEnabled(){
-  const stored = localStorage.getItem(DEVICE_NOTIF_KEY);
-  if(stored === null) return false; // Desabilitado por padrão
-  return stored === 'true';
-}
-function setDeviceAcceptNotifEnabled(enabled){
-  localStorage.setItem(DEVICE_NOTIF_KEY, enabled ? 'true' : 'false');
-}
-function refreshDeviceAuthStatus(){
-  const info = document.getElementById('cfg_deviceStatusInfo');
-  if(!info) return;
-  const token = deviceAccessToken || localStorage.getItem(ACCESS_DEVICE_TOKEN_STORAGE);
-  const id = getDeviceId();
-  if(token){
-    info.innerHTML = '✅ <b>Dispositivo autorizado</b><br>Este dispositivo foi autorizado para acessar o sistema. ID: <code style="font-size:11px;">' + id.slice(0,12) + '...</code>';
-  }else{
-    info.innerHTML = '⏳ <b>Aguardando autorização</b><br>Este dispositivo ainda não foi autorizado. Você poderá solicitar acesso na próxima tela de login.';
-  }
-}
-
 function renderConfig(){
   renderIntervaloSincronizacaoBotoes();
   renderCacheInfo();
-  const notifCheckbox = document.getElementById('cfg_enableDeviceAcceptNotif');
-  if(notifCheckbox){
-    notifCheckbox.checked = isDeviceAcceptNotifEnabled();
-  }
-  refreshDeviceAuthStatus();
   document.getElementById('cfg_nome').value = DB.settings.nomeLoja;
   document.getElementById('cfg_contato').value = DB.settings.contato;
   document.getElementById('cfg_impressora').value = DB.settings.impressora;
@@ -8981,10 +8940,6 @@ function saveSettingsLive(){
   DB.settings.etiquetaTamanho = document.getElementById('cfg_etiquetaTamanho').value;
   DB.settings.etiquetaCor = document.getElementById('cfg_etiquetaCor').value;
   DB.settings.etiquetaModoCustom = document.getElementById('cfg_etiquetaModoCustom').checked;
-  const notifCheckbox = document.getElementById('cfg_enableDeviceAcceptNotif');
-  if(notifCheckbox){
-    setDeviceAcceptNotifEnabled(notifCheckbox.checked);
-  }
   document.getElementById('storeNameLabel').textContent = DB.settings.nomeLoja || 'Shalom Variedades';
   flashSaving();
 }
