@@ -17,14 +17,14 @@
    uma versão nova e faz ele baixar tudo de novo, senão ele continuaria
    usando a cópia antiga guardada no cache pra sempre.
 ========================================================================== */
-const CACHE_NAME = 'slmsys-shell-v1';
+const CACHE_NAME = 'slmsys-shell-v2';
 
 // Arquivos do próprio site (mesma origem) que formam o "esqueleto" do app.
 const ARQUIVOS_DO_APP = [
   './',
   './index.html',
   './manifest.json',
-  './ice.png'
+  './ic.png'
 ];
 
 // Bibliotecas externas usadas pelo app (código de barras, QR code, PDF,
@@ -40,15 +40,31 @@ const ARQUIVOS_EXTERNOS = [
 self.addEventListener('install', function(event){
   event.waitUntil(
     caches.open(CACHE_NAME).then(function(cache){
-      // Cada arquivo é adicionado separadamente: se algum falhar (ex: um
-      // CDN externo fora do ar bem na hora da instalação), os outros ainda
-      // são guardados, em vez de o cache inteiro falhar por causa de um só.
+      // Cada arquivo é guardado separadamente: se algum falhar (ex: um CDN
+      // externo fora do ar bem na hora da instalação), os outros ainda são
+      // guardados, em vez de o cache inteiro falhar por causa de um só.
+      //
+      // Os arquivos externos (outro domínio) só podem ser buscados em modo
+      // "no-cors", e isso faz o navegador devolver uma resposta "opaca"
+      // (sem status legível). cache.add()/addAll() TRATAM resposta opaca
+      // como se fosse erro e recusam guardar — por isso aqui usamos
+      // fetch() + cache.put() manualmente pros arquivos externos, que
+      // aceitam resposta opaca numa boa.
       return Promise.all(
-        ARQUIVOS_DO_APP.concat(ARQUIVOS_EXTERNOS).map(function(url){
+        ARQUIVOS_DO_APP.map(function(url){
           return cache.add(url).catch(function(e){
             console.warn('Service worker: não deu pra guardar em cache:', url, e);
           });
-        })
+        }).concat(
+          ARQUIVOS_EXTERNOS.map(function(url){
+            const req = new Request(url, {mode:'no-cors'});
+            return fetch(req).then(function(resp){
+              return cache.put(req, resp);
+            }).catch(function(e){
+              console.warn('Service worker: não deu pra guardar em cache:', url, e);
+            });
+          })
+        )
       );
     }).then(function(){
       return self.skipWaiting(); // ativa a versão nova assim que instalar, sem esperar recarregar
@@ -84,13 +100,20 @@ self.addEventListener('fetch', function(event){
       // hora (mais rápido e funciona sem internet). Em paralelo, tenta
       // atualizar o cache com uma versão mais nova pra próxima vez.
       const buscaNaRede = fetch(req).then(function(respostaDaRede){
-        if(respostaDaRede && respostaDaRede.ok){
+        // Resposta "opaca" (CDN de outro domínio) não tem status legível,
+        // então response.ok é sempre falso nela mesmo quando deu certo —
+        // por isso aceitamos tanto "ok" quanto "opaque" aqui.
+        if(respostaDaRede && (respostaDaRede.ok || respostaDaRede.type === 'opaque')){
           const copia = respostaDaRede.clone();
           caches.open(CACHE_NAME).then(function(cache){ cache.put(req, copia); });
         }
         return respostaDaRede;
       }).catch(function(){
-        return respostaEmCache; // sem internet: cai pro que já está guardado
+        // Sem rede e sem nada em cache: NUNCA pode devolver "undefined" aqui
+        // (isso quebra o navegador com "Failed to convert value to
+        // Response"). Response.error() é uma falha de rede "normal" e
+        // segura de devolver.
+        return respostaEmCache || Response.error();
       });
       return respostaEmCache || buscaNaRede;
     })
