@@ -339,6 +339,17 @@ html.anim-off-ambient body::before,html.anim-off-ambient body::after{animation:n
 .accessWaiting .rings i:nth-child(2){animation-delay:.16s}.accessWaiting .rings i:nth-child(3){animation-delay:.32s}
 @keyframes accessWait{0%,100%{transform:translateY(0);opacity:.25}50%{transform:translateY(-7px);opacity:1;box-shadow:0 0 14px var(--orange)}}
 .accessLockHint{color:#f09a64!important;font-weight:700;}
+/* Jornada visual de solicitação de acesso */
+#accessFlowScreen{position:fixed;inset:0;z-index:1100;display:none;align-items:center;justify-content:center;overflow:hidden;background:radial-gradient(circle at 50% 20%,#3b281d,#0d0a09 70%);}
+#accessFlowScreen.show{display:flex;animation:accessScreenIn .35s ease both;}@keyframes accessScreenIn{from{opacity:0}to{opacity:1}}
+.accessFlowCard{width:min(480px,calc(100vw - 32px));max-height:calc(100vh - 42px);position:relative;z-index:2;padding:22px;border-radius:18px;border:1px solid rgba(255,106,26,.32);background:rgba(27,19,16,.94);box-shadow:0 22px 60px rgba(0,0,0,.5);}
+.accessTermsBox{height:250px;overflow:auto;padding:14px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);font-size:12px;line-height:1.55;color:var(--text-dim);}.accessTermsBox h4{color:var(--text);margin:0 0 8px}.accessTermsBox::-webkit-scrollbar{width:8px}.accessTermsBox::-webkit-scrollbar-thumb{background:var(--orange);border-radius:8px}
+.accessTermsAccept{display:flex;gap:8px;align-items:flex-start;margin:12px 0;font-size:12px}.accessTermsAccept input{margin-top:2px;accent-color:var(--orange)}
+.accessConveyor{height:210px;position:relative;overflow:hidden;border-radius:14px;background:linear-gradient(#3e2b20 0 64%,#17100d 64%);margin:14px 0;}.accessBelt{position:absolute;left:-20%;right:-20%;bottom:25px;height:46px;background:repeating-linear-gradient(90deg,#665044 0 40px,#3e2f29 40px 52px);transform:skewX(-12deg);animation:beltMove 1.2s linear infinite}@keyframes beltMove{to{background-position:160px 0}}
+.accessBag{position:absolute;bottom:56px;width:46px;height:52px;border-radius:5px 5px 9px 9px;background:#d59b54;box-shadow:inset 0 -10px rgba(0,0,0,.12);animation:bagRide 5.2s linear infinite}.accessBag:before{content:'';position:absolute;width:22px;height:15px;border:4px solid #d59b54;border-bottom:0;border-radius:15px 15px 0 0;left:8px;top:-13px}.bag1{left:-60px;animation-delay:0}.bag2{left:-60px;animation-delay:1.7s}.bag3{left:-60px;animation-delay:3.4s}@keyframes bagRide{0%{transform:translateX(0)}100%{transform:translateX(calc(100vw + 120px))}}
+.accessCloth{position:absolute;top:27px;left:50%;font-size:34px;animation:clothDrop 3.6s ease-in infinite}.accessCloth.c2{animation-delay:1.2s}.accessCloth.c3{animation-delay:2.4s}@keyframes clothDrop{0%,30%{transform:translate(-50%,0);opacity:0}48%{opacity:1}70%,100%{transform:translate(-50%,85px);opacity:0}}
+.accessGateDoors{position:absolute;inset:0;display:flex;pointer-events:none;z-index:3;overflow:hidden;border-radius:18px}.accessGateDoors i{display:block;width:50%;background:repeating-linear-gradient(90deg,#5d4437 0 9px,#2c201a 9px 14px);transition:transform .55s ease}.accessGateDoors i:first-child{transform:translateX(-100%)}.accessGateDoors i:last-child{transform:translateX(100%)}.accessFlowCard.closing .accessGateDoors i{transform:translateX(0)}.accessFlowCard.accepted .accessGateDoors i:first-child{transform:translateX(-100%)}.accessFlowCard.accepted .accessGateDoors i:last-child{transform:translateX(100%)}
+.accessProductionError{display:inline-block;color:#ff8a7b;font-weight:800;animation:productionShake .42s linear 3}@keyframes productionShake{25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}
 
 /* ---------- TELA "CONECTANDO AO SERVIDOR" (usuário já conectado antes) ---------- */
 #connectingScreen{
@@ -1497,6 +1508,33 @@ html.is-mobile .btn::before{ display:none; }
   </div>
 </div>
 
+<!-- ===================== PEDIDO DE ACESSO SEM KEY ===================== -->
+<div id="accessFlowScreen">
+  <div class="accessFlowCard" id="accessFlowCard">
+    <div id="accessTermsStep">
+      <div class="gateBadge">Solicitação de acesso</div>
+      <h2 style="margin:2px 0 8px;">Termos de autorização</h2>
+      <p class="dimSmall">Leia até o fim para liberar o envio do pedido ao administrador.</p>
+      <div class="accessTermsBox" id="accessTermsBox" onscroll="verificarLeituraTermos()">
+        <h4>Uso do dispositivo e dados de acesso</h4>
+        <p>Ao continuar, você solicita o acesso deste dispositivo ao SLMsys. Para análise e segurança, serão registrados o horário da solicitação, navegador/dispositivo, idioma, fuso horário e localização aproximada informada pelo navegador.</p>
+        <p>Essas informações são exibidas somente ao responsável autorizado da loja, na central de pedidos. Elas servem para confirmar se o acesso é legítimo.</p>
+        <p>Após a aprovação, o administrador poderá preparar seu cadastro e definir o nível de acesso. O dispositivo só entra quando esse processo estiver concluído.</p>
+        <p>Não compartilhe este dispositivo com pessoas não autorizadas. A aprovação pode ser cancelada pelo administrador a qualquer momento.</p>
+        <p style="margin-bottom:180px;">Fim dos termos. Ao marcar a confirmação abaixo, você declara que leu e concorda com essas condições.</p>
+      </div>
+      <label class="accessTermsAccept"><input id="accessTermsCheck" type="checkbox" disabled onchange="document.getElementById('accessSendBtn').disabled=!this.checked"> Li os termos e autorizo o envio do pedido de acesso.</label>
+      <button class="btn" id="accessSendBtn" disabled onclick="solicitarAutorizacaoDeAcesso()">Enviar pedido ao administrador</button>
+    </div>
+    <div id="accessWaitingStep" style="display:none;text-align:center;">
+      <div class="gateBadge">Central de produção</div><h2 style="margin:2px 0 4px;">Seu pedido está na esteira</h2><p class="dimSmall" id="accessFlowStatus">Aguardando o administrador receber e preparar seu cadastro.</p>
+      <div class="accessConveyor"><span class="accessCloth">👕</span><span class="accessCloth c2">👗</span><span class="accessCloth c3">🧥</span><span class="accessBag bag1"></span><span class="accessBag bag2"></span><span class="accessBag bag3"></span><span class="accessBelt"></span></div>
+      <div class="dimSmall">O status é atualizado automaticamente enquanto esta tela estiver aberta.</div>
+    </div>
+    <div class="accessGateDoors"><i></i><i></i></div>
+  </div>
+</div>
+
 <!-- ===================== CONECTANDO (dispositivo já cadastrado) ===================== -->
 <div id="connectingScreen" style="position:fixed;inset:0;z-index:1000;align-items:center;justify-content:center;">
   <div class="connWrap">
@@ -2463,6 +2501,7 @@ let DB = {
   logs: [],
   stockRequests: [], // pedidos de liberação temporária para mexer no estoque {id, employeeId, employeeName, requestedAt, status, decidedAt, decidedBy, expiresAt}
   accessRequests: [], // pedidos para liberar um novo dispositivo
+  accessRequestLimits: [], // limite persistente de envio por dispositivo
   categoryGroups: [], // grupos de categorias {id, nome}
   categories: [],      // categorias {id, nome, groupId}
   productNames: [],    // catálogo de nomes de peças {id, nome}
@@ -2534,7 +2573,11 @@ function cloudGet(params){ return fetch(APPSCRIPT_URL+'?'+new URLSearchParams(pa
 function getKeyGuard(){ try{return JSON.parse(localStorage.getItem(KEY_GUARD_STORAGE)||'{}');}catch(e){return{};} }
 function setKeyGuard(v){ try{localStorage.setItem(KEY_GUARD_STORAGE,JSON.stringify(v));}catch(e){} }
 function getDeviceId(){ try{ let id=localStorage.getItem(DEVICE_ID_STORAGE); if(!id){ id=(crypto.randomUUID?crypto.randomUUID():uid('device'))+'-'+Date.now().toString(36); localStorage.setItem(DEVICE_ID_STORAGE,id); } return id; }catch(e){return uid('device');} }
-function getDeviceRequestInfo(){ return {deviceId:getDeviceId(),deviceName:(navigator.userAgent||'Navegador não identificado').replace(/[<>]/g,'').slice(0,180),locale:(navigator.language||'').slice(0,20),timezone:(Intl.DateTimeFormat().resolvedOptions().timeZone||'').slice(0,80)}; }
+function getDeviceRequestInfo(){
+  const timezone=(Intl.DateTimeFormat().resolvedOptions().timeZone||'').slice(0,80);
+  const city=timezone.includes('/') ? timezone.split('/').pop().replace(/_/g,' ') : '';
+  return {deviceId:getDeviceId(),deviceName:(navigator.userAgent||'Navegador não identificado').replace(/[<>]/g,'').slice(0,180),locale:(navigator.language||'').slice(0,20),timezone:timezone,city:city};
+}
 function updateKeyGuardMessage(){
   const msg=document.getElementById('cloudGateMsg'), guard=getKeyGuard(), now=Date.now();
   if(guard.blockedUntil && guard.blockedUntil>now){ const left=Math.ceil((guard.blockedUntil-now)/1000), min=String(Math.floor(left/60)).padStart(2,'0'), sec=String(left%60).padStart(2,'0'); msg.className='loginHint accessLockHint'; msg.textContent='Por segurança, aguarde '+min+':'+sec+' para tentar novamente.'; return true; }
@@ -2589,13 +2632,19 @@ function fecharAccessPopover(){ document.getElementById('accessRequestEntry').cl
 function avancarPedidoAcesso(){
   const chk=document.getElementById('accessConsentCheck');
   if(!chk.checked){ chk.focus(); toast('Confirme a autorização para continuar.','erro'); return; }
-  document.getElementById('accessStepConsent').hidden=true; document.getElementById('accessStepSend').hidden=false;
+  fecharAccessPopover();
+  document.getElementById('cloudGate').style.display='none';
+  document.getElementById('accessFlowScreen').classList.add('show');
 }
 function voltarPedidoAcesso(){ document.getElementById('accessStepSend').hidden=true; document.getElementById('accessStepConsent').hidden=false; }
+function verificarLeituraTermos(){
+  const box=document.getElementById('accessTermsBox');
+  if(box.scrollTop+box.clientHeight>=box.scrollHeight-4){ document.getElementById('accessTermsCheck').disabled=false; }
+}
 document.addEventListener('click',function(e){ const box=document.getElementById('accessRequestEntry'); if(box && !box.contains(e.target)) box.classList.remove('open'); });
 async function solicitarAutorizacaoDeAcesso(){
   const msg=document.getElementById('cloudGateMsg');
-  if(!document.getElementById('accessConsentCheck').checked) return;
+  if(!document.getElementById('accessTermsCheck').checked){ toast('Leia os termos e marque a confirmação para enviar.','erro'); return; }
   msg.className='loginHint'; msg.textContent='Enviando solicitação...';
   try{
     const res=await cloudGet(Object.assign({acao:'solicitarAcessoDispositivo'},getDeviceRequestInfo()));
@@ -2608,6 +2657,9 @@ async function solicitarAutorizacaoDeAcesso(){
     }
     localStorage.setItem(ACCESS_REQUEST_STORAGE,JSON.stringify({id:json.requestId}));
     fecharAccessPopover();
+    document.getElementById('accessTermsStep').style.display='none';
+    document.getElementById('accessWaitingStep').style.display='block';
+    document.getElementById('accessFlowStatus').textContent='Pedido enviado. A produção está aguardando o administrador preparar seu cadastro.';
     document.getElementById('accessWaiting').style.display='block';
     msg.textContent='Solicitação enviada. Aguarde a confirmação do responsável.';
     clearInterval(_accessRequestTimer);
@@ -2627,9 +2679,20 @@ async function consultarAutorizacaoDeAcesso(requestId){
         localStorage.setItem(ACCESS_DEVICE_TOKEN_STORAGE,deviceAccessToken);
       }
       localStorage.removeItem(ACCESS_REQUEST_STORAGE); document.getElementById('accessWaiting').style.display='none'; msg.textContent='✅ Acesso autorizado. Entrando...';
-      const ok=await loadFromGitHub(); if(ok){ renderLoginAvatars(); tentarLoginAutomatico(); hideGateScreen(document.getElementById('cloudGate')); revealLoginScreen(); }
+      const flowCard=document.getElementById('accessFlowCard');
+      const flowStatus=document.getElementById('accessFlowStatus');
+      flowCard.classList.remove('accepted');
+      flowCard.classList.add('closing');
+      flowStatus.textContent='Cadastro confirmado. Fechando o portão da produção...';
+      setTimeout(function(){
+        flowCard.classList.remove('closing');
+        flowCard.classList.add('accepted');
+        flowStatus.textContent='👕 Acesso aceito! O portão abriu e seu cadastro está pronto.';
+      },200);
+      setTimeout(async function(){ const ok=await loadFromGitHub(); if(ok){ document.getElementById('accessFlowScreen').classList.remove('show'); renderLoginAvatars(); tentarLoginAutomatico(); revealLoginScreen(); } },1900);
     }else if(json.status==='recusado'){
       clearInterval(_accessRequestTimer); localStorage.removeItem(ACCESS_REQUEST_STORAGE); document.getElementById('accessWaiting').style.display='none'; msg.textContent='A solicitação foi recusada pelo responsável.';
+      document.getElementById('accessFlowStatus').innerHTML='<span class="accessProductionError">Erro na produção: pedido não aceito.</span>';
     }
   }catch(e){}
 }
@@ -2637,6 +2700,11 @@ function restaurarPedidoDeAcessoPendente(){
   try{
     const saved=JSON.parse(localStorage.getItem(ACCESS_REQUEST_STORAGE)||'{}');
     if(!saved.id) return;
+    document.getElementById('cloudGate').style.display='none';
+    document.getElementById('accessFlowScreen').classList.add('show');
+    document.getElementById('accessTermsStep').style.display='none';
+    document.getElementById('accessWaitingStep').style.display='block';
+    document.getElementById('accessFlowStatus').textContent='Pedido em produção. Aguardando o administrador preparar seu cadastro.';
     document.getElementById('accessWaiting').style.display='block';
     document.getElementById('accessWaitingStatus').textContent='Status: aguardando confirmação do responsável.';
     clearInterval(_accessRequestTimer);
@@ -2690,6 +2758,7 @@ function ativarModoTeste(){
     logs: [],
     stockRequests: [],
     accessRequests: [],
+    accessRequestLimits: [],
     categoryGroups: [grupoTeste],
     categories: categoriasTeste,
     productNames: nomesTeste,
@@ -3388,6 +3457,49 @@ function reiniciarLoopSincronizacao(){
 }
 reiniciarLoopSincronizacao();
 
+/* ---------------- Pedidos de acesso: atualização independente ----------------
+   O polling geral não atualiza o DB enquanto há um modal aberto, para não
+   apagar um formulário em edição. Para o sino isso era um problema: um pedido
+   novo podia ficar invisível ao administrador. Esta leitura é pequena e troca
+   somente accessRequests, portanto é segura até com qualquer popup aberto. */
+let _accessRequestsPolling=false, _accessRequestsTimer=null;
+async function checkAccessRequests(){
+  if(!hasCloudCredential() || !DB.settings.receberPedidosAcesso || _accessRequestsPolling) return;
+  _accessRequestsPolling=true;
+  try{
+    const url=APPSCRIPT_URL+'?'+(ghToken?'key='+encodeURIComponent(ghToken):'deviceToken='+encodeURIComponent(deviceAccessToken))+'&onlyAccessRequests=1&_='+Date.now();
+    const res=await fetch(url,{cache:'no-store'});
+    if(!res.ok) return;
+    const json=await res.json();
+    if(!json.ok || !Array.isArray(json.accessRequests)) return;
+    const antes=JSON.stringify(DB.accessRequests||[]);
+    const depois=JSON.stringify(json.accessRequests);
+    if(antes!==depois){
+      DB.accessRequests=json.accessRequests;
+      autoSaveLocal();
+      atualizarBadgeNotificacoes();
+      if(document.getElementById('notifModalBody')) renderNotificacoesModal();
+      const pendentes=(DB.accessRequests||[]).filter(r=>r.status==='pendente').length;
+      if(pendentes && antes==='[]') toast('🔔 Novo pedido de acesso aguardando aprovação.','ok');
+    }
+  }catch(e){
+    console.warn('Falha ao atualizar pedidos de acesso:',e);
+  }finally{
+    _accessRequestsPolling=false;
+  }
+}
+function iniciarPollingPedidosAcesso(){
+  clearInterval(_accessRequestsTimer);
+  if(DB.settings && DB.settings.receberPedidosAcesso){ _accessRequestsTimer=setInterval(checkAccessRequests,2500); checkAccessRequests(); }
+}
+function toggleReceberPedidosAcesso(ativar){
+  DB.settings.receberPedidosAcesso=!!ativar;
+  iniciarPollingPedidosAcesso();
+  flashSaving();
+  if(!ativar) showModal('<button class="modalClose" onclick="closeModal()">×</button><h3>Recebimento de pedidos desativado</h3><p class="dimSmall">Nenhum pedido novo será buscado ou exibido no sino até você ativar essa opção novamente.</p>');
+  else { checkAccessRequests(); toast('Recebimento de pedidos ativado.','ok'); }
+}
+
 /* ---------------- Duas telas de entrada: primeiro acesso x dispositivo já conectado ----------------
    Se já existe uma chave salva neste aparelho, a conexão com o servidor começa em segundo
    plano assim que a página carrega (sem esperar a animação de entrada terminar). Quando a
@@ -3572,9 +3684,11 @@ function ensureCatalogDefaults(){
   if(!Array.isArray(DB.productNames)) DB.productNames = [];
   if(!Array.isArray(DB.stockRequests)) DB.stockRequests = [];
   if(!Array.isArray(DB.accessRequests)) DB.accessRequests = [];
+  if(!Array.isArray(DB.accessRequestLimits)) DB.accessRequestLimits = [];
+  if(!DB.settings) DB.settings = {};
+  if(typeof DB.settings.receberPedidosAcesso==='undefined') DB.settings.receberPedidosAcesso = false;
   DB.sales.forEach(s=>{ if(typeof s.cancelled==='undefined') s.cancelled=false; });
   ensureEmployeeDefaults();
-  if(!DB.settings) DB.settings = {};
   if(typeof DB.settings.syncIntervalMs==='undefined' || DB.settings.syncIntervalMs===null) DB.settings.syncIntervalMs = SYNC_INTERVAL_PADRAO_MS;
   if(typeof DB.settings.metaCrescimentoPct==='undefined') DB.settings.metaCrescimentoPct = 0;
   if(typeof DB.settings.estoqueLiberacaoMinutos==='undefined' || !DB.settings.estoqueLiberacaoMinutos) DB.settings.estoqueLiberacaoMinutos = 60;
@@ -4812,9 +4926,10 @@ function renderNotificacoesModal(){
   const esc=v=>String(v||'-').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   body.innerHTML = `
     <h4 style="margin:0 0 6px;">🔐 Autorizações de dispositivo</h4>
-    <p class="dimSmall" style="margin-top:0;">Revise o horário, navegador/dispositivo e localização aproximada antes de decidir.</p>
+    <label class="accessTermsAccept" style="margin:4px 0 10px;"><input type="checkbox" ${DB.settings.receberPedidosAcesso?'checked':''} onchange="toggleReceberPedidosAcesso(this.checked)"> Receber novos pedidos de acesso neste dispositivo</label>
+    <p class="dimSmall" style="margin-top:0;">${DB.settings.receberPedidosAcesso?'Recebimento ativo: o sino procura pedidos novos enquanto estiver ligado.':'Recebimento desativado: nenhum pedido novo será buscado até ativar a caixa acima.'}</p>
     <table><thead><tr><th>Solicitado em</th><th>Dispositivo</th><th>Local</th><th></th></tr></thead><tbody>
-      ${pedidos.map(r=>`<tr><td>${esc(new Date(r.requestedAt).toLocaleString('pt-BR'))}</td><td>${esc(r.deviceName)}</td><td>${esc([r.locale,r.timezone].filter(Boolean).join(' · '))}</td><td style="white-space:nowrap"><button class="btn small" onclick="decidirAcessoDispositivo('${esc(r.id)}','aceito')">Aprovar</button> <button class="btn small secondary" onclick="decidirAcessoDispositivo('${esc(r.id)}','recusado')">Rejeitar</button></td></tr>`).join('') || '<tr><td colspan="4" class="dimSmall">Nenhuma solicitação aguardando confirmação.</td></tr>'}
+      ${pedidos.map(r=>`<tr><td>${esc(new Date(r.requestedAt).toLocaleString('pt-BR'))}</td><td>${esc(r.deviceName)}</td><td>${esc([r.city,r.locale,r.timezone].filter(Boolean).join(' · '))}</td><td style="white-space:nowrap"><button class="btn small" onclick="prepararCadastroAcesso('${esc(r.id)}')">Preparar cadastro</button> <button class="btn small secondary" onclick="decidirAcessoDispositivo('${esc(r.id)}','recusado')">Rejeitar</button></td></tr>`).join('') || '<tr><td colspan="4" class="dimSmall">Nenhuma solicitação aguardando confirmação.</td></tr>'}
     </tbody></table>
     <hr style="border:0;border-top:1px solid var(--line);margin:18px 0;">
     <h4 style="margin:0 0 6px;">Fiado em atraso (${FIADO_ATRASO_DIAS}+ dias)</h4>
@@ -4825,16 +4940,24 @@ function renderNotificacoesModal(){
     </tbody></table>
   `;
 }
-async function decidirAcessoDispositivo(id,status){
+function prepararCadastroAcesso(id){
+  showModal(`<button class="modalClose" onclick="closeModal()">×</button><h3>Preparar cadastro do acesso</h3><div class="formGrid"><div class="field"><label>Nome</label><input id="accessNewName" placeholder="Nome da pessoa"></div><div class="field"><label>Usuário</label><input id="accessNewUser" placeholder="Usuário de login"></div><div class="field"><label>Senha</label><input id="accessNewPass" type="password" placeholder="Senha"></div><div class="field"><label>Nível de acesso</label><select id="accessNewProfile"><option value="restrito">Restrito</option><option value="parcial">Pode mudar algumas coisas</option><option value="visualizar">Só olhar</option></select></div></div><button class="btn" style="width:100%;margin-top:10px" onclick="confirmarCadastroAcesso('${id}')">Criar cadastro e aprovar</button>`);
+}
+function confirmarCadastroAcesso(id){
+  const nome=document.getElementById('accessNewName').value.trim(), usuario=document.getElementById('accessNewUser').value.trim(), senha=document.getElementById('accessNewPass').value;
+  if(!nome||!usuario||!senha){ toast('Preencha nome, usuário e senha.','erro'); return; }
+  decidirAcessoDispositivo(id,'aceito',{nome:nome,usuario:usuario,senha:senha,perfil:document.getElementById('accessNewProfile').value});
+}
+async function decidirAcessoDispositivo(id,status,cadastro){
   if(!requirePerm(getPerms().isTotal)) return;
   const req=(DB.accessRequests||[]).find(r=>r.id===id && r.status==='pendente');
   if(!req) return;
   try{
-    const res=await cloudPost(Object.assign({tipo:'decidirAcessoDispositivo',requestId:id,status:status,decidedBy:currentUser?currentUser.nome:'Responsável'},cloudCredentials()));
+    const res=await cloudPost(Object.assign({tipo:'decidirAcessoDispositivo',requestId:id,status:status,decidedBy:currentUser?currentUser.nome:'Responsável',cadastro:cadastro||null},cloudCredentials()));
     const json=await res.json();
     if(!res.ok || !json.ok){ toast((json&&json.error)||'Não foi possível registrar a decisão.','erro'); return; }
     req.status=status; req.decidedAt=new Date().toISOString(); req.decidedBy=currentUser ? currentUser.nome : 'Responsável'; driveVersion=json.version||driveVersion;
-    autoSaveLocal(); atualizarBadgeNotificacoes(); renderNotificacoesModal();
+    autoSaveLocal(); atualizarBadgeNotificacoes(); closeModal();
   }catch(e){ toast('Sem conexão para registrar a decisão.','erro'); }
 }
 /* =========================================================
