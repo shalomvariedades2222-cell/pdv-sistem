@@ -13,6 +13,29 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="SLMsys">
 <script>
+/* ---------- TRAVA DE SEGURANÇA DA TELA DE CARREGAMENTO ----------
+   Se por qualquer motivo (CDN lento/bloqueado, servidor sem resposta, etc.)
+   a splash inicial não sumir sozinha, isso força a saída dela depois de
+   8 segundos, pra ninguém ficar preso na tela de carregamento pra sempre.
+   Roda isolado, sem depender de nenhuma outra parte do código ter carregado. */
+(function(){
+  setTimeout(function(){
+    var s = document.getElementById('introSplash');
+    if(!s || !s.parentNode) return; // já saiu sozinha, não faz nada
+    s.style.transition = 'opacity .4s ease';
+    s.style.opacity = '0';
+    s.style.pointerEvents = 'none';
+    setTimeout(function(){ if(s.parentNode) s.remove(); }, 450);
+    if(typeof window.finishAutoConnect === 'function'){
+      try{ window.finishAutoConnect(); }catch(e){}
+    } else {
+      var gate = document.getElementById('cloudGate');
+      if(gate){ gate.style.display = 'flex'; requestAnimationFrame(function(){ gate.classList.add('in'); }); }
+    }
+  }, 8000);
+})();
+</script>
+<script>
 (function(){
   function applyMobileFlag(){
     var isMobile = window.matchMedia('(max-width:860px)').matches || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
@@ -22,10 +45,14 @@
   window.addEventListener('resize', applyMobileFlag);
 })();
 </script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/JsBarcode/3.11.6/JsBarcode.all.min.js" onerror="this.onerror=null;var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js';document.head.appendChild(s);"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js" onerror="this.onerror=null;var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/qrious@4.0.2/dist/qrious.min.js';document.head.appendChild(s);"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" onerror="this.onerror=null;var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';document.head.appendChild(s);"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" onerror="this.onerror=null;var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js';document.head.appendChild(s);"></script>
+<!-- defer: essas libs só são usadas depois (impressão de etiqueta/PDF), então não
+     precisam travar o carregamento do resto da página esperando o CDN responder.
+     Sem isso, se o CDN demorar ou estiver bloqueado na rede do servidor, o app
+     inteiro fica parado na tela de carregamento (sem nenhum erro no console). -->
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/JsBarcode/3.11.6/JsBarcode.all.min.js" onerror="this.onerror=null;var s=document.createElement('script');s.defer=true;s.src='https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js';document.head.appendChild(s);"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js" onerror="this.onerror=null;var s=document.createElement('script');s.defer=true;s.src='https://cdn.jsdelivr.net/npm/qrious@4.0.2/dist/qrious.min.js';document.head.appendChild(s);"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" onerror="this.onerror=null;var s=document.createElement('script');s.defer=true;s.src='https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';document.head.appendChild(s);"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" onerror="this.onerror=null;var s=document.createElement('script');s.defer=true;s.src='https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js';document.head.appendChild(s);"></script>
 <script>
 /* ==========================================================================
    SERVICE WORKER — é isso que permite abrir o app/site MESMO SEM INTERNET
