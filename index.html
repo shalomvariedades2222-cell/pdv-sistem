@@ -192,7 +192,7 @@ html.anim-off-ambient body::before,html.anim-off-ambient body::after{animation:n
 .introBar::after{
   content:'';display:block;height:100%;width:40%;border-radius:3px;
   background:linear-gradient(90deg,var(--orange-deep),var(--orange));
-  animation:introBarSlide 1.4s cubic-bezier(.4,.1,.2,1) 1.55s forwards;
+  animation:introBarSlide 1s cubic-bezier(.4,.1,.2,1) 1.55s infinite;
 }
 @keyframes introBarSlide{
   0%{transform:translateX(-120%);}
