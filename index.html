@@ -8336,7 +8336,9 @@ function saveEmployee(){
 }
 function renderEmployees(){
   const perm = getPerms();
-  document.getElementById('employeesTableBody').innerHTML = DB.employees.map(e=>
+  const tbody = document.getElementById('employeesTableBody');
+  if(!tbody) return; // essa tela não tem mais a tabela de lista de funcionários (só o Monitoramento)
+  tbody.innerHTML = DB.employees.map(e=>
     `<tr><td><span class="avatarCircle" style="width:30px;height:30px;font-size:11px;background:${avatarColorFor(e.id)};">${e.foto?`<img src="${e.foto}" alt="">`:initialsOf(e.nome)}</span></td><td>${e.nome}</td><td>${e.usuario}</td><td>${PERFIL_LABELS[e.perfil]||e.perfil}</td><td>${e.comissao}%</td>
       <td style="white-space:nowrap;">
         ${perm.isTotal?`<button class="btn small secondary" onclick="editEmployee('${e.id}')">Editar</button>`:''}
