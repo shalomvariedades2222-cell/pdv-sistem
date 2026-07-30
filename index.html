@@ -1525,6 +1525,7 @@ html.is-mobile .btn::before{ display:none; }
       </div>
       <label class="accessTermsAccept"><input id="accessTermsCheck" type="checkbox" disabled onchange="document.getElementById('accessSendBtn').disabled=!this.checked"> Li os termos e autorizo o envio do pedido de acesso.</label>
       <button class="btn" id="accessSendBtn" disabled onclick="solicitarAutorizacaoDeAcesso()">Enviar pedido ao administrador</button>
+      <p id="accessSendError" class="loginHint" role="alert" style="min-height:18px;margin:9px 0 0;"></p>
     </div>
     <div id="accessWaitingStep" style="display:none;text-align:center;">
       <div class="gateBadge">Central de produção</div><h2 style="margin:2px 0 4px;">Seu pedido está na esteira</h2><p class="dimSmall" id="accessFlowStatus">Aguardando o administrador receber e preparar seu cadastro.</p>
@@ -2567,6 +2568,7 @@ const KEY_GUARD_STORAGE = 'slmsys_key_guard_v1';
 const DEVICE_ID_STORAGE = 'slmsys_device_id_v1';
 const ACCESS_REQUEST_STORAGE = 'slmsys_access_request_v1';
 const ACCESS_DEVICE_TOKEN_STORAGE = 'slmsys_device_access_token_v1';
+const ACCESS_REQUEST_RECEIVE_STORAGE = 'slmsys_receive_access_requests_v1';
 const KEY_MAX_ATTEMPTS = 3, KEY_LOCK_MS = 5 * 60 * 1000;
 function cloudPost(payload, options={}){ return fetch(APPSCRIPT_URL, Object.assign({method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)},options)); }
 function cloudGet(params){ return fetch(APPSCRIPT_URL+'?'+new URLSearchParams(params).toString(), {cache:'no-store'}); }
@@ -2578,6 +2580,8 @@ function getDeviceRequestInfo(){
   const city=timezone.includes('/') ? timezone.split('/').pop().replace(/_/g,' ') : '';
   return {deviceId:getDeviceId(),deviceName:(navigator.userAgent||'Navegador não identificado').replace(/[<>]/g,'').slice(0,180),locale:(navigator.language||'').slice(0,20),timezone:timezone,city:city};
 }
+function recebePedidosNesteDispositivo(){ try{return localStorage.getItem(ACCESS_REQUEST_RECEIVE_STORAGE)==='1';}catch(e){return false;} }
+function salvarRecebimentoNesteDispositivo(ativo){ try{localStorage.setItem(ACCESS_REQUEST_RECEIVE_STORAGE,ativo?'1':'0');}catch(e){} }
 function updateKeyGuardMessage(){
   const msg=document.getElementById('cloudGateMsg'), guard=getKeyGuard(), now=Date.now();
   if(guard.blockedUntil && guard.blockedUntil>now){ const left=Math.ceil((guard.blockedUntil-now)/1000), min=String(Math.floor(left/60)).padStart(2,'0'), sec=String(left%60).padStart(2,'0'); msg.className='loginHint accessLockHint'; msg.textContent='Por segurança, aguarde '+min+':'+sec+' para tentar novamente.'; return true; }
@@ -2644,15 +2648,23 @@ function verificarLeituraTermos(){
 document.addEventListener('click',function(e){ const box=document.getElementById('accessRequestEntry'); if(box && !box.contains(e.target)) box.classList.remove('open'); });
 async function solicitarAutorizacaoDeAcesso(){
   const msg=document.getElementById('cloudGateMsg');
+  const status=document.getElementById('accessSendError');
+  const sendBtn=document.getElementById('accessSendBtn');
   if(!document.getElementById('accessTermsCheck').checked){ toast('Leia os termos e marque a confirmação para enviar.','erro'); return; }
+  status.textContent='';
+  sendBtn.disabled=true;
   msg.className='loginHint'; msg.textContent='Enviando solicitação...';
   try{
     const res=await cloudGet(Object.assign({acao:'solicitarAcessoDispositivo'},getDeviceRequestInfo()));
-    const json=await res.json();
+    let json;
+    try{ json=await res.json(); }catch(e){ throw new Error('O servidor respondeu em um formato inválido. Verifique se o Web App do Apps Script foi publicado.'); }
     if(!res.ok || !json.ok){
-      msg.textContent=(json && /chave inválida|sem permissão/i.test(json.error||''))
+      const erro=(json && /chave inválida|sem permissão/i.test(json.error||''))
         ? 'A autorização sem key ainda não foi ativada no servidor. Atualize e implante o Code.gs.'
         : (json&&json.error)||'Não foi possível enviar a solicitação.';
+      msg.textContent=erro;
+      status.textContent='⚠️ '+erro;
+      sendBtn.disabled=false;
       return;
     }
     localStorage.setItem(ACCESS_REQUEST_STORAGE,JSON.stringify({id:json.requestId}));
@@ -2665,7 +2677,12 @@ async function solicitarAutorizacaoDeAcesso(){
     clearInterval(_accessRequestTimer);
     _accessRequestTimer=setInterval(()=>consultarAutorizacaoDeAcesso(json.requestId),5000);
     consultarAutorizacaoDeAcesso(json.requestId);
-  }catch(e){ msg.textContent='Sem conexão para enviar a solicitação.'; }
+  }catch(e){
+    const erro=e&&e.message ? e.message : 'Sem conexão para enviar a solicitação.';
+    msg.textContent=erro;
+    status.textContent='⚠️ '+erro;
+    sendBtn.disabled=false;
+  }
 }
 async function consultarAutorizacaoDeAcesso(requestId){
   try{
@@ -3464,7 +3481,7 @@ reiniciarLoopSincronizacao();
    somente accessRequests, portanto é segura até com qualquer popup aberto. */
 let _accessRequestsPolling=false, _accessRequestsTimer=null;
 async function checkAccessRequests(){
-  if(!hasCloudCredential() || !DB.settings.receberPedidosAcesso || _accessRequestsPolling) return;
+  if(!getPerms().isTotal || !hasCloudCredential() || !recebePedidosNesteDispositivo() || _accessRequestsPolling) return;
   _accessRequestsPolling=true;
   try{
     const url=APPSCRIPT_URL+'?'+(ghToken?'key='+encodeURIComponent(ghToken):'deviceToken='+encodeURIComponent(deviceAccessToken))+'&onlyAccessRequests=1&_='+Date.now();
@@ -3490,12 +3507,11 @@ async function checkAccessRequests(){
 }
 function iniciarPollingPedidosAcesso(){
   clearInterval(_accessRequestsTimer);
-  if(DB.settings && DB.settings.receberPedidosAcesso){ _accessRequestsTimer=setInterval(checkAccessRequests,2500); checkAccessRequests(); }
+  if(getPerms().isTotal && recebePedidosNesteDispositivo()){ _accessRequestsTimer=setInterval(checkAccessRequests,2500); checkAccessRequests(); }
 }
 function toggleReceberPedidosAcesso(ativar){
-  DB.settings.receberPedidosAcesso=!!ativar;
+  salvarRecebimentoNesteDispositivo(!!ativar);
   iniciarPollingPedidosAcesso();
-  flashSaving();
   if(!ativar) showModal('<button class="modalClose" onclick="closeModal()">×</button><h3>Recebimento de pedidos desativado</h3><p class="dimSmall">Nenhum pedido novo será buscado ou exibido no sino até você ativar essa opção novamente.</p>');
   else { checkAccessRequests(); toast('Recebimento de pedidos ativado.','ok'); }
 }
@@ -4081,6 +4097,15 @@ function efetuarLogin(emp){
   document.getElementById('currentUserLabel').textContent = emp.nome + ' (' + (PERFIL_LABELS[emp.perfil]||emp.perfil) + ')';
   applyPermissions();
   renderAll();
+  if(getPerms().isTotal){
+    if(recebePedidosNesteDispositivo()){
+      iniciarPollingPedidosAcesso();
+    }else{
+      setTimeout(function(){
+        showModal('<button class="modalClose" onclick="closeModal()">×</button><h3>Recebimento de pedidos desativado</h3><p class="dimSmall">Este dispositivo não está buscando pedidos de acesso. Ative para receber as solicitações no sino.</p><button class="btn" onclick="toggleReceberPedidosAcesso(true);closeModal()">Ativar recebimento neste dispositivo</button>');
+      },350);
+    }
+  }
   log('Login de ' + emp.nome);
   // A tela cheia automática já é ativada desde a abertura do app (ver
   // ativarTentativasTelaCheia(), chamada no início do arquivo); esta
@@ -4926,8 +4951,8 @@ function renderNotificacoesModal(){
   const esc=v=>String(v||'-').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   body.innerHTML = `
     <h4 style="margin:0 0 6px;">🔐 Autorizações de dispositivo</h4>
-    <label class="accessTermsAccept" style="margin:4px 0 10px;"><input type="checkbox" ${DB.settings.receberPedidosAcesso?'checked':''} onchange="toggleReceberPedidosAcesso(this.checked)"> Receber novos pedidos de acesso neste dispositivo</label>
-    <p class="dimSmall" style="margin-top:0;">${DB.settings.receberPedidosAcesso?'Recebimento ativo: o sino procura pedidos novos enquanto estiver ligado.':'Recebimento desativado: nenhum pedido novo será buscado até ativar a caixa acima.'}</p>
+    <label class="accessTermsAccept" style="margin:4px 0 10px;"><input type="checkbox" ${recebePedidosNesteDispositivo()?'checked':''} onchange="toggleReceberPedidosAcesso(this.checked)"> Receber novos pedidos de acesso neste dispositivo</label>
+    <p class="dimSmall" style="margin-top:0;">${recebePedidosNesteDispositivo()?'Recebimento ativo neste dispositivo: o sino procura pedidos novos enquanto estiver ligado.':'Recebimento desativado neste dispositivo: nenhum pedido novo será buscado até ativar a caixa acima.'}</p>
     <table><thead><tr><th>Solicitado em</th><th>Dispositivo</th><th>Local</th><th></th></tr></thead><tbody>
       ${pedidos.map(r=>`<tr><td>${esc(new Date(r.requestedAt).toLocaleString('pt-BR'))}</td><td>${esc(r.deviceName)}</td><td>${esc([r.city,r.locale,r.timezone].filter(Boolean).join(' · '))}</td><td style="white-space:nowrap"><button class="btn small" onclick="prepararCadastroAcesso('${esc(r.id)}')">Preparar cadastro</button> <button class="btn small secondary" onclick="decidirAcessoDispositivo('${esc(r.id)}','recusado')">Rejeitar</button></td></tr>`).join('') || '<tr><td colspan="4" class="dimSmall">Nenhuma solicitação aguardando confirmação.</td></tr>'}
     </tbody></table>
