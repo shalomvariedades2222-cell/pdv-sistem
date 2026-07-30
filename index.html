@@ -345,11 +345,13 @@ html.anim-off-ambient body::before,html.anim-off-ambient body::after{animation:n
 .accessFlowCard{width:min(480px,calc(100vw - 32px));max-height:calc(100vh - 42px);position:relative;z-index:2;padding:22px;border-radius:18px;border:1px solid rgba(255,106,26,.32);background:rgba(27,19,16,.94);box-shadow:0 22px 60px rgba(0,0,0,.5);}
 .accessTermsBox{height:250px;overflow:auto;padding:14px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);font-size:12px;line-height:1.55;color:var(--text-dim);}.accessTermsBox h4{color:var(--text);margin:0 0 8px}.accessTermsBox::-webkit-scrollbar{width:8px}.accessTermsBox::-webkit-scrollbar-thumb{background:var(--orange);border-radius:8px}
 .accessTermsAccept{display:flex;gap:8px;align-items:flex-start;margin:12px 0;font-size:12px}.accessTermsAccept input{margin-top:2px;accent-color:var(--orange)}
-.accessConveyor{height:210px;position:relative;overflow:hidden;border-radius:14px;background:linear-gradient(#3e2b20 0 64%,#17100d 64%);margin:14px 0;}.accessBelt{position:absolute;left:-20%;right:-20%;bottom:25px;height:46px;background:repeating-linear-gradient(90deg,#665044 0 40px,#3e2f29 40px 52px);transform:skewX(-12deg);animation:beltMove 1.2s linear infinite}@keyframes beltMove{to{background-position:160px 0}}
-.accessBag{position:absolute;bottom:56px;width:46px;height:52px;border-radius:5px 5px 9px 9px;background:#d59b54;box-shadow:inset 0 -10px rgba(0,0,0,.12);animation:bagRide 5.2s linear infinite}.accessBag:before{content:'';position:absolute;width:22px;height:15px;border:4px solid #d59b54;border-bottom:0;border-radius:15px 15px 0 0;left:8px;top:-13px}.bag1{left:-60px;animation-delay:0}.bag2{left:-60px;animation-delay:1.7s}.bag3{left:-60px;animation-delay:3.4s}@keyframes bagRide{0%{transform:translateX(0)}100%{transform:translateX(calc(100vw + 120px))}}
-.accessCloth{position:absolute;top:27px;left:50%;font-size:34px;animation:clothDrop 3.6s ease-in infinite}.accessCloth.c2{animation-delay:1.2s}.accessCloth.c3{animation-delay:2.4s}@keyframes clothDrop{0%,30%{transform:translate(-50%,0);opacity:0}48%{opacity:1}70%,100%{transform:translate(-50%,85px);opacity:0}}
+.accessConveyor{height:250px;position:relative;overflow:hidden;border-radius:14px;background:linear-gradient(#3e2b20 0 60%,#17100d 60%);margin:14px 0;}.accessBelt{position:absolute;left:-20%;right:-20%;bottom:30px;height:50px;background:repeating-linear-gradient(90deg,#7a5d50 0 42px,#4a3b34 42px 54px);transform:skewX(-12deg);animation:beltMove 1.3s linear infinite}@keyframes beltMove{to{background-position:160px 0}}
+.accessBag{position:absolute;bottom:70px;width:50px;height:60px;border-radius:6px 6px 12px 12px;background:linear-gradient(135deg,#e8b368,#d59b54);box-shadow:inset 0 -12px rgba(0,0,0,.18),0 4px 12px rgba(0,0,0,.3);animation:bagRideDrop 6s ease-in-out infinite;transition:transform .2s ease}.accessBag:before{content:'';position:absolute;width:24px;height:18px;border:4px solid #d59b54;border-bottom:0;border-radius:16px 16px 0 0;left:9px;top:-14px;box-shadow:inset 0 1px 2px rgba(255,255,255,.2)}.accessBag:after{content:'';position:absolute;top:0;left:0;right:0;bottom:0;border-radius:6px 6px 12px 12px;background:linear-gradient(90deg,rgba(255,255,255,.1) 0%,transparent 50%,rgba(0,0,0,.1) 100%)}.bag1{left:-70px;animation-delay:0s}.bag2{left:-70px;animation-delay:2s}.bag3{left:-70px;animation-delay:4s}@keyframes bagRideDrop{0%{transform:translateX(0) translateY(0) rotateZ(0deg);opacity:1}45%{transform:translateX(calc(50vw)) translateY(0) rotateZ(2deg);opacity:1}50%{transform:translateX(calc(50vw)) translateY(8px) rotateZ(-2deg);opacity:1}55%{transform:translateX(calc(50vw)) translateY(0) rotateZ(2deg);opacity:1}100%{transform:translateX(calc(100vw + 120px)) translateY(0) rotateZ(0deg);opacity:0}}
+.accessCloth{position:absolute;top:20px;left:50%;font-size:38px;animation:clothDropEnhanced 4s cubic-bezier(.25,.46,.45,.94) infinite;text-shadow:0 2px 8px rgba(0,0,0,.3);filter:drop-shadow(0 0 2px rgba(255,170,100,.4))}.accessCloth.c2{animation-delay:1.35s;left:calc(50% + 60px)}.accessCloth.c3{animation-delay:2.7s;left:calc(50% - 60px)}.accessCloth.c3:before{animation-delay:2.7s}@keyframes clothDropEnhanced{0%,25%{transform:translate(-50%,-20px);opacity:0;filter:brightness(1.2)}35%{opacity:1;transform:translate(-50%,0);filter:brightness(1)}70%{opacity:1;transform:translate(-50%,110px);filter:brightness(1)}100%{opacity:0;transform:translate(-50%,140px);filter:brightness(.8)}}
 .accessGateDoors{position:absolute;inset:0;display:flex;pointer-events:none;z-index:3;overflow:hidden;border-radius:18px}.accessGateDoors i{display:block;width:50%;background:repeating-linear-gradient(90deg,#5d4437 0 9px,#2c201a 9px 14px);transition:transform .55s ease}.accessGateDoors i:first-child{transform:translateX(-100%)}.accessGateDoors i:last-child{transform:translateX(100%)}.accessFlowCard.closing .accessGateDoors i{transform:translateX(0)}.accessFlowCard.accepted .accessGateDoors i:first-child{transform:translateX(-100%)}.accessFlowCard.accepted .accessGateDoors i:last-child{transform:translateX(100%)}
 .accessProductionError{display:inline-block;color:#ff8a7b;font-weight:800;animation:productionShake .42s linear 3}@keyframes productionShake{25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}
+@keyframes acceptedPulse{0%{transform:scale(.5);opacity:0}50%{transform:scale(1.1)}100%{transform:scale(1);opacity:1}}
+@keyframes rejectedPulse{0%{transform:scale(.5);opacity:0}50%{transform:scale(1.1)}100%{transform:scale(1);opacity:1}}
 
 /* ---------- TELA "CONECTANDO AO SERVIDOR" (usuário já conectado antes) ---------- */
 #connectingScreen{
@@ -1280,6 +1282,16 @@ html.anim-off-intro #introSplash, html.anim-off-intro #introSplash *{
   animation:none !important;transition:none !important;
 }
 html.anim-off-intro .introParticle{display:none !important;}
+/* Sem a animação, os elementos ficariam presos no estado inicial (invisível)
+   de cada @keyframes — a splash inteira parecia uma tela preta vazia e travada.
+   Aqui eles são fixados direto no estado final (visível), do jeito que
+   ficariam ao fim da animação normal. */
+html.anim-off-intro .introShock, html.anim-off-intro .introRing{display:none !important;}
+html.anim-off-intro .introLogo{opacity:1 !important;transform:scale(1) rotate(0deg) !important;border-radius:24px !important;}
+html.anim-off-intro .introTitle{opacity:1 !important;letter-spacing:6px !important;filter:blur(0) !important;}
+html.anim-off-intro .introSub{opacity:1 !important;transform:translateY(0) !important;}
+html.anim-off-intro .introBar{opacity:1 !important;transform:translateY(0) !important;}
+html.anim-off-intro .introBar::after{transform:translateX(0) !important;width:100% !important;}
 
 /* 2) Manchas de fundo (o "vidro" que se move atrás de tudo) */
 html.anim-off-ambient body::before, html.anim-off-ambient body::after{animation:none !important;}
@@ -1519,7 +1531,7 @@ html.is-mobile .btn::before{ display:none; }
         <h4>Uso do dispositivo e dados de acesso</h4>
         <p>Ao continuar, você solicita o acesso deste dispositivo ao SLMsys. Para análise e segurança, serão registrados o horário da solicitação, navegador/dispositivo, idioma, fuso horário e localização aproximada informada pelo navegador.</p>
         <p>Essas informações são exibidas somente ao responsável autorizado da loja, na central de pedidos. Elas servem para confirmar se o acesso é legítimo.</p>
-        <p>Após a aprovação, o administrador poderá preparar seu cadastro e definir o nível de acesso. O dispositivo só entra quando esse processo estiver concluído.</p>
+        <p>Após a aprovação do administrador, este dispositivo é liberado para entrar no sistema.</p>
         <p>Não compartilhe este dispositivo com pessoas não autorizadas. A aprovação pode ser cancelada pelo administrador a qualquer momento.</p>
         <p style="margin-bottom:180px;">Fim dos termos. Ao marcar a confirmação abaixo, você declara que leu e concorda com essas condições.</p>
       </div>
@@ -1528,7 +1540,7 @@ html.is-mobile .btn::before{ display:none; }
       <p id="accessSendError" class="loginHint" role="alert" style="min-height:18px;margin:9px 0 0;"></p>
     </div>
     <div id="accessWaitingStep" style="display:none;text-align:center;">
-      <div class="gateBadge">Central de produção</div><h2 style="margin:2px 0 4px;">Seu pedido está na esteira</h2><p class="dimSmall" id="accessFlowStatus">Aguardando o administrador receber e preparar seu cadastro.</p>
+      <div class="gateBadge">Central de produção</div><h2 style="margin:2px 0 4px;">Seu pedido está na esteira</h2><p class="dimSmall" id="accessFlowStatus">Aguardando o administrador aceitar o seu pedido.</p>
       <div class="accessConveyor"><span class="accessCloth">👕</span><span class="accessCloth c2">👗</span><span class="accessCloth c3">🧥</span><span class="accessBag bag1"></span><span class="accessBag bag2"></span><span class="accessBag bag3"></span><span class="accessBelt"></span></div>
       <div class="dimSmall">O status é atualizado automaticamente enquanto esta tela estiver aberta.</div>
     </div>
@@ -2125,10 +2137,9 @@ html.is-mobile .btn::before{ display:none; }
       <!-- ============ FUNCIONÁRIOS ============ -->
       <div class="view" id="view-funcionarios">
         <div class="tabs">
-          <button class="tabBtn active" onclick="setFuncTab('cadastro')">Cadastro</button>
-          <button class="tabBtn" onclick="setFuncTab('monitoramento')">Monitoramento</button>
+          <button class="tabBtn active" onclick="setFuncTab('monitoramento')">Monitoramento</button>
         </div>
-        <div id="funcTab-cadastro">
+        <div id="funcTab-cadastro" style="display:none;">
         <div class="panel" style="max-width:520px;">
           <h3>Novo Funcionário</h3>
           <div class="formGrid">
@@ -2159,10 +2170,6 @@ html.is-mobile .btn::before{ display:none; }
             <b>Pode mudar algumas coisas:</b> vende e edita Clientes/Fiado; o resto fica travado. <b>Acesso total:</b> sem restrições.
           </div>
           <button class="btn" data-perm="admin" onclick="saveEmployee()">Salvar Funcionário</button>
-        </div>
-        <div class="panel">
-          <h3>Funcionários Cadastrados</h3>
-          <table><thead><tr><th></th><th>Nome</th><th>Usuário</th><th>Perfil</th><th>Comissão</th><th></th></tr></thead><tbody id="employeesTableBody"></tbody></table>
         </div>
         </div>
 
@@ -2328,6 +2335,19 @@ html.is-mobile .btn::before{ display:none; }
             </div>
           </div>
           <div id="animTogglesWrap" style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px;"></div>
+        </div>
+        <div class="panel" style="max-width:520px;">
+          <h3>🔔 Notificações e Acesso de Dispositivo</h3>
+          <div class="field" style="display:flex;align-items:center;gap:8px;">
+            <input type="checkbox" id="cfg_enableDeviceAcceptNotif" onchange="saveSettingsLive()" style="width:auto;margin:0;">
+            <label style="margin:0;">Mostrar notificação de aceitar dispositivo ao entrar</label>
+          </div>
+          <div class="dimSmall" style="margin-top:6px;">Quando ativado, uma notificação aparecerá sempre que você entrar no sistema solicitando aceitar recebimento de mensagens. Desative se não quiser ver essa notificação. Você pode reativar a qualquer momento aqui.</div>
+          <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line);">
+            <h4 style="margin:0 0 8px 0;">Status de Autorização de Dispositivo</h4>
+            <p class="dimSmall" id="cfg_deviceStatusInfo">Consultando status...</p>
+            <button class="btn secondary small" onclick="refreshDeviceAuthStatus()">🔄 Atualizar status</button>
+          </div>
         </div>
         <div class="panel" style="max-width:520px;">
           <h3>Etiqueta de Produtos</h3>
@@ -2671,7 +2691,7 @@ async function solicitarAutorizacaoDeAcesso(){
     fecharAccessPopover();
     document.getElementById('accessTermsStep').style.display='none';
     document.getElementById('accessWaitingStep').style.display='block';
-    document.getElementById('accessFlowStatus').textContent='Pedido enviado. A produção está aguardando o administrador preparar seu cadastro.';
+    document.getElementById('accessFlowStatus').textContent='Pedido enviado. A produção está aguardando o administrador aceitar o seu pedido.';
     document.getElementById('accessWaiting').style.display='block';
     msg.textContent='Solicitação enviada. Aguarde a confirmação do responsável.';
     clearInterval(_accessRequestTimer);
@@ -2700,16 +2720,20 @@ async function consultarAutorizacaoDeAcesso(requestId){
       const flowStatus=document.getElementById('accessFlowStatus');
       flowCard.classList.remove('accepted');
       flowCard.classList.add('closing');
-      flowStatus.textContent='Cadastro confirmado. Fechando o portão da produção...';
+      flowStatus.textContent='Acesso aprovado. Fechando o portão da produção...';
       setTimeout(function(){
         flowCard.classList.remove('closing');
         flowCard.classList.add('accepted');
-        flowStatus.textContent='👕 Acesso aceito! O portão abriu e seu cadastro está pronto.';
-      },200);
+        flowStatus.innerHTML='<span style="animation:acceptedPulse .8s ease-out;display:inline-block;font-size:18px;font-weight:800;color:var(--green);text-shadow:0 0 20px rgba(63,165,100,.6);">✅ ACEITADO</span>';
+      },30);
       setTimeout(async function(){ const ok=await loadFromGitHub(); if(ok){ document.getElementById('accessFlowScreen').classList.remove('show'); renderLoginAvatars(); tentarLoginAutomatico(); revealLoginScreen(); } },1900);
     }else if(json.status==='recusado'){
       clearInterval(_accessRequestTimer); localStorage.removeItem(ACCESS_REQUEST_STORAGE); document.getElementById('accessWaiting').style.display='none'; msg.textContent='A solicitação foi recusada pelo responsável.';
-      document.getElementById('accessFlowStatus').innerHTML='<span class="accessProductionError">Erro na produção: pedido não aceito.</span>';
+      const flowCard=document.getElementById('accessFlowCard');
+      flowCard.classList.add('closing');
+      setTimeout(function(){
+        document.getElementById('accessFlowStatus').innerHTML='<span style="animation:rejectedPulse .8s ease-out;display:inline-block;font-size:18px;font-weight:800;color:var(--red);text-shadow:0 0 20px rgba(224,80,63,.6);">❌ RECUSADO</span>';
+      },30);
     }
   }catch(e){}
 }
@@ -2721,7 +2745,7 @@ function restaurarPedidoDeAcessoPendente(){
     document.getElementById('accessFlowScreen').classList.add('show');
     document.getElementById('accessTermsStep').style.display='none';
     document.getElementById('accessWaitingStep').style.display='block';
-    document.getElementById('accessFlowStatus').textContent='Pedido em produção. Aguardando o administrador preparar seu cadastro.';
+    document.getElementById('accessFlowStatus').textContent='Pedido em produção. Aguardando o administrador aceitar o seu pedido.';
     document.getElementById('accessWaiting').style.display='block';
     document.getElementById('accessWaitingStatus').textContent='Status: aguardando confirmação do responsável.';
     clearInterval(_accessRequestTimer);
@@ -3497,7 +3521,7 @@ async function checkAccessRequests(){
       atualizarBadgeNotificacoes();
       if(document.getElementById('notifModalBody')) renderNotificacoesModal();
       const pendentes=(DB.accessRequests||[]).filter(r=>r.status==='pendente').length;
-      if(pendentes && antes==='[]') toast('🔔 Novo pedido de acesso aguardando aprovação.','ok');
+      if(pendentes && antes==='[]' && isDeviceAcceptNotifEnabled()) toast('🔔 Novo pedido de acesso aguardando aprovação.','ok');
     }
   }catch(e){
     console.warn('Falha ao atualizar pedidos de acesso:',e);
@@ -4954,7 +4978,7 @@ function renderNotificacoesModal(){
     <label class="accessTermsAccept" style="margin:4px 0 10px;"><input type="checkbox" ${recebePedidosNesteDispositivo()?'checked':''} onchange="toggleReceberPedidosAcesso(this.checked)"> Receber novos pedidos de acesso neste dispositivo</label>
     <p class="dimSmall" style="margin-top:0;">${recebePedidosNesteDispositivo()?'Recebimento ativo neste dispositivo: o sino procura pedidos novos enquanto estiver ligado.':'Recebimento desativado neste dispositivo: nenhum pedido novo será buscado até ativar a caixa acima.'}</p>
     <table><thead><tr><th>Solicitado em</th><th>Dispositivo</th><th>Local</th><th></th></tr></thead><tbody>
-      ${pedidos.map(r=>`<tr><td>${esc(new Date(r.requestedAt).toLocaleString('pt-BR'))}</td><td>${esc(r.deviceName)}</td><td>${esc([r.city,r.locale,r.timezone].filter(Boolean).join(' · '))}</td><td style="white-space:nowrap"><button class="btn small" onclick="prepararCadastroAcesso('${esc(r.id)}')">Preparar cadastro</button> <button class="btn small secondary" onclick="decidirAcessoDispositivo('${esc(r.id)}','recusado')">Rejeitar</button></td></tr>`).join('') || '<tr><td colspan="4" class="dimSmall">Nenhuma solicitação aguardando confirmação.</td></tr>'}
+      ${pedidos.map(r=>`<tr><td>${esc(new Date(r.requestedAt).toLocaleString('pt-BR'))}</td><td>${esc(r.deviceName)}</td><td>${esc([r.city,r.locale,r.timezone].filter(Boolean).join(' · '))}</td><td style="white-space:nowrap"><button class="btn small" onclick="decidirAcessoDispositivo('${esc(r.id)}','aceito')">✅ Aceitar</button> <button class="btn small secondary" onclick="decidirAcessoDispositivo('${esc(r.id)}','recusado')">Rejeitar</button></td></tr>`).join('') || '<tr><td colspan="4" class="dimSmall">Nenhuma solicitação aguardando confirmação.</td></tr>'}
     </tbody></table>
     <hr style="border:0;border-top:1px solid var(--line);margin:18px 0;">
     <h4 style="margin:0 0 6px;">Fiado em atraso (${FIADO_ATRASO_DIAS}+ dias)</h4>
@@ -4965,20 +4989,12 @@ function renderNotificacoesModal(){
     </tbody></table>
   `;
 }
-function prepararCadastroAcesso(id){
-  showModal(`<button class="modalClose" onclick="closeModal()">×</button><h3>Preparar cadastro do acesso</h3><div class="formGrid"><div class="field"><label>Nome</label><input id="accessNewName" placeholder="Nome da pessoa"></div><div class="field"><label>Usuário</label><input id="accessNewUser" placeholder="Usuário de login"></div><div class="field"><label>Senha</label><input id="accessNewPass" type="password" placeholder="Senha"></div><div class="field"><label>Nível de acesso</label><select id="accessNewProfile"><option value="restrito">Restrito</option><option value="parcial">Pode mudar algumas coisas</option><option value="visualizar">Só olhar</option></select></div></div><button class="btn" style="width:100%;margin-top:10px" onclick="confirmarCadastroAcesso('${id}')">Criar cadastro e aprovar</button>`);
-}
-function confirmarCadastroAcesso(id){
-  const nome=document.getElementById('accessNewName').value.trim(), usuario=document.getElementById('accessNewUser').value.trim(), senha=document.getElementById('accessNewPass').value;
-  if(!nome||!usuario||!senha){ toast('Preencha nome, usuário e senha.','erro'); return; }
-  decidirAcessoDispositivo(id,'aceito',{nome:nome,usuario:usuario,senha:senha,perfil:document.getElementById('accessNewProfile').value});
-}
-async function decidirAcessoDispositivo(id,status,cadastro){
+async function decidirAcessoDispositivo(id,status){
   if(!requirePerm(getPerms().isTotal)) return;
   const req=(DB.accessRequests||[]).find(r=>r.id===id && r.status==='pendente');
   if(!req) return;
   try{
-    const res=await cloudPost(Object.assign({tipo:'decidirAcessoDispositivo',requestId:id,status:status,decidedBy:currentUser?currentUser.nome:'Responsável',cadastro:cadastro||null},cloudCredentials()));
+    const res=await cloudPost(Object.assign({tipo:'decidirAcessoDispositivo',requestId:id,status:status,decidedBy:currentUser?currentUser.nome:'Responsável',cadastro:null},cloudCredentials()));
     const json=await res.json();
     if(!res.ok || !json.ok){ toast((json&&json.error)||'Não foi possível registrar a decisão.','erro'); return; }
     req.status=status; req.decidedAt=new Date().toISOString(); req.decidedBy=currentUser ? currentUser.nome : 'Responsável'; driveVersion=json.version||driveVersion;
@@ -8404,11 +8420,11 @@ function saveEditedEmployee(id){
 ========================================================= */
 let funcTab = 'cadastro';
 function setFuncTab(tab){
-  funcTab = tab;
+  funcTab = tab || 'monitoramento';
   document.getElementById('funcTab-cadastro').style.display = (tab==='cadastro') ? '' : 'none';
   document.getElementById('funcTab-monitoramento').style.display = (tab==='monitoramento') ? '' : 'none';
-  document.querySelectorAll('#view-funcionarios .tabBtn').forEach((b,i)=> b.classList.toggle('active', ['cadastro','monitoramento'][i]===tab));
-  if(tab==='monitoramento'){ populateMonEmpSelect(); renderMonitoramento(); }
+  document.querySelectorAll('#view-funcionarios .tabBtn').forEach((b,i)=> b.classList.toggle('active', (i===0 && funcTab==='monitoramento')));
+  if(funcTab==='monitoramento'){ populateMonEmpSelect(); renderMonitoramento(); }
 }
 function populateMonEmpSelect(){
   const sel = document.getElementById('monEmpSelect');
@@ -8704,9 +8720,36 @@ function saveMetaCrescimento(){
 /* =========================================================
    CONFIGURAÇÕES / BACKUP
 ========================================================= */
+/* ================= GERENCIAR NOTIFICAÇÕES DE ACEITAR DISPOSITIVO ================= */
+const DEVICE_NOTIF_KEY = 'slmsys_enableDeviceNotif';
+function isDeviceAcceptNotifEnabled(){
+  const stored = localStorage.getItem(DEVICE_NOTIF_KEY);
+  if(stored === null) return false; // Desabilitado por padrão
+  return stored === 'true';
+}
+function setDeviceAcceptNotifEnabled(enabled){
+  localStorage.setItem(DEVICE_NOTIF_KEY, enabled ? 'true' : 'false');
+}
+function refreshDeviceAuthStatus(){
+  const info = document.getElementById('cfg_deviceStatusInfo');
+  if(!info) return;
+  const token = deviceAccessToken || localStorage.getItem(ACCESS_DEVICE_TOKEN_STORAGE);
+  const id = getDeviceId();
+  if(token){
+    info.innerHTML = '✅ <b>Dispositivo autorizado</b><br>Este dispositivo foi autorizado para acessar o sistema. ID: <code style="font-size:11px;">' + id.slice(0,12) + '...</code>';
+  }else{
+    info.innerHTML = '⏳ <b>Aguardando autorização</b><br>Este dispositivo ainda não foi autorizado. Você poderá solicitar acesso na próxima tela de login.';
+  }
+}
+
 function renderConfig(){
   renderIntervaloSincronizacaoBotoes();
   renderCacheInfo();
+  const notifCheckbox = document.getElementById('cfg_enableDeviceAcceptNotif');
+  if(notifCheckbox){
+    notifCheckbox.checked = isDeviceAcceptNotifEnabled();
+  }
+  refreshDeviceAuthStatus();
   document.getElementById('cfg_nome').value = DB.settings.nomeLoja;
   document.getElementById('cfg_contato').value = DB.settings.contato;
   document.getElementById('cfg_impressora').value = DB.settings.impressora;
@@ -8940,6 +8983,10 @@ function saveSettingsLive(){
   DB.settings.etiquetaTamanho = document.getElementById('cfg_etiquetaTamanho').value;
   DB.settings.etiquetaCor = document.getElementById('cfg_etiquetaCor').value;
   DB.settings.etiquetaModoCustom = document.getElementById('cfg_etiquetaModoCustom').checked;
+  const notifCheckbox = document.getElementById('cfg_enableDeviceAcceptNotif');
+  if(notifCheckbox){
+    setDeviceAcceptNotifEnabled(notifCheckbox.checked);
+  }
   document.getElementById('storeNameLabel').textContent = DB.settings.nomeLoja || 'Shalom Variedades';
   flashSaving();
 }
@@ -9628,6 +9675,14 @@ document.getElementById('estoqueTab-novo').addEventListener('keydown', function(
 (function initIntroSplash(){
   const splash = document.getElementById('introSplash');
   if(!splash) return;
+  // Se a splash de abertura estiver desativada (Configurações → Aparência),
+  // não faz sentido segurar a pessoa numa tela parada pelos ~2,7s da
+  // sequência normal de animação — libera a tela seguinte na hora.
+  if(document.documentElement.classList.contains('anim-off-intro')){
+    finishAutoConnect();
+    splash.remove();
+    return;
+  }
   // gera partículas subindo, espalhadas pela largura da tela (menos partículas no celular, para otimizar)
   const total = document.documentElement.classList.contains('is-mobile') ? 6 : 22;
   for(let i=0;i<total;i++){
