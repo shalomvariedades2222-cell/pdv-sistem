@@ -323,8 +323,16 @@ html.anim-off-ambient body::before,html.anim-off-ambient body::after{animation:n
   margin-top:16px;font-size:10.5px;color:var(--text-dim);
   display:flex;align-items:center;justify-content:center;gap:5px;
 }
-.accessRequestBtn{background:transparent!important;color:var(--orange)!important;border:1px solid rgba(255,106,26,.48)!important;margin-top:10px!important;}
-.accessRequestBtn:hover{background:rgba(255,106,26,.12)!important;}
+.accessRequestEntry{position:relative;margin-top:7px;text-align:center;}
+.accessRequestLink{background:none;border:0;color:var(--orange);font:inherit;font-size:10.5px;cursor:pointer;padding:4px 7px;border-radius:7px;opacity:.9;}
+.accessRequestLink:hover,.accessRequestLink:focus{background:rgba(255,106,26,.12);outline:none;opacity:1;}
+.accessPopover{position:absolute;z-index:5;left:50%;bottom:calc(100% + 7px);width:min(286px,calc(100vw - 44px));transform:translate(-50%,8px) scale(.97);opacity:0;pointer-events:none;transition:opacity .2s ease,transform .22s ease;overflow:hidden;text-align:left;border:1px solid rgba(255,106,26,.34);border-radius:13px;background:#211714;box-shadow:0 16px 35px rgba(0,0,0,.48);}
+.accessRequestEntry:hover .accessPopover,.accessRequestEntry.open .accessPopover{opacity:1;pointer-events:auto;transform:translate(-50%,0) scale(1);}
+.accessStep{padding:14px;transition:transform .28s ease,opacity .28s ease;}
+.accessStep[hidden]{display:none;}
+.accessStepTitle{font-size:13px;font-weight:800;margin-bottom:6px;color:var(--text);}.accessStepText{font-size:11px;color:var(--text-dim);line-height:1.45;margin-bottom:11px;}
+.accessConsent{display:flex;align-items:flex-start;gap:7px;font-size:11px;color:var(--text);line-height:1.35;margin:0 0 12px;}.accessConsent input{width:auto!important;margin:2px 0 0!important;accent-color:var(--orange);}
+.accessStepActions{display:flex;gap:7px;}.accessStepActions .btn{font-size:11px;padding:8px 9px;margin:0;}
 .accessWaiting{margin:14px 0 0;padding:12px;border:1px solid rgba(255,106,26,.26);border-radius:10px;background:rgba(255,106,26,.07);text-align:center;}
 .accessWaiting .rings{height:25px;display:flex;align-items:center;justify-content:center;gap:5px;margin-bottom:5px;}
 .accessWaiting .rings i{display:block;width:7px;height:7px;border-radius:50%;background:var(--orange);animation:accessWait 1.1s ease-in-out infinite;}
@@ -1464,16 +1472,28 @@ html.is-mobile .btn::before{ display:none; }
       <input type="checkbox" id="ghRemember"> Lembrar neste dispositivo
     </label>
     <button class="btn" onclick="cloudLogin()">Conectar</button>
-    <label class="rememberRow" style="margin-top:10px;margin-bottom:0;">
-      <input type="checkbox" id="accessRememberDevice" checked> Ficar logado neste dispositivo se for aprovado
-    </label>
-    <button id="requestAccessBtn" class="btn accessRequestBtn" onclick="solicitarAutorizacaoDeAcesso()">Pedir autorização sem key</button>
     <div id="cloudGateMsg" class="loginHint"></div>
     <div id="accessWaiting" class="accessWaiting" style="display:none;">
       <div class="rings"><i></i><i></i><i></i></div>
       <b>Aguardando confirmação</b><div class="loginHint" id="accessWaitingStatus" style="margin-top:5px;">A solicitação foi enviada ao responsável.</div>
     </div>
     <div class="gateFooterNote">🔒 Seus dados ficam sincronizados na nuvem</div>
+    <div class="accessRequestEntry" id="accessRequestEntry">
+      <button type="button" class="accessRequestLink" onclick="toggleAccessPopover(event)">Não tem a key? Peça autorização</button>
+      <div class="accessPopover" id="accessPopover">
+        <div class="accessStep" id="accessStepConsent">
+          <div class="accessStepTitle">Solicitar acesso</div>
+          <div class="accessStepText">O responsável verá o horário, navegador e localização aproximada deste dispositivo para decidir.</div>
+          <label class="accessConsent"><input type="checkbox" id="accessConsentCheck"> Confirmo o acesso deste dispositivo e autorizo o registro dessas informações para o login.</label>
+          <div class="accessStepActions"><button type="button" class="btn secondary" style="flex:1" onclick="fecharAccessPopover()">Cancelar</button><button type="button" class="btn" style="flex:1" onclick="avancarPedidoAcesso()">Continuar</button></div>
+        </div>
+        <div class="accessStep" id="accessStepSend" hidden>
+          <div class="accessStepTitle">Enviar autorização de acesso?</div>
+          <div class="accessStepText">O pedido será enviado agora para confirmação do responsável.</div>
+          <div class="accessStepActions"><button type="button" class="btn secondary" style="flex:1" onclick="voltarPedidoAcesso()">Voltar</button><button type="button" class="btn" style="flex:1" onclick="solicitarAutorizacaoDeAcesso()">Enviar pedido</button></div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -2563,14 +2583,25 @@ async function cloudLogin(){
 }
 
 let _accessRequestTimer=null;
+function toggleAccessPopover(event){ event.stopPropagation(); document.getElementById('accessRequestEntry').classList.toggle('open'); }
+function fecharAccessPopover(){ document.getElementById('accessRequestEntry').classList.remove('open'); }
+function avancarPedidoAcesso(){
+  const chk=document.getElementById('accessConsentCheck');
+  if(!chk.checked){ chk.focus(); toast('Confirme a autorização para continuar.','erro'); return; }
+  document.getElementById('accessStepConsent').hidden=true; document.getElementById('accessStepSend').hidden=false;
+}
+function voltarPedidoAcesso(){ document.getElementById('accessStepSend').hidden=true; document.getElementById('accessStepConsent').hidden=false; }
+document.addEventListener('click',function(e){ const box=document.getElementById('accessRequestEntry'); if(box && !box.contains(e.target)) box.classList.remove('open'); });
 async function solicitarAutorizacaoDeAcesso(){
   const msg=document.getElementById('cloudGateMsg');
+  if(!document.getElementById('accessConsentCheck').checked) return;
   msg.className='loginHint'; msg.textContent='Enviando solicitação...';
   try{
-    const res=await cloudPost(Object.assign({tipo:'solicitarAcessoDispositivo',lembrarDispositivo:document.getElementById('accessRememberDevice').checked},getDeviceRequestInfo()));
+    const res=await cloudPost(Object.assign({tipo:'solicitarAcessoDispositivo'},getDeviceRequestInfo()));
     const json=await res.json();
     if(!res.ok || !json.ok){ msg.textContent=(json&&json.error)||'Não foi possível enviar a solicitação.'; return; }
-    localStorage.setItem(ACCESS_REQUEST_STORAGE,JSON.stringify({id:json.requestId,lembrar:document.getElementById('accessRememberDevice').checked}));
+    localStorage.setItem(ACCESS_REQUEST_STORAGE,JSON.stringify({id:json.requestId}));
+    fecharAccessPopover();
     document.getElementById('accessWaiting').style.display='block';
     msg.textContent='Solicitação enviada. Aguarde a confirmação do responsável.';
     clearInterval(_accessRequestTimer);
@@ -2585,11 +2616,9 @@ async function consultarAutorizacaoDeAcesso(requestId){
     const msg=document.getElementById('cloudGateMsg');
     if(json.status==='aceito'){
       clearInterval(_accessRequestTimer);
-      const saved=JSON.parse(localStorage.getItem(ACCESS_REQUEST_STORAGE)||'{}');
       if(json.deviceToken){
         deviceAccessToken=json.deviceToken;
-        if(saved.lembrar) localStorage.setItem(ACCESS_DEVICE_TOKEN_STORAGE,deviceAccessToken);
-        else sessionStorage.setItem(ACCESS_DEVICE_TOKEN_STORAGE,deviceAccessToken);
+        localStorage.setItem(ACCESS_DEVICE_TOKEN_STORAGE,deviceAccessToken);
       }
       localStorage.removeItem(ACCESS_REQUEST_STORAGE); document.getElementById('accessWaiting').style.display='none'; msg.textContent='✅ Acesso autorizado. Entrando...';
       const ok=await loadFromGitHub(); if(ok){ renderLoginAvatars(); tentarLoginAutomatico(); hideGateScreen(document.getElementById('cloudGate')); revealLoginScreen(); }
@@ -7049,6 +7078,12 @@ function editProduct(id){
     </div>
   `);
   updateEditMarginPreview();
+  // Enter aplica a edição imediatamente, sem exigir que a pessoa encontre o botão.
+  document.querySelectorAll('#modalBox input:not([type="file"])').forEach(function(input){
+    input.addEventListener('keydown',function(e){
+      if(e.key==='Enter'){ e.preventDefault(); saveEditedProduct(p.id); }
+    });
+  });
 }
 function updateEditMarginPreview(){
   const custo = moneyVal('e_custo');
