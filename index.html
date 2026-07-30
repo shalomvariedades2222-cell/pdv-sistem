@@ -4151,10 +4151,6 @@ function efetuarLogin(emp){
   if(getPerms().isTotal){
     if(recebePedidosNesteDispositivo()){
       iniciarPollingPedidosAcesso();
-    }else{
-      setTimeout(function(){
-        showModal('<button class="modalClose" onclick="closeModal()">×</button><h3>Recebimento de pedidos desativado</h3><p class="dimSmall">Este dispositivo não está buscando pedidos de acesso. Ative para receber as solicitações no sino.</p><button class="btn" onclick="toggleReceberPedidosAcesso(true);closeModal()">Ativar recebimento neste dispositivo</button>');
-      },350);
     }
   }
   log('Login de ' + emp.nome);
