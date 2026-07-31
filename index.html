@@ -161,7 +161,7 @@ html.anim-off-ambient body::before,html.anim-off-ambient body::after{animation:n
 }
 #introSplash.out{animation:introOut .9s cubic-bezier(.65,0,.35,1) forwards;}
 #introSplash.out .core{animation:introCoreOut .45s ease forwards;}
-@keyframes introCoreOut{to{transform:scale(.8);opacity:0;}}
+@keyframes introCoreOut{to{transform:scale(.8);opacity:0;filter:blur(6px);}}
 
 .core{display:flex;flex-direction:column;align-items:center;}
 
@@ -169,7 +169,7 @@ html.anim-off-ambient body::before,html.anim-off-ambient body::after{animation:n
   margin-bottom:0;opacity:0;animation:introRailFade .3s ease forwards;}
 @keyframes introRailFade{to{opacity:1;}}
 
-.rig{transform-origin:top center;will-change:transform;
+.rig{transform-origin:top center;
   animation:introRigDrop .6s cubic-bezier(.2,.7,.3,1.2) .1s both, introRigSwing 2.4s ease-in-out .7s forwards;}
 @keyframes introRigDrop{0%{transform:translateY(-90px);opacity:0;}70%{opacity:1;}100%{transform:translateY(0);opacity:1;}}
 @keyframes introRigSwing{0%{transform:rotate(0);}18%{transform:rotate(10deg);}42%{transform:rotate(-7deg);}
@@ -178,12 +178,9 @@ html.anim-off-ambient body::before,html.anim-off-ambient body::after{animation:n
 .hanger{width:56px;height:34px;margin:0 auto;}
 .hanger svg{width:100%;height:100%;fill:none;stroke:var(--orange);stroke-width:3;stroke-linecap:round;}
 
-/* "cresce" via clip-path (recorte), não via height — assim o navegador só
-   recompõe as camadas (GPU) em vez de recalcular o layout a cada quadro,
-   bem mais leve em aparelhos fracos. */
-.garment{width:104px;height:120px;margin-top:-2px;clip-path:inset(100% 0 0 0);will-change:clip-path;
+.garment{width:104px;height:0;margin-top:-2px;overflow:hidden;
   animation:introGarmentGrow .7s cubic-bezier(.3,.9,.3,1) .8s forwards;}
-@keyframes introGarmentGrow{to{clip-path:inset(0 0 0 0);}}
+@keyframes introGarmentGrow{to{height:120px;}}
 .garment svg{width:104px;height:120px;display:block;}
 .shirt-body{fill:#2a211c;stroke:var(--orange-deep);stroke-width:2;}
 .shirt-shine{fill:rgba(255,172,112,.15);}
@@ -193,7 +190,6 @@ html.anim-off-ambient body::before,html.anim-off-ambient body::after{animation:n
 .sub{margin-top:4px;font-size:12px;color:var(--text-dim);letter-spacing:2px;text-transform:uppercase;opacity:0;
   animation:introFadeUp .5s ease 2.0s forwards;}
 @keyframes introFadeUp{
-
   0%{opacity:0;transform:translateY(6px);}
   100%{opacity:1;transform:translateY(0);}
 }
@@ -1336,7 +1332,7 @@ html.anim-off-intro #introSplash, html.anim-off-intro #introSplash *{
    ficariam ao fim da animação normal. */
 html.anim-off-intro .rail{opacity:1 !important;}
 html.anim-off-intro .rig{transform:none !important;opacity:1 !important;}
-html.anim-off-intro .garment{clip-path:inset(0 0 0 0) !important;}
+html.anim-off-intro .garment{height:120px !important;}
 html.anim-off-intro .title, html.anim-off-intro .sub{opacity:1 !important;transform:translateY(0) !important;}
 
 /* 2) Manchas de fundo (o "vidro" que se move atrás de tudo) */
