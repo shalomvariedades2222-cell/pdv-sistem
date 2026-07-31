@@ -431,20 +431,8 @@ html.anim-off-ambient body::before,html.anim-off-ambient body::after{animation:n
   display:flex;align-items:center;justify-content:center;gap:5px;
 }
 .accessRequestEntry{position:relative;margin-top:7px;text-align:center;}
-.accessRequestLink{background:none;border:0;color:var(--orange);font:inherit;font-size:10.5px;cursor:pointer;padding:4px 7px;border-radius:7px;opacity:.9;display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:20px;}
+.accessRequestLink{background:none;border:0;color:var(--orange);font:inherit;font-size:10.5px;cursor:pointer;padding:4px 7px;border-radius:7px;opacity:.9;}
 .accessRequestLink:hover,.accessRequestLink:focus{background:rgba(255,106,26,.12);outline:none;opacity:1;}
-.accessRequestLink .arLoading{display:none;align-items:center;gap:7px;}
-.accessRequestLink.loading{cursor:default;pointer-events:none;opacity:1;}
-.accessRequestLink.loading .arLabel{display:none;}
-.accessRequestLink.loading .arLoading{display:inline-flex;}
-.arSpin{width:12px;height:12px;border-radius:50%;flex:none;
-  border:2px solid rgba(255,106,26,.2);border-top-color:var(--orange);border-right-color:var(--orange);
-  animation:arSpin .6s linear infinite;}
-@keyframes arSpin{to{transform:rotate(360deg);}}
-.arLoadText{position:relative;color:var(--text-dim);}
-.arDots{display:inline-flex;gap:3px;}
-.arDots i{display:block;width:4px;height:4px;border-radius:50%;background:var(--orange);animation:accessWait 1.1s ease-in-out infinite;}
-.arDots i:nth-child(2){animation-delay:.16s}.arDots i:nth-child(3){animation-delay:.32s}
 .accessPopover{position:absolute;z-index:5;left:50%;bottom:calc(100% + 7px);width:min(286px,calc(100vw - 44px));transform:translate(-50%,8px) scale(.97);opacity:0;pointer-events:none;transition:opacity .2s ease,transform .22s ease;overflow:hidden;text-align:left;border:1px solid rgba(255,106,26,.34);border-radius:13px;background:#211714;box-shadow:0 16px 35px rgba(0,0,0,.48);}
 .accessRequestEntry:hover .accessPopover,.accessRequestEntry.open .accessPopover{opacity:1;pointer-events:auto;transform:translate(-50%,0) scale(1);}
 .accessStep{padding:14px;transition:transform .28s ease,opacity .28s ease;}
@@ -452,6 +440,11 @@ html.anim-off-ambient body::before,html.anim-off-ambient body::after{animation:n
 .accessStepTitle{font-size:13px;font-weight:800;margin-bottom:6px;color:var(--text);}.accessStepText{font-size:11px;color:var(--text-dim);line-height:1.45;margin-bottom:11px;}
 .accessConsent{display:flex;align-items:flex-start;gap:7px;font-size:11px;color:var(--text);line-height:1.35;margin:0 0 12px;}.accessConsent input{width:auto!important;margin:2px 0 0!important;accent-color:var(--orange);}
 .accessStepActions{display:flex;gap:7px;}.accessStepActions .btn{font-size:11px;padding:8px 9px;margin:0;}
+.accessCheckingBox{display:flex;flex-direction:column;align-items:center;text-align:center;padding:6px 2px 2px;}
+.arSpin{width:26px;height:26px;border-radius:50%;margin-bottom:10px;flex:none;
+  border:3px solid rgba(255,106,26,.18);border-top-color:var(--orange);border-right-color:var(--orange);
+  animation:arSpin .7s linear infinite;}
+@keyframes arSpin{to{transform:rotate(360deg);}}
 .accessWaiting{margin:14px 0 0;padding:12px;border:1px solid rgba(255,106,26,.26);border-radius:10px;background:rgba(255,106,26,.07);text-align:center;}
 .accessWaiting .rings{height:25px;display:flex;align-items:center;justify-content:center;gap:5px;margin-bottom:5px;}
 .accessWaiting .rings i{display:block;width:7px;height:7px;border-radius:50%;background:var(--orange);animation:accessWait 1.1s ease-in-out infinite;}
@@ -1681,10 +1674,7 @@ html.is-mobile .btn::before{ display:none; }
     </div>
     <div class="gateFooterNote">🔒 Seus dados ficam sincronizados na nuvem</div>
     <div class="accessRequestEntry" id="accessRequestEntry">
-      <button type="button" class="accessRequestLink" id="accessRequestLink" onclick="toggleAccessPopover(event)">
-        <span class="arLabel">Não tem a key? Peça autorização</span>
-        <span class="arLoading"><span class="arSpin"></span><span class="arLoadText">Verificando</span><span class="arDots"><i></i><i></i><i></i></span></span>
-      </button>
+      <button type="button" class="accessRequestLink" id="accessRequestLink" onclick="toggleAccessPopover(event)">Não tem a key? Peça autorização</button>
       <div class="accessPopover" id="accessPopover">
         <div class="accessStep" id="accessStepConsent">
           <div class="accessStepTitle">Solicitar acesso</div>
@@ -1692,10 +1682,12 @@ html.is-mobile .btn::before{ display:none; }
           <label class="accessConsent"><input type="checkbox" id="accessConsentCheck"> Confirmo o acesso deste dispositivo e autorizo o registro dessas informações para o login.</label>
           <div class="accessStepActions"><button type="button" class="btn secondary" style="flex:1" onclick="fecharAccessPopover()">Cancelar</button><button type="button" class="btn" style="flex:1" onclick="avancarPedidoAcesso()">Continuar</button></div>
         </div>
-        <div class="accessStep" id="accessStepSend" hidden>
-          <div class="accessStepTitle">Enviar autorização de acesso?</div>
-          <div class="accessStepText">O pedido será enviado agora para confirmação do responsável.</div>
-          <div class="accessStepActions"><button type="button" class="btn secondary" style="flex:1" onclick="voltarPedidoAcesso()">Voltar</button><button type="button" class="btn" style="flex:1" onclick="solicitarAutorizacaoDeAcesso()">Enviar pedido</button></div>
+        <div class="accessStep" id="accessStepChecking" hidden>
+          <div class="accessCheckingBox">
+            <span class="arSpin"></span>
+            <div class="accessStepTitle" style="margin-bottom:2px;">Verificando com o servidor...</div>
+            <div class="accessStepText" style="margin-bottom:0;">Só um instante, estamos confirmando se os pedidos de acesso estão liberados.</div>
+          </div>
         </div>
         <div class="accessStep" id="accessStepDisabled" hidden>
           <div class="accessStepTitle">Solicitações indisponíveis</div>
@@ -2868,14 +2860,12 @@ async function statusPedidosAcessoRemoto(){
 }
 function toggleAccessPopover(event){
   event.stopPropagation();
-  const link=document.getElementById('accessRequestLink');
-  if(link && link.classList.contains('loading')) return; // já está verificando, ignora novos cliques
   const entry=document.getElementById('accessRequestEntry');
   const vaiAbrir = !entry.classList.contains('open');
   if(vaiAbrir){
     document.getElementById('accessStepDisabled').hidden = true;
     document.getElementById('accessStepConsent').hidden = false;
-    document.getElementById('accessStepSend').hidden = true;
+    document.getElementById('accessStepChecking').hidden = true;
     document.getElementById('accessConsentCheck').checked = false;
     statusPedidosAcessoRemoto().then(ativo=>{
       if(!entry.classList.contains('open')) return; // já fechou antes da resposta do servidor chegar
@@ -2886,21 +2876,23 @@ function toggleAccessPopover(event){
   entry.classList.toggle('open');
 }
 function fecharAccessPopover(){ document.getElementById('accessRequestEntry').classList.remove('open'); }
-function setAccessRequestLinkLoading(on){
-  const link=document.getElementById('accessRequestLink');
-  if(link) link.classList.toggle('loading', !!on);
-}
 async function avancarPedidoAcesso(){
   const chk=document.getElementById('accessConsentCheck');
   if(!chk.checked){ chk.focus(); toast('Confirme a autorização para continuar.','erro'); return; }
-  fecharAccessPopover();
-  setAccessRequestLinkLoading(true);
+  document.getElementById('accessStepConsent').hidden=true;
+  document.getElementById('accessStepDisabled').hidden=true;
+  document.getElementById('accessStepChecking').hidden=false;
   const ativo = await statusPedidosAcessoRemoto();
-  if(!ativo){ setAccessRequestLinkLoading(false); toast('Está desativado no momento, volte mais tarde.','erro'); return; }
+  if(!document.getElementById('accessRequestEntry').classList.contains('open')) return; // usuário já fechou o popover antes da resposta chegar
+  if(!ativo){
+    document.getElementById('accessStepChecking').hidden=true;
+    document.getElementById('accessStepDisabled').hidden=false;
+    return;
+  }
+  fecharAccessPopover();
   document.getElementById('cloudGate').style.display='none';
   document.getElementById('accessFlowScreen').classList.add('show');
 }
-function voltarPedidoAcesso(){ document.getElementById('accessStepSend').hidden=true; document.getElementById('accessStepConsent').hidden=false; }
 function verificarLeituraTermos(){
   const box=document.getElementById('accessTermsBox');
   if(box.scrollTop+box.clientHeight>=box.scrollHeight-4){ document.getElementById('accessTermsCheck').disabled=false; }
@@ -3017,7 +3009,6 @@ function cancelarPedidoDeAcesso(){
   const radarCancel=document.getElementById('pedidoRadar'); if(radarCancel) radarCancel.classList.remove('aceito','recusado');
   document.getElementById('cloudGate').style.display='flex';
   document.getElementById('cloudGateMsg').textContent='';
-  setAccessRequestLinkLoading(false);
 }
 
 function ativarModoTeste(){
