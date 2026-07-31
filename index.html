@@ -1542,6 +1542,11 @@ html.is-mobile .btn::before{ display:none; }
           <div class="accessStepText">O pedido será enviado agora para confirmação do responsável.</div>
           <div class="accessStepActions"><button type="button" class="btn secondary" style="flex:1" onclick="voltarPedidoAcesso()">Voltar</button><button type="button" class="btn" style="flex:1" onclick="solicitarAutorizacaoDeAcesso()">Enviar pedido</button></div>
         </div>
+        <div class="accessStep" id="accessStepDisabled" hidden>
+          <div class="accessStepTitle">Solicitações indisponíveis</div>
+          <div class="accessStepText">Está desativado no momento, volte mais tarde.</div>
+          <div class="accessStepActions"><button type="button" class="btn" style="flex:1" onclick="fecharAccessPopover()">Entendi</button></div>
+        </div>
       </div>
     </div>
   </div>
@@ -1570,6 +1575,7 @@ html.is-mobile .btn::before{ display:none; }
       <div class="gateBadge">Central de produção</div><h2 style="margin:2px 0 4px;">Seu pedido está na esteira</h2><p class="dimSmall" id="accessFlowStatus">Aguardando o administrador aceitar o seu pedido.</p>
       <div class="accessConveyor"><span class="accessCloth">👕</span><span class="accessCloth c2">👗</span><span class="accessCloth c3">🧥</span><span class="accessBag bag1"></span><span class="accessBag bag2"></span><span class="accessBag bag3"></span><span class="accessBelt"></span></div>
       <div class="dimSmall">O status é atualizado automaticamente enquanto esta tela estiver aberta.</div>
+      <button type="button" class="btn secondary" style="margin-top:14px;width:100%;" onclick="cancelarPedidoDeAcesso()">Cancelar solicitação</button>
     </div>
     <div class="accessGateDoors"><i></i><i></i></div>
   </div>
@@ -2678,9 +2684,28 @@ async function cloudLogin(){
 }
 
 let _accessRequestTimer=null;
-function toggleAccessPopover(event){ event.stopPropagation(); document.getElementById('accessRequestEntry').classList.toggle('open'); }
+/* Se o recebimento de pedidos de acesso estiver desativado (botão em
+   Configurações → Notificações), não faz sentido deixar a pessoa preencher
+   todo o formulário pra descobrir só no final que ninguém vai ver o pedido
+   dela — por isso mostramos o aviso "está desativado, volte mais tarde"
+   já na primeira tela. */
+function pedidosDeAcessoDisponiveis(){ return recebePedidosNesteDispositivo(); }
+function toggleAccessPopover(event){
+  event.stopPropagation();
+  const entry=document.getElementById('accessRequestEntry');
+  const vaiAbrir = !entry.classList.contains('open');
+  if(vaiAbrir){
+    const disponivel = pedidosDeAcessoDisponiveis();
+    document.getElementById('accessStepDisabled').hidden = disponivel;
+    document.getElementById('accessStepConsent').hidden = !disponivel;
+    document.getElementById('accessStepSend').hidden = true;
+    document.getElementById('accessConsentCheck').checked = false;
+  }
+  entry.classList.toggle('open');
+}
 function fecharAccessPopover(){ document.getElementById('accessRequestEntry').classList.remove('open'); }
 function avancarPedidoAcesso(){
+  if(!pedidosDeAcessoDisponiveis()){ toast('Está desativado no momento, volte mais tarde.','erro'); fecharAccessPopover(); return; }
   const chk=document.getElementById('accessConsentCheck');
   if(!chk.checked){ chk.focus(); toast('Confirme a autorização para continuar.','erro'); return; }
   fecharAccessPopover();
@@ -2697,6 +2722,12 @@ async function solicitarAutorizacaoDeAcesso(){
   const msg=document.getElementById('cloudGateMsg');
   const status=document.getElementById('accessSendError');
   const sendBtn=document.getElementById('accessSendBtn');
+  if(!pedidosDeAcessoDisponiveis()){
+    toast('Está desativado no momento, volte mais tarde.','erro');
+    document.getElementById('accessFlowScreen').classList.remove('show');
+    document.getElementById('cloudGate').style.display='flex';
+    return;
+  }
   if(!document.getElementById('accessTermsCheck').checked){ toast('Leia os termos e marque a confirmação para enviar.','erro'); return; }
   status.textContent='';
   sendBtn.disabled=true;
@@ -2779,6 +2810,20 @@ function restaurarPedidoDeAcessoPendente(){
     _accessRequestTimer=setInterval(()=>consultarAutorizacaoDeAcesso(saved.id),5000);
     consultarAutorizacaoDeAcesso(saved.id);
   }catch(e){}
+}
+/* Para quem ficou preso na tela "aguardando confirmação" (por exemplo,
+   porque o recebimento de pedidos foi desativado do outro lado e ninguém
+   vai responder): isso encerra de vez a busca automática por atualização
+   de status e volta pra tela de login normal. */
+function cancelarPedidoDeAcesso(){
+  clearInterval(_accessRequestTimer);
+  try{ localStorage.removeItem(ACCESS_REQUEST_STORAGE); }catch(e){}
+  document.getElementById('accessFlowScreen').classList.remove('show');
+  document.getElementById('accessTermsStep').style.display='';
+  document.getElementById('accessWaitingStep').style.display='none';
+  document.getElementById('accessWaiting').style.display='none';
+  document.getElementById('cloudGate').style.display='flex';
+  document.getElementById('cloudGateMsg').textContent='';
 }
 
 function ativarModoTeste(){
