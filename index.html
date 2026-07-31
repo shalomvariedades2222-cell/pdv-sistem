@@ -508,12 +508,11 @@ html.anim-off-ambient body::before,html.anim-off-ambient body::after{animation:n
 html.is-mobile .pedidoRadarRing,html.is-mobile .pedidoRadarSweep{animation-duration:0s;opacity:0;}
 
 /* ---------- TELA "CONECTANDO AO SERVIDOR" (usuário já conectado antes) ----------
-   Conceito: grade hexagonal holográfica. Camadas, de trás pra frente: campo de
-   hexágonos cobrindo a tela inteira (gerado via JS, função initHexField), cada
-   um "acende" em sequência formando uma onda de luz que nasce no centro (onde
-   fica o cartão) e se espalha até as bordas > cartão de vidro em formato
-   hexagonal com o ícone da loja, "respirando" bem devagar > título com brilho
-   de cetim > texto de status > 3 pontinhos de sinal piscando em sequência. */
+   Conceito: pulso de sinal. Anéis de radar se expandindo a partir do cartão
+   central, como um "ping" repetido de sincronização (remete a rede/conexão)
+   > cartão de vidro com o ícone da loja, "respirando" bem devagar > título
+   com brilho de cetim > texto de status > barra de sinal tipo wi-fi com 4
+   traços acendendo em sequência. */
 #connectingScreen{
   opacity:0;transition:opacity .7s ease;display:none;
   background:radial-gradient(circle at 50% 30%, #2a1c12, #0d0a09 65%);
@@ -521,31 +520,32 @@ html.is-mobile .pedidoRadarRing,html.is-mobile .pedidoRadarSweep{animation-durat
 }
 #connectingScreen.in{opacity:1;}
 
-#hexField{position:absolute;inset:0;z-index:1;pointer-events:none;}
-.hex{
-  position:absolute;width:30px;height:17.32px;background:rgba(255,140,60,.08);
-  clip-path:polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
-  animation:hexPulse 3.2s ease-in-out infinite;
-}
-@keyframes hexPulse{0%,80%,100%{background:rgba(255,140,60,.05);}10%{background:rgba(255,180,110,.55);box-shadow:0 0 10px rgba(255,140,60,.5);}}
-
 .csWrap{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;}
 
-.hexCore{
-  position:relative;width:108px;height:108px;margin-bottom:22px;
-  clip-path:polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+.pulseOuter{position:relative;width:170px;height:170px;margin-bottom:22px;display:flex;align-items:center;justify-content:center;}
+.pulseRing{
+  position:absolute;width:96px;height:96px;border-radius:50%;
+  border:1.5px solid var(--orange);
+  animation:pulseExpand 2.4s cubic-bezier(.2,.6,.4,1) infinite;
+}
+.pulseRing.r2{animation-delay:.8s;}
+.pulseRing.r3{animation-delay:1.6s;}
+@keyframes pulseExpand{
+  0%{transform:scale(.6);opacity:.9;border-color:#ffe2c2;}
+  70%{opacity:.25;}
+  100%{transform:scale(1.8);opacity:0;border-color:var(--orange-deep);}
+}
+
+.pulseCard{
+  position:relative;width:100px;height:100px;border-radius:24px;
   background:var(--glass-bg-strong);border:1px solid var(--glass-border-strong);
   -webkit-backdrop-filter:blur(var(--glass-blur));backdrop-filter:blur(var(--glass-blur));
+  box-shadow:0 16px 40px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.08);
   display:flex;align-items:center;justify-content:center;
-  box-shadow:0 0 40px rgba(255,106,26,.3);
-  animation:hexCoreBreath 2.6s ease-in-out infinite;
+  animation:cardBreath 2.4s ease-in-out infinite;
 }
-.hexCore::before{
-  content:'';position:absolute;inset:0;pointer-events:none;
-  background:linear-gradient(160deg, rgba(255,255,255,.10), transparent 40%);
-}
-@keyframes hexCoreBreath{0%,100%{transform:scale(1);}50%{transform:scale(1.05);}}
-.hexCore svg{position:relative;z-index:1;width:40px;height:40px;}
+@keyframes cardBreath{0%,100%{transform:scale(1);}50%{transform:scale(1.04);}}
+.pulseCard svg{width:42px;height:42px;}
 
 .csTitle{
   font-size:18px;font-weight:800;letter-spacing:.3px;
@@ -556,17 +556,14 @@ html.is-mobile .pedidoRadarRing,html.is-mobile .pedidoRadarSweep{animation-durat
 @keyframes csTitleShine{0%{background-position:200% center;}100%{background-position:-20% center;}}
 .connSub{font-size:12px;color:var(--text-dim);margin-top:4px;min-height:16px;text-align:center;max-width:260px;transition:opacity .25s ease;}
 
-.csSignal{display:flex;gap:5px;margin-top:12px;}
-.csSigDot{width:5px;height:5px;border-radius:50%;background:var(--orange-dim);animation:csSigBlink 1.4s ease-in-out infinite;}
-.csSigDot:nth-child(2){animation-delay:.18s;}
-.csSigDot:nth-child(3){animation-delay:.36s;}
-@keyframes csSigBlink{
-  0%,60%,100%{background:var(--orange-dim);transform:scale(1);box-shadow:none;}
-  30%{background:var(--orange);transform:scale(1.35);box-shadow:0 0 8px rgba(255,106,26,.8);}
-}
+.sigBars{display:flex;align-items:flex-end;gap:4px;margin-top:16px;height:16px;}
+.sigBar{width:4px;border-radius:2px;background:var(--orange-dim);animation:sigRise 1.6s ease-in-out infinite;}
+.sigBar:nth-child(1){height:6px;animation-delay:0s;}
+.sigBar:nth-child(2){height:10px;animation-delay:.15s;}
+.sigBar:nth-child(3){height:14px;animation-delay:.3s;}
+.sigBar:nth-child(4){height:16px;animation-delay:.45s;}
+@keyframes sigRise{0%,60%,100%{background:var(--orange-dim);}30%{background:var(--orange);box-shadow:0 0 8px rgba(255,106,26,.7);}}
 
-/* Celular: remove o campo de hexágonos (é a camada mais pesada), pra não pesar */
-html.is-mobile #hexField{display:none;}
 html.anim-off-login #connectingScreen *{animation:none !important;}
 
 /* ---------- SELETOR DE FUNCIONÁRIO (avatares no login) ---------- */
@@ -1761,14 +1758,18 @@ html.is-mobile .btn::before{ display:none; }
 
 <!-- ===================== CONECTANDO (dispositivo já cadastrado) ===================== -->
 <div id="connectingScreen" style="position:fixed;inset:0;z-index:1000;align-items:center;justify-content:center;">
-  <div id="hexField"></div>
   <div class="csWrap">
-    <div class="hexCore">
-      <svg viewBox="0 0 24 24" fill="none"><path d="M4 8L12 4L20 8V16L12 20L4 16V8Z" stroke="#ffdcb0" stroke-width="1.4" stroke-linejoin="round"/><path d="M4 8L12 12L20 8" stroke="#ffdcb0" stroke-width="1.4" stroke-linejoin="round"/><path d="M12 12V20" stroke="#ffdcb0" stroke-width="1.4"/></svg>
+    <div class="pulseOuter">
+      <div class="pulseRing r1"></div>
+      <div class="pulseRing r2"></div>
+      <div class="pulseRing r3"></div>
+      <div class="pulseCard">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M4 8L12 4L20 8V16L12 20L4 16V8Z" stroke="#ffdcb0" stroke-width="1.4" stroke-linejoin="round"/><path d="M4 8L12 12L20 8" stroke="#ffdcb0" stroke-width="1.4" stroke-linejoin="round"/><path d="M12 12V20" stroke="#ffdcb0" stroke-width="1.4"/></svg>
+      </div>
     </div>
     <div class="csTitle">Conectando ao servidor</div>
     <div class="connSub" id="connSubText">Sincronizando dados da loja...</div>
-    <div class="csSignal"><span class="csSigDot"></span><span class="csSigDot"></span><span class="csSigDot"></span></div>
+    <div class="sigBars"><span class="sigBar"></span><span class="sigBar"></span><span class="sigBar"></span><span class="sigBar"></span></div>
   </div>
 </div>
 
@@ -3940,51 +3941,6 @@ function finishAutoConnect_tentarDeNovoEmBreve(){
   finishAutoConnect();
 }
 
-/* ---------------- Grade de hexágonos da tela "Conectando ao servidor" ----------
-   Geradas por JS: um hexágono pra cada célula da tela inteira, com o atraso da
-   animação calculado pela distância até o centro — isso é o que cria o efeito
-   de "onda de luz" nascendo no cartão central e se espalhando até as bordas.
-   Refeita no resize (com um pequeno debounce) pra cobrir a tela certinho em
-   qualquer orientação/tamanho de aparelho. Roda uma vez o quanto antes, pra já
-   estar pronta quando a tela aparecer. */
-function initHexField(){
-  const field = document.getElementById('hexField');
-  if(!field) return;
-  if(document.documentElement.classList.contains('is-mobile')) return; // no celular essa camada fica oculta via CSS
-  field.innerHTML = '';
-  const w = window.innerWidth, h = window.innerHeight;
-  const hexW = 34, hexH = 30; // espaçamento aproximado entre centros
-  const rowSpacing = hexH*0.78; // espaçamento vertical real entre linhas
-  const cols = Math.ceil(w/hexW)+2, rows = Math.ceil(h/rowSpacing)+3;
-  const cx = w/2, cy = h/2;
-  let maxDist = 0;
-  const cells = [];
-  for(let r=0;r<rows;r++){
-    for(let c=0;c<cols;c++){
-      const x = c*hexW + (r%2? hexW/2:0) - hexW;
-      const y = r*rowSpacing - hexH;
-      const d = Math.hypot(x-cx, y-cy);
-      maxDist = Math.max(maxDist,d);
-      cells.push({x,y,d});
-    }
-  }
-  const frag = document.createDocumentFragment();
-  cells.forEach(cell=>{
-    const el = document.createElement('div');
-    el.className = 'hex';
-    el.style.left = cell.x+'px';
-    el.style.top = cell.y+'px';
-    el.style.animationDelay = ((cell.d/maxDist)*2.6).toFixed(2)+'s';
-    frag.appendChild(el);
-  });
-  field.appendChild(frag);
-}
-initHexField();
-let _hexFieldResizeTimer = null;
-window.addEventListener('resize', ()=>{
-  clearTimeout(_hexFieldResizeTimer);
-  _hexFieldResizeTimer = setTimeout(initHexField, 300);
-});
 // ---------------------------------------------------------------
 // MODO OFFLINE: o app abre normalmente com os dados que já estavam
 // salvos neste aparelho (localStorage). ghToken continua guardado (não é
