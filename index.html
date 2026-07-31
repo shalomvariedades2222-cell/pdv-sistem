@@ -2684,30 +2684,45 @@ async function cloudLogin(){
 }
 
 let _accessRequestTimer=null;
-/* Se o recebimento de pedidos de acesso estiver desativado (botão em
-   Configurações → Notificações), não faz sentido deixar a pessoa preencher
-   todo o formulário pra descobrir só no final que ninguém vai ver o pedido
-   dela — por isso mostramos o aviso "está desativado, volte mais tarde"
-   já na primeira tela. */
-function pedidosDeAcessoDisponiveis(){ return recebePedidosNesteDispositivo(); }
+/* Se a loja tiver desativado o recebimento de novos pedidos de acesso
+   (Configurações → Notificações → "Aceitar novos pedidos de acesso"), não
+   faz sentido deixar a pessoa preencher todo o formulário pra descobrir só
+   no final que ninguém vai ver o pedido dela — por isso consultamos o
+   servidor (que vale pra QUALQUER dispositivo, mesmo um sem chave ainda)
+   e mostramos o aviso "está desativado, volte mais tarde" já na primeira
+   tela. O envio de verdade (solicitarAutorizacaoDeAcesso) também é
+   bloqueado no servidor, então mesmo se essa checagem prévia falhar por
+   falta de rede, ninguém consegue burlar o desligamento. */
+async function statusPedidosAcessoRemoto(){
+  try{
+    const res = await cloudGet({acao:'statusPedidosAcesso'});
+    const json = await res.json();
+    return (json && json.ok) ? !!json.ativo : true; // sem resposta clara: não bloqueia aqui, o servidor valida de novo no envio
+  }catch(e){ return true; }
+}
 function toggleAccessPopover(event){
   event.stopPropagation();
   const entry=document.getElementById('accessRequestEntry');
   const vaiAbrir = !entry.classList.contains('open');
   if(vaiAbrir){
-    const disponivel = pedidosDeAcessoDisponiveis();
-    document.getElementById('accessStepDisabled').hidden = disponivel;
-    document.getElementById('accessStepConsent').hidden = !disponivel;
+    document.getElementById('accessStepDisabled').hidden = true;
+    document.getElementById('accessStepConsent').hidden = false;
     document.getElementById('accessStepSend').hidden = true;
     document.getElementById('accessConsentCheck').checked = false;
+    statusPedidosAcessoRemoto().then(ativo=>{
+      if(!entry.classList.contains('open')) return; // já fechou antes da resposta do servidor chegar
+      document.getElementById('accessStepDisabled').hidden = ativo;
+      document.getElementById('accessStepConsent').hidden = !ativo;
+    });
   }
   entry.classList.toggle('open');
 }
 function fecharAccessPopover(){ document.getElementById('accessRequestEntry').classList.remove('open'); }
-function avancarPedidoAcesso(){
-  if(!pedidosDeAcessoDisponiveis()){ toast('Está desativado no momento, volte mais tarde.','erro'); fecharAccessPopover(); return; }
+async function avancarPedidoAcesso(){
   const chk=document.getElementById('accessConsentCheck');
   if(!chk.checked){ chk.focus(); toast('Confirme a autorização para continuar.','erro'); return; }
+  const ativo = await statusPedidosAcessoRemoto();
+  if(!ativo){ toast('Está desativado no momento, volte mais tarde.','erro'); fecharAccessPopover(); return; }
   fecharAccessPopover();
   document.getElementById('cloudGate').style.display='none';
   document.getElementById('accessFlowScreen').classList.add('show');
@@ -2722,12 +2737,6 @@ async function solicitarAutorizacaoDeAcesso(){
   const msg=document.getElementById('cloudGateMsg');
   const status=document.getElementById('accessSendError');
   const sendBtn=document.getElementById('accessSendBtn');
-  if(!pedidosDeAcessoDisponiveis()){
-    toast('Está desativado no momento, volte mais tarde.','erro');
-    document.getElementById('accessFlowScreen').classList.remove('show');
-    document.getElementById('cloudGate').style.display='flex';
-    return;
-  }
   if(!document.getElementById('accessTermsCheck').checked){ toast('Leia os termos e marque a confirmação para enviar.','erro'); return; }
   status.textContent='';
   sendBtn.disabled=true;
@@ -2737,6 +2746,13 @@ async function solicitarAutorizacaoDeAcesso(){
     let json;
     try{ json=await res.json(); }catch(e){ throw new Error('O servidor respondeu em um formato inválido. Verifique se o Web App do Apps Script foi publicado.'); }
     if(!res.ok || !json.ok){
+      if(json && json.desativado){
+        toast('Está desativado no momento, volte mais tarde.','erro');
+        document.getElementById('accessFlowScreen').classList.remove('show');
+        document.getElementById('cloudGate').style.display='flex';
+        sendBtn.disabled=false;
+        return;
+      }
       const erro=(json && /chave inválida|sem permissão/i.test(json.error||''))
         ? 'A autorização sem key ainda não foi ativada no servidor. Atualize e implante o Code.gs.'
         : (json&&json.error)||'Não foi possível enviar a solicitação.';
@@ -3604,6 +3620,12 @@ async function checkAccessRequests(){
 function iniciarPollingPedidosAcesso(){
   clearInterval(_accessRequestsTimer);
   if(getPerms().isTotal && recebePedidosNesteDispositivo()){ _accessRequestsTimer=setInterval(checkAccessRequests,2500); checkAccessRequests(); }
+}
+function toggleAceitarPedidosAcessoLoja(ativar){
+  DB.settings.receberPedidosAcesso = !!ativar;
+  flashSaving();
+  renderNotificacoesModal();
+  toast(ativar ? 'Pedidos de acesso ativados para a loja.' : 'Pedidos de acesso desativados para a loja.', 'ok');
 }
 function toggleReceberPedidosAcesso(ativar){
   salvarRecebimentoNesteDispositivo(!!ativar);
@@ -5043,7 +5065,9 @@ function renderNotificacoesModal(){
   const esc=v=>String(v||'-').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   body.innerHTML = `
     <h4 style="margin:0 0 6px;">🔐 Autorizações de dispositivo</h4>
-    <label class="accessTermsAccept" style="margin:4px 0 10px;"><input type="checkbox" ${recebePedidosNesteDispositivo()?'checked':''} onchange="toggleReceberPedidosAcesso(this.checked)"> Receber novos pedidos de acesso neste dispositivo</label>
+    <label class="accessTermsAccept" style="margin:4px 0 6px;"><input type="checkbox" ${DB.settings.receberPedidosAcesso?'checked':''} onchange="toggleAceitarPedidosAcessoLoja(this.checked)"> Aceitar novos pedidos de acesso</label>
+    <p class="dimSmall" style="margin-top:0;">${DB.settings.receberPedidosAcesso?'Ativo para toda a loja: quem não tem a chave pode usar "Peça autorização" na tela de login.':'Desativado para toda a loja: quem tentar "Peça autorização" verá a mensagem "Está desativado no momento, volte mais tarde."'}</p>
+    <label class="accessTermsAccept" style="margin:4px 0 10px;"><input type="checkbox" ${recebePedidosNesteDispositivo()?'checked':''} onchange="toggleReceberPedidosAcesso(this.checked)"> Avisar sobre pedidos novos neste dispositivo</label>
     <p class="dimSmall" style="margin-top:0;">${recebePedidosNesteDispositivo()?'Recebimento ativo neste dispositivo: o sino procura pedidos novos enquanto estiver ligado.':'Recebimento desativado neste dispositivo: nenhum pedido novo será buscado até ativar a caixa acima.'}</p>
     <table><thead><tr><th>Solicitado em</th><th>Dispositivo</th><th>Local</th><th></th></tr></thead><tbody>
       ${pedidos.map(r=>`<tr><td>${esc(new Date(r.requestedAt).toLocaleString('pt-BR'))}</td><td>${esc(r.deviceName)}</td><td>${esc([r.city,r.locale,r.timezone].filter(Boolean).join(' · '))}</td><td style="white-space:nowrap"><button class="btn small" onclick="decidirAcessoDispositivo('${esc(r.id)}','aceito')">✅ Aceitar</button> <button class="btn small secondary" onclick="decidirAcessoDispositivo('${esc(r.id)}','recusado')">Rejeitar</button></td></tr>`).join('') || '<tr><td colspan="4" class="dimSmall">Nenhuma solicitação aguardando confirmação.</td></tr>'}
