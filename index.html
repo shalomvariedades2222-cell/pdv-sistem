@@ -507,47 +507,107 @@ html.anim-off-ambient body::before,html.anim-off-ambient body::after{animation:n
 @keyframes rejectedPulse{0%{transform:scale(.5);opacity:0}50%{transform:scale(1.1)}100%{transform:scale(1);opacity:1}}
 html.is-mobile .pedidoRadarRing,html.is-mobile .pedidoRadarSweep{animation-duration:0s;opacity:0;}
 
-/* ---------- TELA "CONECTANDO AO SERVIDOR" (usuário já conectado antes) ---------- */
+/* ---------- TELA "CONECTANDO AO SERVIDOR" (usuário já conectado antes) ----------
+   Camadas, de trás pra frente: glow ambiente pulsante > ondas de sinal que se
+   expandem > anel-trilho fino (referência estática) > dois arcos "cometa" (gradiente
+   cônico) girando em direções opostas > dois satélites orbitando em raios/velocidades
+   diferentes > halo pulsante > núcleo de vidro com o ícone da nuvem > título com
+   brilho de cetim passando por cima > barra de progresso indeterminada. */
 #connectingScreen{
   opacity:0;transition:opacity .7s ease;display:none;
   background:radial-gradient(circle at 50% 30%, #2a1c12, #0d0a09 65%);
+  overflow:hidden;
 }
 #connectingScreen.in{opacity:1;}
-.connWrap{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;gap:6px;}
-.connOrbit{position:relative;width:150px;height:150px;display:flex;align-items:center;justify-content:center;margin-bottom:22px;}
-.connRingSpin{
-  position:absolute;inset:0;border-radius:50%;
-  border:2px dashed rgba(255,106,26,.45);
-  animation:connSpin 7s linear infinite;
+.connBgGlow{
+  position:absolute;top:50%;left:50%;width:70vw;height:70vw;max-width:640px;max-height:640px;
+  margin:-35vw 0 0 -35vw;border-radius:50%;pointer-events:none;z-index:1;
+  background:radial-gradient(circle, rgba(255,106,26,.16), rgba(255,106,26,0) 62%);
+  animation:connBgPulse 4.2s ease-in-out infinite;
 }
-.connRingSpin.rev{inset:16px;border-color:rgba(255,106,26,.25);animation-duration:10s;animation-direction:reverse;}
-@keyframes connSpin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
+@keyframes connBgPulse{0%,100%{opacity:.55;transform:scale(1);}50%{opacity:1;transform:scale(1.12);}}
+.connWrap{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;gap:6px;}
+.connOrbit{position:relative;width:168px;height:168px;display:flex;align-items:center;justify-content:center;margin-bottom:24px;}
+
+.connRingTrack{position:absolute;inset:6px;border-radius:50%;border:1px solid rgba(255,172,112,.14);}
+
 .connWave{
   position:absolute;left:50%;top:50%;width:80px;height:80px;margin:-40px 0 0 -40px;
-  border-radius:50%;border:2px solid rgba(255,106,26,.55);opacity:0;
-  animation:connWaveOut 2.2s ease-out infinite;
+  border-radius:50%;border:2px solid rgba(255,106,26,.5);opacity:0;
+  animation:connWaveOut 2.6s ease-out infinite;
 }
-.connWave.w2{animation-delay:.7s;}
-.connWave.w3{animation-delay:1.4s;}
+.connWave.w2{animation-delay:1.3s;}
 @keyframes connWaveOut{
-  0%{width:80px;height:80px;margin:-40px 0 0 -40px;opacity:.75;}
-  100%{width:160px;height:160px;margin:-80px 0 0 -80px;opacity:0;}
+  0%{width:70px;height:70px;margin:-35px 0 0 -35px;opacity:.6;}
+  100%{width:168px;height:168px;margin:-84px 0 0 -84px;opacity:0;}
 }
+
+/* Arcos "cometa": gradiente cônico mascarado em anel fino, girando — muito mais
+   vivo que um anel tracejado estático, dá sensação de dados fluindo em looping. */
+.connArc{
+  position:absolute;inset:2px;border-radius:50%;
+  background:conic-gradient(from 0deg, transparent 0%, var(--orange-deep) 8%, var(--orange) 20%, #ffcf9e 26%, transparent 42%, transparent 100%);
+  -webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
+  mask:radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
+  filter:drop-shadow(0 0 7px rgba(255,106,26,.55));
+  animation:connSpin 2.6s linear infinite;
+}
+.connArc.rev{
+  inset:18px;opacity:.55;
+  animation:connSpin 4.4s linear infinite reverse;
+}
+@keyframes connSpin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
+
+/* Satélites orbitando o núcleo, como pacotes de dados indo e voltando do servidor */
+.connSatOrbit{position:absolute;inset:0;border-radius:50%;animation:connSpin 5.5s linear infinite;}
+.connSatOrbit.s2{inset:22px;animation-duration:3.4s;animation-direction:reverse;}
+.connSatOrbit .connSatDot{
+  position:absolute;top:-3px;left:50%;width:7px;height:7px;margin-left:-3.5px;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%, #fff, var(--orange) 65%);
+  box-shadow:0 0 9px 2px rgba(255,106,26,.75);
+}
+.connSatOrbit.s2 .connSatDot{width:5px;height:5px;margin-left:-2.5px;box-shadow:0 0 7px 2px rgba(255,106,26,.65);}
+
+.connCoreGlow{
+  position:absolute;width:96px;height:96px;border-radius:50%;
+  background:radial-gradient(circle, rgba(255,106,26,.6), rgba(255,106,26,0) 70%);
+  filter:blur(3px);
+  animation:connCoreGlowPulse 2.2s ease-in-out infinite;
+}
+@keyframes connCoreGlowPulse{0%,100%{opacity:.55;transform:scale(.92);}50%{opacity:1;transform:scale(1.18);}}
+
 .connCore{
-  position:relative;z-index:2;width:80px;height:80px;border-radius:50%;
+  position:relative;z-index:2;width:78px;height:78px;border-radius:50%;
   background:linear-gradient(135deg,var(--orange),var(--orange-deep));
-  display:flex;align-items:center;justify-content:center;font-size:34px;
-  box-shadow:0 0 45px rgba(255,106,26,.6),0 10px 30px rgba(0,0,0,.5);
-  animation:connPulse 1.6s ease-in-out infinite;
+  display:flex;align-items:center;justify-content:center;font-size:32px;
+  box-shadow:0 0 45px rgba(255,106,26,.6),0 10px 30px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.35);
+  animation:connPulse 1.8s ease-in-out infinite;
 }
-@keyframes connPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.08);}}
-.connTitle{font-size:17px;font-weight:800;color:var(--text);letter-spacing:.3px;}
-.connSub{font-size:12px;color:var(--text-dim);margin-top:2px;min-height:16px;}
-.connDotsRow{display:flex;gap:5px;margin-top:14px;}
-.connDotsRow span{width:6px;height:6px;border-radius:50%;background:var(--orange);animation:connDotBlink 1.2s infinite ease-in-out;}
-.connDotsRow span:nth-child(2){animation-delay:.2s;}
-.connDotsRow span:nth-child(3){animation-delay:.4s;}
-@keyframes connDotBlink{0%,80%,100%{opacity:.25;transform:scale(.8);}40%{opacity:1;transform:scale(1.15);}}
+@keyframes connPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.07);}}
+
+.connTitle{
+  font-size:18px;font-weight:800;letter-spacing:.3px;
+  background:linear-gradient(90deg, var(--text) 20%, #fff 50%, var(--text) 80%);
+  background-size:220% auto;-webkit-background-clip:text;background-clip:text;color:transparent;
+  animation:connTitleShine 2.8s linear infinite;
+}
+@keyframes connTitleShine{0%{background-position:200% center;}100%{background-position:-20% center;}}
+.connSub{font-size:12px;color:var(--text-dim);margin-top:2px;min-height:16px;transition:opacity .25s ease;}
+
+.connProgressTrack{
+  position:relative;width:172px;height:4px;border-radius:4px;margin-top:16px;overflow:hidden;
+  background:rgba(255,172,112,.12);
+}
+.connProgressFill{
+  position:absolute;top:0;left:-45%;width:45%;height:100%;border-radius:4px;
+  background:linear-gradient(90deg, transparent, var(--orange), #ffcf9e, var(--orange-deep), transparent);
+  animation:connProgressSlide 1.5s ease-in-out infinite;
+}
+@keyframes connProgressSlide{0%{left:-45%;}100%{left:100%;}}
+
+/* Celular: menos camadas girando ao mesmo tempo, pra não pesar */
+html.is-mobile .connArc.rev,html.is-mobile .connSatOrbit,html.is-mobile .connWave.w2{display:none;}
+html.anim-off-login #connectingScreen *{animation:none !important;}
 
 /* ---------- SELETOR DE FUNCIONÁRIO (avatares no login) ---------- */
 .loginStep{animation:stepFade .3s ease;}
@@ -1741,18 +1801,22 @@ html.is-mobile .btn::before{ display:none; }
 
 <!-- ===================== CONECTANDO (dispositivo já cadastrado) ===================== -->
 <div id="connectingScreen" style="position:fixed;inset:0;z-index:1000;align-items:center;justify-content:center;">
+  <div class="connBgGlow"></div>
   <div class="connWrap">
     <div class="connOrbit">
       <div class="connWave w1"></div>
       <div class="connWave w2"></div>
-      <div class="connWave w3"></div>
-      <div class="connRingSpin"></div>
-      <div class="connRingSpin rev"></div>
+      <div class="connRingTrack"></div>
+      <div class="connArc"></div>
+      <div class="connArc rev"></div>
+      <div class="connSatOrbit s1"><span class="connSatDot"></span></div>
+      <div class="connSatOrbit s2"><span class="connSatDot"></span></div>
+      <div class="connCoreGlow"></div>
       <div class="connCore">☁️</div>
     </div>
     <div class="connTitle">Conectando ao servidor</div>
     <div class="connSub" id="connSubText">Sincronizando dados da loja...</div>
-    <div class="connDotsRow"><span></span><span></span><span></span></div>
+    <div class="connProgressTrack"><div class="connProgressFill"></div></div>
   </div>
 </div>
 
