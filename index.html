@@ -2482,7 +2482,7 @@ html.is-mobile .btn::before{ display:none; }
           </div>
           <div class="field" style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px;">
             <label>Tela Cheia do App</label>
-            <div class="dimSmall" style="margin-bottom:6px;">Quando o app já foi baixado/instalado no aparelho, ele abre e permanece sempre em tela cheia (F11) automaticamente. Use o botão abaixo se quiser deixar em modo normal (tira da tela cheia).</div>
+            <div class="dimSmall" style="margin-bottom:6px;">O app sempre abre e permanece em tela cheia (F11) automaticamente, instalado ou não. Se alguém tentar sair da tela cheia (Esc, F11, etc.), o app volta sozinho pra tela cheia assim que detecta a saída. A única forma de deixar em modo janela normal é usando o botão abaixo, aqui em Configurações.</div>
             <button type="button" class="btn secondary small" id="btnTelaCheiaToggle" onclick="toggleTelaCheiaForcada()">🖥️ Colocar Tela Normal (sair da tela cheia)</button>
           </div>
           <div class="field" style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px;">
@@ -9563,9 +9563,15 @@ if('serviceWorker' in navigator){
 }
 
 /* =========================================================
-   TELA CHEIA AUTOMÁTICA (para quando o app já foi baixado/instalado)
-   Regra: quando o site roda como app instalado (standalone), ele entra
-   e permanece sempre em tela cheia (F11), sem depender do teclado.
+   TELA CHEIA AUTOMÁTICA (SEMPRE FORÇADA, instalado ou não)
+   Regra: o app entra e permanece sempre em tela cheia (F11), não importa
+   se foi instalado como app ou está sendo usado direto no navegador.
+   Se a pessoa tentar sair da tela cheia (Esc, F11, botão do navegador),
+   o app tenta voltar pra tela cheia rapidamente assim que detectar a
+   saída — na próxima interação da pessoa com a tela (clique/toque/tecla),
+   já que os navegadores só permitem pedir tela cheia por script durante
+   uma interação real do usuário (não é possível reforçar 100% sem
+   nenhuma interação, é uma trava de segurança do próprio navegador).
    Isso só pode ser desligado pela pessoa dentro de Configurações
    (botão "Colocar Tela Normal"), nunca pelo teclado.
 ========================================================= */
@@ -9582,14 +9588,9 @@ function setFullscreenForcedSetting(ligado){
 function elementoTelaCheiaAtual(){
   return document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement || null;
 }
-let _tentativasTelaCheiaCount = 0;
-const TENTATIVAS_TELA_CHEIA_MAX = 20; // evita ficar tentando pra sempre se o navegador nunca permitir
 function tentarEntrarTelaCheia(){
-  if(!isStandaloneApp()) return;
   if(!isFullscreenForcedSetting()) return;
   if(elementoTelaCheiaAtual()) return;
-  if(_tentativasTelaCheiaCount >= TENTATIVAS_TELA_CHEIA_MAX) return;
-  _tentativasTelaCheiaCount++;
   const el = document.documentElement;
   const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
   if(req){ req.call(el).catch(function(){}); }
@@ -9642,7 +9643,11 @@ ativarTentativasTelaCheia();
 window.addEventListener('appinstalled', function(){ setTimeout(tentarEntrarTelaCheia, 400); });
 ['fullscreenchange','webkitfullscreenchange','MSFullscreenChange'].forEach(function(evt){
   document.addEventListener(evt, function(){
-    setTimeout(tentarEntrarTelaCheia, 250);
+    // Tenta voltar pra tela cheia o quanto antes. Se a saída aconteceu sem
+    // nenhuma interação do usuário no meio (ex.: alguns navegadores/atalhos),
+    // o pedido pode ser bloqueado — nesse caso a próxima interação (clique,
+    // toque, tecla) já força a volta, graças aos listeners abaixo.
+    setTimeout(tentarEntrarTelaCheia, 50);
     atualizarVisibilidadeBotaoInstalar();
   });
 });
