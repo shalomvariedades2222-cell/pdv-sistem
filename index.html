@@ -161,7 +161,7 @@ html.anim-off-ambient body::before,html.anim-off-ambient body::after{animation:n
 }
 #introSplash.out{animation:introOut .9s cubic-bezier(.65,0,.35,1) forwards;}
 #introSplash.out .core{animation:introCoreOut .45s ease forwards;}
-@keyframes introCoreOut{to{transform:scale(.8);opacity:0;}}
+@keyframes introCoreOut{to{transform:scale(.8);opacity:0;filter:blur(6px);}}
 
 .core{display:flex;flex-direction:column;align-items:center;}
 
@@ -169,7 +169,7 @@ html.anim-off-ambient body::before,html.anim-off-ambient body::after{animation:n
   margin-bottom:0;opacity:0;animation:introRailFade .3s ease forwards;}
 @keyframes introRailFade{to{opacity:1;}}
 
-.rig{transform-origin:top center;will-change:transform;
+.rig{transform-origin:top center;
   animation:introRigDrop .6s cubic-bezier(.2,.7,.3,1.2) .1s both, introRigSwing 2.4s ease-in-out .7s forwards;}
 @keyframes introRigDrop{0%{transform:translateY(-90px);opacity:0;}70%{opacity:1;}100%{transform:translateY(0);opacity:1;}}
 @keyframes introRigSwing{0%{transform:rotate(0);}18%{transform:rotate(10deg);}42%{transform:rotate(-7deg);}
@@ -178,12 +178,9 @@ html.anim-off-ambient body::before,html.anim-off-ambient body::after{animation:n
 .hanger{width:56px;height:34px;margin:0 auto;}
 .hanger svg{width:100%;height:100%;fill:none;stroke:var(--orange);stroke-width:3;stroke-linecap:round;}
 
-/* "cresce" via clip-path (recorte), não via height — assim o navegador só
-   recompõe as camadas (GPU) em vez de recalcular o layout a cada quadro,
-   bem mais leve em aparelhos fracos. */
-.garment{width:104px;height:120px;margin-top:-2px;clip-path:inset(100% 0 0 0);will-change:clip-path;
+.garment{width:104px;height:0;margin-top:-2px;overflow:hidden;
   animation:introGarmentGrow .7s cubic-bezier(.3,.9,.3,1) .8s forwards;}
-@keyframes introGarmentGrow{to{clip-path:inset(0 0 0 0);}}
+@keyframes introGarmentGrow{to{height:120px;}}
 .garment svg{width:104px;height:120px;display:block;}
 .shirt-body{fill:#2a211c;stroke:var(--orange-deep);stroke-width:2;}
 .shirt-shine{fill:rgba(255,172,112,.15);}
@@ -193,7 +190,6 @@ html.anim-off-ambient body::before,html.anim-off-ambient body::after{animation:n
 .sub{margin-top:4px;font-size:12px;color:var(--text-dim);letter-spacing:2px;text-transform:uppercase;opacity:0;
   animation:introFadeUp .5s ease 2.0s forwards;}
 @keyframes introFadeUp{
-
   0%{opacity:0;transform:translateY(6px);}
   100%{opacity:1;transform:translateY(0);}
 }
@@ -403,7 +399,7 @@ html.is-mobile .pedidoRadarRing,html.is-mobile .pedidoRadarSweep{animation-durat
 .pulseOuter{position:relative;width:170px;height:170px;margin-bottom:22px;display:flex;align-items:center;justify-content:center;}
 .pulseRing{
   position:absolute;width:96px;height:96px;border-radius:50%;
-  border:1.5px solid var(--orange);will-change:transform,opacity;
+  border:1.5px solid var(--orange);
   animation:pulseExpand 2.4s cubic-bezier(.2,.6,.4,1) infinite;
 }
 .pulseRing.r2{animation-delay:.8s;}
@@ -414,16 +410,12 @@ html.is-mobile .pedidoRadarRing,html.is-mobile .pedidoRadarSweep{animation-durat
   100%{transform:scale(1.8);opacity:0;border-color:var(--orange-deep);}
 }
 
-/* Sem desfoque de vidro (backdrop-filter) aqui de propósito: o cartão fica
-   "respirando" (escala) o tempo todo, e desfoque de fundo animado junto com
-   escala obriga o navegador a recalcular o borrão a cada quadro — pesado em
-   aparelhos fracos. O fundo desta tela é liso (gradiente simples), então o
-   desfoque quase não fazia diferença visual; tirar ele deixa bem mais leve. */
 .pulseCard{
   position:relative;width:100px;height:100px;border-radius:24px;
   background:var(--glass-bg-strong);border:1px solid var(--glass-border-strong);
+  -webkit-backdrop-filter:blur(var(--glass-blur));backdrop-filter:blur(var(--glass-blur));
   box-shadow:0 16px 40px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.08);
-  display:flex;align-items:center;justify-content:center;will-change:transform;
+  display:flex;align-items:center;justify-content:center;
   animation:cardBreath 2.4s ease-in-out infinite;
 }
 @keyframes cardBreath{0%,100%{transform:scale(1);}50%{transform:scale(1.04);}}
@@ -1340,7 +1332,7 @@ html.anim-off-intro #introSplash, html.anim-off-intro #introSplash *{
    ficariam ao fim da animação normal. */
 html.anim-off-intro .rail{opacity:1 !important;}
 html.anim-off-intro .rig{transform:none !important;opacity:1 !important;}
-html.anim-off-intro .garment{clip-path:inset(0 0 0 0) !important;}
+html.anim-off-intro .garment{height:120px !important;}
 html.anim-off-intro .title, html.anim-off-intro .sub{opacity:1 !important;transform:translateY(0) !important;}
 
 /* 2) Manchas de fundo (o "vidro" que se move atrás de tudo) */
