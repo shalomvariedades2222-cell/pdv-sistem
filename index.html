@@ -508,105 +508,125 @@ html.anim-off-ambient body::before,html.anim-off-ambient body::after{animation:n
 html.is-mobile .pedidoRadarRing,html.is-mobile .pedidoRadarSweep{animation-duration:0s;opacity:0;}
 
 /* ---------- TELA "CONECTANDO AO SERVIDOR" (usuário já conectado antes) ----------
-   Camadas, de trás pra frente: glow ambiente pulsante > ondas de sinal que se
-   expandem > anel-trilho fino (referência estática) > dois arcos "cometa" (gradiente
-   cônico) girando em direções opostas > dois satélites orbitando em raios/velocidades
-   diferentes > halo pulsante > núcleo de vidro com o ícone da nuvem > título com
-   brilho de cetim passando por cima > barra de progresso indeterminada. */
+   Conceito novo: um "leitor de código de barras" de vidro — remete direto ao
+   universo da loja (etiquetas, PDV, scanner). Camadas, de trás pra frente: grade
+   sutil tipo HUD que desliza devagar > aura ambiente pulsante > cartão de vidro
+   com barras tipo código de barras "respirando" (como se estivessem sendo lidas)
+   > feixe de leitura (laser) varrendo o cartão de cima a baixo com brilho >
+   cantos de mira (viewfinder), como um scanner focando o cartão > título com
+   brilho de cetim > texto de status > 3 pontinhos de sinal piscando em sequência
+   > barra de progresso indeterminada com brilho. */
 #connectingScreen{
   opacity:0;transition:opacity .7s ease;display:none;
   background:radial-gradient(circle at 50% 30%, #2a1c12, #0d0a09 65%);
   overflow:hidden;
 }
 #connectingScreen.in{opacity:1;}
-.connBgGlow{
-  position:absolute;top:50%;left:50%;width:70vw;height:70vw;max-width:640px;max-height:640px;
-  margin:-35vw 0 0 -35vw;border-radius:50%;pointer-events:none;z-index:1;
-  background:radial-gradient(circle, rgba(255,106,26,.16), rgba(255,106,26,0) 62%);
-  animation:connBgPulse 4.2s ease-in-out infinite;
-}
-@keyframes connBgPulse{0%,100%{opacity:.55;transform:scale(1);}50%{opacity:1;transform:scale(1.12);}}
-.connWrap{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;gap:6px;}
-.connOrbit{position:relative;width:168px;height:168px;display:flex;align-items:center;justify-content:center;margin-bottom:24px;}
 
-.connRingTrack{position:absolute;inset:6px;border-radius:50%;border:1px solid rgba(255,172,112,.14);}
+.csAura{
+  position:absolute;top:50%;left:50%;width:60vw;height:60vw;max-width:560px;max-height:560px;
+  margin:-30vw 0 0 -30vw;border-radius:50%;pointer-events:none;z-index:1;
+  background:radial-gradient(circle, rgba(255,106,26,.18), rgba(255,106,26,0) 62%);
+  animation:csAuraPulse 4.6s ease-in-out infinite;
+}
+@keyframes csAuraPulse{0%,100%{opacity:.5;transform:scale(1) rotate(0deg);}50%{opacity:1;transform:scale(1.15) rotate(6deg);}}
 
-.connWave{
-  position:absolute;left:50%;top:50%;width:80px;height:80px;margin:-40px 0 0 -40px;
-  border-radius:50%;border:2px solid rgba(255,106,26,.5);opacity:0;
-  animation:connWaveOut 2.6s ease-out infinite;
+.csGrid{
+  position:absolute;inset:0;z-index:1;opacity:.05;pointer-events:none;
+  background-image:linear-gradient(rgba(255,172,112,.6) 1px, transparent 1px),linear-gradient(90deg, rgba(255,172,112,.6) 1px, transparent 1px);
+  background-size:34px 34px;
+  -webkit-mask:radial-gradient(ellipse 60% 55% at 50% 45%, #000 40%, transparent 78%);
+  mask:radial-gradient(ellipse 60% 55% at 50% 45%, #000 40%, transparent 78%);
+  animation:csGridDrift 18s linear infinite;
 }
-.connWave.w2{animation-delay:1.3s;}
-@keyframes connWaveOut{
-  0%{width:70px;height:70px;margin:-35px 0 0 -35px;opacity:.6;}
-  100%{width:168px;height:168px;margin:-84px 0 0 -84px;opacity:0;}
+@keyframes csGridDrift{from{background-position:0 0,0 0;}to{background-position:34px 34px,34px 34px;}}
+
+.csWrap{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;}
+
+.csCardOuter{position:relative;padding:16px;margin-bottom:24px;}
+.csCard{
+  position:relative;width:220px;height:104px;border-radius:14px;overflow:hidden;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--glass-bg-strong);border:1px solid var(--glass-border-strong);
+  -webkit-backdrop-filter:blur(var(--glass-blur));backdrop-filter:blur(var(--glass-blur));
+  box-shadow:0 20px 50px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.08);
+}
+.csCard::before{
+  content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  background:linear-gradient(160deg, rgba(255,255,255,.10), transparent 40%);
 }
 
-/* Arcos "cometa": gradiente cônico mascarado em anel fino, girando — muito mais
-   vivo que um anel tracejado estático, dá sensação de dados fluindo em looping. */
-.connArc{
-  position:absolute;inset:2px;border-radius:50%;
-  background:conic-gradient(from 0deg, transparent 0%, var(--orange-deep) 8%, var(--orange) 20%, #ffcf9e 26%, transparent 42%, transparent 100%);
-  -webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
-  mask:radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
-  filter:drop-shadow(0 0 7px rgba(255,106,26,.55));
-  animation:connSpin 2.6s linear infinite;
+/* Barras tipo código de barras, criadas via JS (função initConnectingBars), cada
+   uma "respirando" com atraso/duração levemente aleatórios pra parecer orgânico */
+.csBars{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;gap:3px;height:60px;}
+.csBar{
+  display:inline-block;height:38%;border-radius:2px;
+  background:linear-gradient(180deg, #ffdcb0, var(--orange) 55%, var(--orange-deep));
+  box-shadow:0 0 6px rgba(255,106,26,.4);
+  animation:csBarPulse 1.6s ease-in-out infinite;
 }
-.connArc.rev{
-  inset:18px;opacity:.55;
-  animation:connSpin 4.4s linear infinite reverse;
-}
-@keyframes connSpin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
+@keyframes csBarPulse{0%,100%{height:34%;opacity:.5;}50%{height:100%;opacity:1;}}
 
-/* Satélites orbitando o núcleo, como pacotes de dados indo e voltando do servidor */
-.connSatOrbit{position:absolute;inset:0;border-radius:50%;animation:connSpin 5.5s linear infinite;}
-.connSatOrbit.s2{inset:22px;animation-duration:3.4s;animation-direction:reverse;}
-.connSatOrbit .connSatDot{
-  position:absolute;top:-3px;left:50%;width:7px;height:7px;margin-left:-3.5px;border-radius:50%;
-  background:radial-gradient(circle at 35% 30%, #fff, var(--orange) 65%);
-  box-shadow:0 0 9px 2px rgba(255,106,26,.75);
+/* Feixe de leitura varrendo o cartão, como um scanner de etiqueta */
+.csBeam{
+  position:absolute;left:-6%;width:112%;height:26px;top:-14%;z-index:2;
+  background:linear-gradient(180deg, transparent, rgba(255,190,130,0) 8%, rgba(255,200,145,.9) 48%, rgba(255,190,130,0) 92%, transparent);
+  filter:blur(1px);mix-blend-mode:screen;
+  box-shadow:0 0 18px 4px rgba(255,140,60,.55);
+  animation:csBeamSweep 2.4s cubic-bezier(.45,0,.55,1) infinite;
 }
-.connSatOrbit.s2 .connSatDot{width:5px;height:5px;margin-left:-2.5px;box-shadow:0 0 7px 2px rgba(255,106,26,.65);}
-
-.connCoreGlow{
-  position:absolute;width:96px;height:96px;border-radius:50%;
-  background:radial-gradient(circle, rgba(255,106,26,.6), rgba(255,106,26,0) 70%);
-  filter:blur(3px);
-  animation:connCoreGlowPulse 2.2s ease-in-out infinite;
+@keyframes csBeamSweep{
+  0%{top:-14%;opacity:0;}
+  8%{opacity:1;}
+  50%{top:50%;}
+  92%{opacity:1;}
+  100%{top:104%;opacity:0;}
 }
-@keyframes connCoreGlowPulse{0%,100%{opacity:.55;transform:scale(.92);}50%{opacity:1;transform:scale(1.18);}}
 
-.connCore{
-  position:relative;z-index:2;width:78px;height:78px;border-radius:50%;
-  background:linear-gradient(135deg,var(--orange),var(--orange-deep));
-  display:flex;align-items:center;justify-content:center;font-size:32px;
-  box-shadow:0 0 45px rgba(255,106,26,.6),0 10px 30px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.35);
-  animation:connPulse 1.8s ease-in-out infinite;
+/* Cantos de mira, tipo scanner/viewfinder focando o cartão */
+.csCorner{
+  position:absolute;width:20px;height:20px;border:2.5px solid var(--orange);opacity:.6;
+  filter:drop-shadow(0 0 6px rgba(255,106,26,.6));
+  animation:csCornerBreath 2.6s ease-in-out infinite;
 }
-@keyframes connPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.07);}}
+.csCorner.tl{top:0;left:0;border-right:none;border-bottom:none;border-top-left-radius:8px;}
+.csCorner.tr{top:0;right:0;border-left:none;border-bottom:none;border-top-right-radius:8px;animation-delay:.2s;}
+.csCorner.bl{bottom:0;left:0;border-right:none;border-top:none;border-bottom-left-radius:8px;animation-delay:.4s;}
+.csCorner.br{bottom:0;right:0;border-left:none;border-top:none;border-bottom-right-radius:8px;animation-delay:.6s;}
+@keyframes csCornerBreath{0%,100%{opacity:.45;transform:scale(1);}50%{opacity:1;transform:scale(1.1);}}
 
-.connTitle{
+.csTitle{
   font-size:18px;font-weight:800;letter-spacing:.3px;
   background:linear-gradient(90deg, var(--text) 20%, #fff 50%, var(--text) 80%);
   background-size:220% auto;-webkit-background-clip:text;background-clip:text;color:transparent;
-  animation:connTitleShine 2.8s linear infinite;
+  animation:csTitleShine 2.8s linear infinite;
 }
-@keyframes connTitleShine{0%{background-position:200% center;}100%{background-position:-20% center;}}
-.connSub{font-size:12px;color:var(--text-dim);margin-top:2px;min-height:16px;transition:opacity .25s ease;}
+@keyframes csTitleShine{0%{background-position:200% center;}100%{background-position:-20% center;}}
+.connSub{font-size:12px;color:var(--text-dim);margin-top:4px;min-height:16px;text-align:center;max-width:260px;transition:opacity .25s ease;}
 
-.connProgressTrack{
-  position:relative;width:172px;height:4px;border-radius:4px;margin-top:16px;overflow:hidden;
-  background:rgba(255,172,112,.12);
+.csSignal{display:flex;gap:5px;margin-top:12px;}
+.csSigDot{width:5px;height:5px;border-radius:50%;background:var(--orange-dim);animation:csSigBlink 1.4s ease-in-out infinite;}
+.csSigDot:nth-child(2){animation-delay:.18s;}
+.csSigDot:nth-child(3){animation-delay:.36s;}
+@keyframes csSigBlink{
+  0%,60%,100%{background:var(--orange-dim);transform:scale(1);box-shadow:none;}
+  30%{background:var(--orange);transform:scale(1.35);box-shadow:0 0 8px rgba(255,106,26,.8);}
 }
-.connProgressFill{
-  position:absolute;top:0;left:-45%;width:45%;height:100%;border-radius:4px;
-  background:linear-gradient(90deg, transparent, var(--orange), #ffcf9e, var(--orange-deep), transparent);
-  animation:connProgressSlide 1.5s ease-in-out infinite;
-}
-@keyframes connProgressSlide{0%{left:-45%;}100%{left:100%;}}
 
-/* Celular: menos camadas girando ao mesmo tempo, pra não pesar */
-html.is-mobile .connArc.rev,html.is-mobile .connSatOrbit,html.is-mobile .connWave.w2{display:none;}
+.csProgressTrack{
+  position:relative;width:184px;height:5px;border-radius:5px;margin-top:18px;overflow:hidden;
+  background:rgba(255,172,112,.12);box-shadow:inset 0 0 0 1px rgba(255,172,112,.08);
+}
+.csProgressFill{
+  position:absolute;top:0;left:-50%;width:50%;height:100%;border-radius:5px;
+  background:linear-gradient(90deg, transparent, var(--orange), #ffe2c2, var(--orange-deep), transparent);
+  box-shadow:0 0 10px rgba(255,106,26,.6);
+  animation:csProgressSlide 1.6s cubic-bezier(.4,0,.2,1) infinite;
+}
+@keyframes csProgressSlide{0%{left:-50%;}100%{left:100%;}}
+
+/* Celular: remove as camadas mais pesadas (grade e aura), pra não pesar */
+html.is-mobile .csGrid,html.is-mobile .csAura{display:none;}
 html.anim-off-login #connectingScreen *{animation:none !important;}
 
 /* ---------- SELETOR DE FUNCIONÁRIO (avatares no login) ---------- */
@@ -1801,22 +1821,23 @@ html.is-mobile .btn::before{ display:none; }
 
 <!-- ===================== CONECTANDO (dispositivo já cadastrado) ===================== -->
 <div id="connectingScreen" style="position:fixed;inset:0;z-index:1000;align-items:center;justify-content:center;">
-  <div class="connBgGlow"></div>
-  <div class="connWrap">
-    <div class="connOrbit">
-      <div class="connWave w1"></div>
-      <div class="connWave w2"></div>
-      <div class="connRingTrack"></div>
-      <div class="connArc"></div>
-      <div class="connArc rev"></div>
-      <div class="connSatOrbit s1"><span class="connSatDot"></span></div>
-      <div class="connSatOrbit s2"><span class="connSatDot"></span></div>
-      <div class="connCoreGlow"></div>
-      <div class="connCore">☁️</div>
+  <div class="csGrid"></div>
+  <div class="csAura"></div>
+  <div class="csWrap">
+    <div class="csCardOuter">
+      <div class="csCard">
+        <div class="csBars" id="csBars"></div>
+        <div class="csBeam"></div>
+      </div>
+      <div class="csCorner tl"></div>
+      <div class="csCorner tr"></div>
+      <div class="csCorner bl"></div>
+      <div class="csCorner br"></div>
     </div>
-    <div class="connTitle">Conectando ao servidor</div>
+    <div class="csTitle">Conectando ao servidor</div>
     <div class="connSub" id="connSubText">Sincronizando dados da loja...</div>
-    <div class="connProgressTrack"><div class="connProgressFill"></div></div>
+    <div class="csSignal"><span class="csSigDot"></span><span class="csSigDot"></span><span class="csSigDot"></span></div>
+    <div class="csProgressTrack"><div class="csProgressFill"></div></div>
   </div>
 </div>
 
@@ -3987,6 +4008,27 @@ function finishAutoConnect_tentarDeNovoEmBreve(){
   _autoConnectPromise = loadFromGitHub();
   finishAutoConnect();
 }
+
+/* ---------------- Barrinhas (estilo código de barras) da tela "Conectando ao servidor" ----------
+   Geradas por JS (larguras e tempos de animação levemente aleatórios) pra parecer
+   orgânico, como se cada barra estivesse "piscando" ao ser lida pelo scanner.
+   Roda uma única vez, o quanto antes, pra já estar pronta quando a tela aparecer. */
+function initConnectingBars(){
+  const wrap = document.getElementById('csBars');
+  if(!wrap || wrap.dataset.built) return;
+  wrap.dataset.built = '1';
+  const total = document.documentElement.classList.contains('is-mobile') ? 14 : 24;
+  for(let i=0;i<total;i++){
+    const b = document.createElement('span');
+    b.className = 'csBar';
+    const grossa = Math.random() < 0.3;
+    b.style.width = (grossa ? (2.6 + Math.random()*1.8) : (1.1 + Math.random()*1.3)) + 'px';
+    b.style.animationDuration = (1.1 + Math.random()*1.3) + 's';
+    b.style.animationDelay = (Math.random()*1.2) + 's';
+    wrap.appendChild(b);
+  }
+}
+initConnectingBars();
 // ---------------------------------------------------------------
 // MODO OFFLINE: o app abre normalmente com os dados que já estavam
 // salvos neste aparelho (localStorage). ghToken continua guardado (não é
