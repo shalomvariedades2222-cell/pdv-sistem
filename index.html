@@ -144,82 +144,96 @@ body::after{
 html.is-mobile body::before,html.is-mobile body::after{display:none;}
 html.anim-off-ambient body::before,html.anim-off-ambient body::after{animation:none;}
 
-/* ---------- INTRO SPLASH (animação de entrada ao abrir o site) ---------- */
+/* ---------- INTRO SPLASH (animação de entrada ao abrir o site) ----------
+   Conceito: estilhaços de vidro laranja voam das bordas da tela e convergem
+   no centro, "montando" o logo no instante do impacto; o título entra
+   letra por letra, como se estivesse sendo gravado no vidro. ---------- */
 #introSplash{
   position:fixed;inset:0;z-index:3000;
-  background:radial-gradient(ellipse at 50% 42%, rgba(255,106,26,.10), rgba(255,106,26,0) 62%), #100c0a;
+  background:radial-gradient(ellipse at 50% 42%, rgba(255,106,26,.12), rgba(255,106,26,0) 62%), #100c0a;
   display:flex;align-items:center;justify-content:center;flex-direction:column;
   overflow:hidden;
 }
-/* saída: o vidro "escorre" e fecha em espiral, em vez de um simples fade */
+/* saída: o núcleo se desfaz e o vidro fecha em espiral, revelando a tela seguinte */
 @keyframes introOut{
   0%{clip-path:circle(150% at 50% 50%);opacity:1;}
-  65%{clip-path:circle(42% at 50% 50%);opacity:1;}
+  60%{clip-path:circle(36% at 50% 50%);opacity:1;}
   100%{clip-path:circle(0% at 50% 50%);opacity:1;}
 }
-#introSplash.out{animation:introOut .95s cubic-bezier(.65,0,.35,1) forwards;}
-/* onda de choque única ao formar o logo (não é um degradê pulsante, é um anel de impacto que nasce do centro) */
-.introShock{
-  position:absolute;top:50%;left:50%;width:10px;height:10px;border-radius:50%;
-  margin:-5px 0 0 -5px;
+#introSplash.out{animation:introOut .9s cubic-bezier(.65,0,.35,1) forwards;}
+#introSplash.out .introCore{animation:introCoreOut .45s ease forwards;}
+@keyframes introCoreOut{to{transform:scale(.8);opacity:0;filter:blur(6px);}}
+
+/* auroras suaves cruzando por trás de tudo, dão profundidade ao vidro */
+.introAura{position:absolute;border-radius:50%;filter:blur(46px);pointer-events:none;opacity:.5;will-change:transform;}
+.introAura.a1{width:62vw;height:62vw;top:-22%;left:-16%;background:radial-gradient(circle,rgba(255,106,26,.35),transparent 70%);animation:introAuraDrift 7s ease-in-out infinite alternate;}
+.introAura.a2{width:52vw;height:52vw;bottom:-20%;right:-12%;background:radial-gradient(circle,rgba(217,84,12,.3),transparent 70%);animation:introAuraDrift 8s ease-in-out infinite alternate-reverse;animation-delay:.6s;}
+@keyframes introAuraDrift{0%{transform:translate(0,0) scale(1);}100%{transform:translate(4%,5%) scale(1.16);}}
+
+/* estilhaços de vidro voando de fora pra dentro, convergindo no centro */
+.introShard{position:absolute;top:50%;left:50%;width:32px;height:32px;margin:-16px 0 0 -16px;
+  background:linear-gradient(135deg,rgba(255,172,112,.55),rgba(217,84,12,.12));
+  border:1px solid rgba(255,172,112,.45);border-radius:8px;opacity:0;
+  animation:introShardFly 1s cubic-bezier(.2,.8,.25,1) forwards;}
+.introShard.s1{--tx:220px;--ty:0px;animation-delay:.04s;}
+.introShard.s2{--tx:156px;--ty:156px;animation-delay:.10s;}
+.introShard.s3{--tx:0px;--ty:220px;animation-delay:.02s;}
+.introShard.s4{--tx:-156px;--ty:156px;animation-delay:.13s;}
+.introShard.s5{--tx:-220px;--ty:0px;animation-delay:.06s;}
+.introShard.s6{--tx:-156px;--ty:-156px;animation-delay:.11s;}
+.introShard.s7{--tx:0px;--ty:-220px;animation-delay:.03s;}
+.introShard.s8{--tx:156px;--ty:-156px;animation-delay:.15s;}
+@keyframes introShardFly{
+  0%{opacity:0;transform:translate(var(--tx),var(--ty)) rotate(30deg) scale(.5);}
+  55%{opacity:1;}
+  100%{opacity:0;transform:translate(0,0) rotate(0deg) scale(.15);}
+}
+/* onda de impacto única, no instante em que os estilhaços se encontram no centro */
+.introImpact{position:absolute;top:50%;left:50%;width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;
   box-shadow:0 0 0 0 rgba(255,106,26,.55);
-  animation:introShockBurst 1.35s cubic-bezier(.2,.7,.3,1) .16s forwards;
-}
-@keyframes introShockBurst{
-  0%{box-shadow:0 0 0 0 rgba(255,106,26,.5);}
-  100%{box-shadow:0 0 0 340px rgba(255,106,26,0);}
-}
-.introRing{
-  position:absolute;border:1.5px solid rgba(255,106,26,.55);border-radius:50%;
-  width:120px;height:120px;opacity:0;
-  animation:introRingExpand 2.4s cubic-bezier(.2,.7,.3,1) infinite;
-}
-.introRing.r2{animation-delay:.7s;}
-.introRing.r3{animation-delay:1.4s;}
-@keyframes introRingExpand{
-  0%{width:110px;height:110px;opacity:.9;border-width:2.5px;}
-  100%{width:520px;height:520px;opacity:0;border-width:.5px;}
-}
-.introCore{
-  position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;
-}
+  animation:introImpactBurst .7s cubic-bezier(.2,.7,.3,1) .82s forwards;}
+@keyframes introImpactBurst{0%{box-shadow:0 0 0 0 rgba(255,106,26,.55);}100%{box-shadow:0 0 0 220px rgba(255,106,26,0);}}
+
+.introCore{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;}
 .introLogo{
-  width:86px;height:86px;border-radius:24px;
+  width:82px;height:82px;border-radius:50%;
   background:linear-gradient(135deg,var(--orange),var(--orange-deep));
-  display:flex;align-items:center;justify-content:center;font-size:42px;
-  overflow:hidden;
+  display:flex;align-items:center;justify-content:center;font-size:40px;overflow:hidden;
   box-shadow:0 0 60px rgba(255,106,26,.65),0 20px 50px rgba(0,0,0,.5);
-  opacity:0;transform:scale(.2) rotate(-25deg);
-  animation:introLogoPop 1.15s cubic-bezier(.17,.89,.32,1.28) .2s forwards;
+  opacity:0;transform:scale(.3);
+  animation:introLogoSolidify .7s cubic-bezier(.17,.89,.32,1.28) .82s forwards;
 }
-/* o logo "derrete" para dentro do formato: nasce como uma gota (círculo) e assenta como vidro no molde quadrado */
-@keyframes introLogoPop{
-  0%{opacity:0;transform:scale(.2) rotate(-25deg);border-radius:50%;}
-  45%{opacity:1;transform:scale(1.15) rotate(5deg);border-radius:46% 54% 58% 42% / 50% 46% 54% 50%;}
-  75%{opacity:1;transform:scale(.97) rotate(-2deg);border-radius:30% 70% 40% 60% / 40% 55% 45% 60%;}
-  100%{opacity:1;transform:scale(1) rotate(0deg);border-radius:24px;}
+/* o logo "solidifica" a partir do choque dos estilhaços: nasce redondo (gota) e assenta em quadrado */
+@keyframes introLogoSolidify{
+  0%{opacity:0;transform:scale(.3);border-radius:50%;}
+  55%{opacity:1;transform:scale(1.14);border-radius:42% 58% 55% 45% / 50% 42% 58% 50%;}
+  100%{opacity:1;transform:scale(1);border-radius:22px;}
 }
-.introTitle{
-  margin-top:22px;font-size:34px;font-weight:800;letter-spacing:6px;color:var(--orange);
-  text-shadow:0 0 30px rgba(255,106,26,.7);opacity:0;
-  animation:introTitleIn .95s ease .75s forwards;
+.introTitleWrap{margin-top:20px;display:flex;}
+.introLetter{display:inline-block;font-size:32px;font-weight:800;color:var(--orange);
+  text-shadow:0 0 26px rgba(255,106,26,.65);opacity:0;
+  transform:translateY(16px) rotateX(70deg);
+  animation:introLetterIn .5s cubic-bezier(.2,.8,.25,1) forwards;
 }
-@keyframes introTitleIn{
-  0%{opacity:0;letter-spacing:16px;filter:blur(6px);}
-  100%{opacity:1;letter-spacing:6px;filter:blur(0);}
-}
+.introLetter:nth-child(1){animation-delay:1.35s;}
+.introLetter:nth-child(2){animation-delay:1.40s;}
+.introLetter:nth-child(3){animation-delay:1.45s;}
+.introLetter:nth-child(4){animation-delay:1.50s;}
+.introLetter:nth-child(5){animation-delay:1.55s;}
+.introLetter:nth-child(6){animation-delay:1.60s;}
+@keyframes introLetterIn{to{opacity:1;transform:translateY(0) rotateX(0);}}
 .introSub{
   margin-top:10px;font-size:12.5px;letter-spacing:2px;text-transform:uppercase;
-  color:var(--text-dim);opacity:0;animation:introFadeUp .75s ease 1.3s forwards;
+  color:var(--text-dim);opacity:0;animation:introFadeUp .6s ease 1.85s forwards;
 }
 .introBar{
-  margin-top:26px;width:180px;height:3px;border-radius:3px;background:#2a221d;overflow:hidden;
-  opacity:0;animation:introFadeUp .5s ease 1.45s forwards;
+  margin-top:24px;width:180px;height:3px;border-radius:3px;background:#2a221d;overflow:hidden;
+  opacity:0;animation:introFadeUp .5s ease 2.0s forwards;
 }
 .introBar::after{
   content:'';display:block;height:100%;width:40%;border-radius:3px;
   background:linear-gradient(90deg,var(--orange-deep),var(--orange));
-  animation:introBarSlide 1s cubic-bezier(.4,.1,.2,1) 1.55s infinite;
+  animation:introBarSlide 1s cubic-bezier(.4,.1,.2,1) 2.1s infinite;
 }
 @keyframes introBarSlide{
   0%{transform:translateX(-120%);}
@@ -229,15 +243,17 @@ html.anim-off-ambient body::before,html.anim-off-ambient body::after{animation:n
   0%{opacity:0;transform:translateY(8px);}
   100%{opacity:1;transform:translateY(0);}
 }
-.introParticle{
-  position:absolute;bottom:-10px;border-radius:50%;background:var(--orange);
+/* bolhas de vidro sobem lentamente, dando vida ao fundo (contagem reduzida no celular) */
+.introBubble{
+  position:absolute;bottom:-10px;border-radius:50%;
+  background:radial-gradient(circle at 32% 30%, rgba(255,210,170,.7), rgba(255,106,26,.15) 70%);
   opacity:0;pointer-events:none;
-  animation:introParticleUp linear forwards;
+  animation:introBubbleUp linear forwards;
 }
-@keyframes introParticleUp{
-  0%{opacity:0;transform:translateY(0) scale(1);}
-  10%{opacity:.9;}
-  100%{opacity:0;transform:translateY(-100vh) scale(.4);}
+@keyframes introBubbleUp{
+  0%{opacity:0;transform:translate(0,0) scale(1);}
+  10%{opacity:.8;}
+  100%{opacity:0;transform:translate(var(--sway,14px),-100vh) scale(.4);}
 }
 #cloudGate{opacity:0;transition:opacity .7s ease;display:none;}
 #cloudGate.in{opacity:1;}
@@ -372,13 +388,55 @@ html.anim-off-ambient body::before,html.anim-off-ambient body::after{animation:n
 .accessFlowCard{width:min(480px,calc(100vw - 32px));max-height:calc(100vh - 42px);position:relative;z-index:2;padding:22px;border-radius:18px;border:1px solid rgba(255,106,26,.32);background:rgba(27,19,16,.94);box-shadow:0 22px 60px rgba(0,0,0,.5);}
 .accessTermsBox{height:250px;overflow:auto;padding:14px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);font-size:12px;line-height:1.55;color:var(--text-dim);}.accessTermsBox h4{color:var(--text);margin:0 0 8px}.accessTermsBox::-webkit-scrollbar{width:8px}.accessTermsBox::-webkit-scrollbar-thumb{background:var(--orange);border-radius:8px}
 .accessTermsAccept{display:flex;gap:8px;align-items:flex-start;margin:12px 0;font-size:12px}.accessTermsAccept input{margin-top:2px;accent-color:var(--orange)}
-.accessConveyor{height:250px;position:relative;overflow:hidden;border-radius:14px;background:linear-gradient(#3e2b20 0 60%,#17100d 60%);margin:14px 0;}.accessBelt{position:absolute;left:-20%;right:-20%;bottom:30px;height:50px;background:repeating-linear-gradient(90deg,#7a5d50 0 42px,#4a3b34 42px 54px);transform:skewX(-12deg);animation:beltMove 1.3s linear infinite}@keyframes beltMove{to{background-position:160px 0}}
-.accessBag{position:absolute;bottom:70px;width:50px;height:60px;border-radius:6px 6px 12px 12px;background:linear-gradient(135deg,#e8b368,#d59b54);box-shadow:inset 0 -12px rgba(0,0,0,.18),0 4px 12px rgba(0,0,0,.3);animation:bagRideDrop 6s ease-in-out infinite;transition:transform .2s ease}.accessBag:before{content:'';position:absolute;width:24px;height:18px;border:4px solid #d59b54;border-bottom:0;border-radius:16px 16px 0 0;left:9px;top:-14px;box-shadow:inset 0 1px 2px rgba(255,255,255,.2)}.accessBag:after{content:'';position:absolute;top:0;left:0;right:0;bottom:0;border-radius:6px 6px 12px 12px;background:linear-gradient(90deg,rgba(255,255,255,.1) 0%,transparent 50%,rgba(0,0,0,.1) 100%)}.bag1{left:-70px;animation-delay:0s}.bag2{left:-70px;animation-delay:2s}.bag3{left:-70px;animation-delay:4s}@keyframes bagRideDrop{0%{transform:translateX(0) translateY(0) rotateZ(0deg);opacity:1}45%{transform:translateX(calc(50vw)) translateY(0) rotateZ(2deg);opacity:1}50%{transform:translateX(calc(50vw)) translateY(8px) rotateZ(-2deg);opacity:1}55%{transform:translateX(calc(50vw)) translateY(0) rotateZ(2deg);opacity:1}100%{transform:translateX(calc(100vw + 120px)) translateY(0) rotateZ(0deg);opacity:0}}
-.accessCloth{position:absolute;top:20px;left:50%;font-size:38px;animation:clothDropEnhanced 4s cubic-bezier(.25,.46,.45,.94) infinite;text-shadow:0 2px 8px rgba(0,0,0,.3);filter:drop-shadow(0 0 2px rgba(255,170,100,.4))}.accessCloth.c2{animation-delay:1.35s;left:calc(50% + 60px)}.accessCloth.c3{animation-delay:2.7s;left:calc(50% - 60px)}.accessCloth.c3:before{animation-delay:2.7s}@keyframes clothDropEnhanced{0%,25%{transform:translate(-50%,-20px);opacity:0;filter:brightness(1.2)}35%{opacity:1;transform:translate(-50%,0);filter:brightness(1)}70%{opacity:1;transform:translate(-50%,110px);filter:brightness(1)}100%{opacity:0;transform:translate(-50%,140px);filter:brightness(.8)}}
-.accessGateDoors{position:absolute;inset:0;display:flex;pointer-events:none;z-index:3;overflow:hidden;border-radius:18px}.accessGateDoors i{display:block;width:50%;background:repeating-linear-gradient(90deg,#5d4437 0 9px,#2c201a 9px 14px);transition:transform .55s ease}.accessGateDoors i:first-child{transform:translateX(-100%)}.accessGateDoors i:last-child{transform:translateX(100%)}.accessFlowCard.closing .accessGateDoors i{transform:translateX(0)}.accessFlowCard.accepted .accessGateDoors i:first-child{transform:translateX(-100%)}.accessFlowCard.accepted .accessGateDoors i:last-child{transform:translateX(100%)}
 .accessProductionError{display:inline-block;color:#ff8a7b;font-weight:800;animation:productionShake .42s linear 3}@keyframes productionShake{25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}
+/* ---------- Pedido de acesso: animação de espera / aprovação / recusa ----------
+   Conceito: um radar varre em torno de um "ticket" que pulsa enviando o
+   pedido; quando o status muda, um carimbo bate na tela (verde = aceito,
+   vermelho = recusado) e o radar se apaga. ---------- */
+.pedidoRadar{position:relative;width:200px;height:200px;margin:16px auto;display:flex;align-items:center;justify-content:center;}
+.pedidoRadarRing{position:absolute;border:1.5px solid rgba(255,106,26,.45);border-radius:50%;width:60px;height:60px;opacity:0;
+  animation:pedidoRingExpand 2.6s cubic-bezier(.2,.7,.3,1) infinite;}
+.pedidoRadarRing.r2{animation-delay:.85s;}
+.pedidoRadarRing.r3{animation-delay:1.7s;}
+@keyframes pedidoRingExpand{0%{width:60px;height:60px;opacity:.85;border-width:2px;}100%{width:200px;height:200px;opacity:0;border-width:.5px;}}
+.pedidoRadarSweep{position:absolute;inset:0;border-radius:50%;
+  background:conic-gradient(from 0deg, rgba(255,106,26,.35), transparent 32%);
+  animation:pedidoSweepSpin 2.1s linear infinite;
+  -webkit-mask:radial-gradient(circle,transparent 54%,#000 55%);
+  mask:radial-gradient(circle,transparent 54%,#000 55%);}
+@keyframes pedidoSweepSpin{to{transform:rotate(360deg);}}
+.pedidoTicket{position:relative;z-index:2;width:100px;height:100px;border-radius:18px;
+  background:linear-gradient(160deg,rgba(255,150,80,.16),rgba(30,23,20,.85));
+  border:1px solid rgba(255,172,112,.35);box-shadow:0 14px 34px rgba(0,0,0,.4);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;
+  animation:pedidoTicketFloat 2.6s ease-in-out infinite;transition:border-color .3s ease;}
+@keyframes pedidoTicketFloat{0%,100%{transform:translateY(0);}50%{transform:translateY(-6px);}}
+.pedidoTicketIcon{font-size:25px;filter:drop-shadow(0 2px 6px rgba(0,0,0,.4));animation:pedidoIconPulse 1.8s ease-in-out infinite;}
+@keyframes pedidoIconPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.12);}}
+.pedidoTicketLine{display:block;height:4px;border-radius:3px;background:rgba(255,200,160,.35);}
+.pedidoTicketLine.l1{width:56px;}
+.pedidoTicketLine.l2{width:42px;}
+.pedidoTicketLine.l3{width:50px;background:linear-gradient(90deg,rgba(255,200,160,.35),var(--orange),rgba(255,200,160,.35));background-size:200% 100%;animation:pedidoLineScan 1.6s ease-in-out infinite;}
+@keyframes pedidoLineScan{0%{background-position:120% 0;}100%{background-position:-20% 0;}}
+.pedidoStamp{position:absolute;z-index:3;top:-4px;right:0;width:44px;height:44px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:21px;font-weight:800;color:#fff;
+  opacity:0;transform:scale(.4) rotate(-18deg);pointer-events:none;box-shadow:0 8px 22px rgba(0,0,0,.4);}
+/* estado: aceito — carimbo verde bate com força, o ticket brilha e o radar se apaga */
+.pedidoRadar.aceito .pedidoStamp{background:var(--green);opacity:1;
+  animation:pedidoStampSlam .55s cubic-bezier(.3,1.4,.4,1) forwards;box-shadow:0 0 26px rgba(63,165,100,.65),0 8px 22px rgba(0,0,0,.4);}
+.pedidoRadar.aceito .pedidoTicket{animation:pedidoTicketBeamIn .5s ease .1s both;border-color:rgba(63,165,100,.55);}
+.pedidoRadar.aceito .pedidoRadarSweep,.pedidoRadar.aceito .pedidoRadarRing{animation-play-state:paused;opacity:0;transition:opacity .4s ease;}
+/* estado: recusado — carimbo vermelho bate e o ticket treme */
+.pedidoRadar.recusado .pedidoStamp{background:var(--red);opacity:1;
+  animation:pedidoStampSlam .55s cubic-bezier(.3,1.4,.4,1) forwards;box-shadow:0 0 26px rgba(224,80,63,.6),0 8px 22px rgba(0,0,0,.4);}
+.pedidoRadar.recusado .pedidoTicket{animation:pedidoTicketShake .45s linear .1s;border-color:rgba(224,80,63,.55);}
+.pedidoRadar.recusado .pedidoRadarSweep,.pedidoRadar.recusado .pedidoRadarRing{animation-play-state:paused;opacity:0;transition:opacity .4s ease;}
+@keyframes pedidoStampSlam{0%{opacity:0;transform:scale(2) rotate(-18deg);}60%{opacity:1;transform:scale(.85) rotate(-10deg);}100%{opacity:1;transform:scale(1) rotate(-10deg);}}
+@keyframes pedidoTicketBeamIn{0%{filter:brightness(1);}50%{filter:brightness(1.5);}100%{filter:brightness(1);}}
+@keyframes pedidoTicketShake{20%{transform:translateX(-6px);}40%{transform:translateX(6px);}60%{transform:translateX(-4px);}80%{transform:translateX(4px);}100%{transform:translateX(0);}}
 @keyframes acceptedPulse{0%{transform:scale(.5);opacity:0}50%{transform:scale(1.1)}100%{transform:scale(1);opacity:1}}
 @keyframes rejectedPulse{0%{transform:scale(.5);opacity:0}50%{transform:scale(1.1)}100%{transform:scale(1);opacity:1}}
+html.is-mobile .pedidoRadarRing,html.is-mobile .pedidoRadarSweep{animation-duration:0s;opacity:0;}
 
 /* ---------- TELA "CONECTANDO AO SERVIDOR" (usuário já conectado antes) ---------- */
 #connectingScreen{
@@ -1308,14 +1366,14 @@ html.fundo-cor body{
 html.anim-off-intro #introSplash, html.anim-off-intro #introSplash *{
   animation:none !important;transition:none !important;
 }
-html.anim-off-intro .introParticle{display:none !important;}
 /* Sem a animação, os elementos ficariam presos no estado inicial (invisível)
    de cada @keyframes — a splash inteira parecia uma tela preta vazia e travada.
    Aqui eles são fixados direto no estado final (visível), do jeito que
    ficariam ao fim da animação normal. */
-html.anim-off-intro .introShock, html.anim-off-intro .introRing{display:none !important;}
-html.anim-off-intro .introLogo{opacity:1 !important;transform:scale(1) rotate(0deg) !important;border-radius:24px !important;}
-html.anim-off-intro .introTitle{opacity:1 !important;letter-spacing:6px !important;filter:blur(0) !important;}
+html.anim-off-intro .introBubble, html.anim-off-intro .introShard,
+html.anim-off-intro .introImpact, html.anim-off-intro .introAura{display:none !important;}
+html.anim-off-intro .introLogo{opacity:1 !important;transform:scale(1) !important;border-radius:22px !important;}
+html.anim-off-intro .introLetter{opacity:1 !important;transform:translateY(0) rotateX(0) !important;}
 html.anim-off-intro .introSub{opacity:1 !important;transform:translateY(0) !important;}
 html.anim-off-intro .introBar{opacity:1 !important;transform:translateY(0) !important;}
 html.anim-off-intro .introBar::after{transform:translateX(0) !important;width:100% !important;}
@@ -1407,9 +1465,10 @@ html.anim-off-glow .statCard::after, html.anim-off-glow .prodTile::after{
    normalmente, mas nada roda em loop infinito — evita pesar o aparelho.
 ========================================================= */
 html.is-mobile *{ animation-iteration-count:1 !important; }
-html.is-mobile .introShock,
-html.is-mobile .introRing,
-html.is-mobile .introParticle{ display:none !important; }
+html.is-mobile .introShard,
+html.is-mobile .introImpact,
+html.is-mobile .introBubble,
+html.is-mobile .introAura{ display:none !important; }
 html.is-mobile .loginBlob{ display:none; }
 html.is-mobile .loginLogoIcon{ animation:none; }
 html.is-mobile *{ box-shadow:none !important; text-shadow:none !important; }
@@ -1494,13 +1553,20 @@ html.is-mobile .btn::before{ display:none; }
 
 <!-- ===================== ANIMAÇÃO DE ENTRADA ===================== -->
 <div id="introSplash">
-  <div class="introShock"></div>
-  <div class="introRing"></div>
-  <div class="introRing r2"></div>
-  <div class="introRing r3"></div>
+  <div class="introAura a1"></div>
+  <div class="introAura a2"></div>
+  <div class="introShard s1"></div>
+  <div class="introShard s2"></div>
+  <div class="introShard s3"></div>
+  <div class="introShard s4"></div>
+  <div class="introShard s5"></div>
+  <div class="introShard s6"></div>
+  <div class="introShard s7"></div>
+  <div class="introShard s8"></div>
+  <div class="introImpact"></div>
   <div class="introCore">
     <div class="introLogo brandLogoSlot" id="introLogoSlot">🛍️</div>
-    <div class="introTitle">SLMsys</div>
+    <div class="introTitleWrap" id="introTitleWrap"><span class="introLetter">S</span><span class="introLetter">L</span><span class="introLetter">M</span><span class="introLetter">s</span><span class="introLetter">y</span><span class="introLetter">s</span></div>
     <div class="introSub">Sistema de Vendas</div>
     <div class="introBar"></div>
   </div>
@@ -1572,12 +1638,23 @@ html.is-mobile .btn::before{ display:none; }
       <p id="accessSendError" class="loginHint" role="alert" style="min-height:18px;margin:9px 0 0;"></p>
     </div>
     <div id="accessWaitingStep" style="display:none;text-align:center;">
-      <div class="gateBadge">Central de produção</div><h2 style="margin:2px 0 4px;">Seu pedido está na esteira</h2><p class="dimSmall" id="accessFlowStatus">Aguardando o administrador aceitar o seu pedido.</p>
-      <div class="accessConveyor"><span class="accessCloth">👕</span><span class="accessCloth c2">👗</span><span class="accessCloth c3">🧥</span><span class="accessBag bag1"></span><span class="accessBag bag2"></span><span class="accessBag bag3"></span><span class="accessBelt"></span></div>
+      <div class="gateBadge">Central de aprovação</div><h2 style="margin:2px 0 4px;">Seu pedido foi enviado</h2><p class="dimSmall" id="accessFlowStatus">Aguardando o administrador aceitar o seu pedido.</p>
+      <div class="pedidoRadar" id="pedidoRadar">
+        <span class="pedidoRadarRing"></span>
+        <span class="pedidoRadarRing r2"></span>
+        <span class="pedidoRadarRing r3"></span>
+        <span class="pedidoRadarSweep"></span>
+        <div class="pedidoTicket">
+          <span class="pedidoTicketIcon">📨</span>
+          <span class="pedidoTicketLine l1"></span>
+          <span class="pedidoTicketLine l2"></span>
+          <span class="pedidoTicketLine l3"></span>
+        </div>
+        <div class="pedidoStamp" id="pedidoStamp"></div>
+      </div>
       <div class="dimSmall">O status é atualizado automaticamente enquanto esta tela estiver aberta.</div>
       <button type="button" class="btn secondary" style="margin-top:14px;width:100%;" onclick="cancelarPedidoDeAcesso()">Cancelar solicitação</button>
     </div>
-    <div class="accessGateDoors"><i></i><i></i></div>
   </div>
 </div>
 
@@ -2765,8 +2842,9 @@ async function solicitarAutorizacaoDeAcesso(){
     fecharAccessPopover();
     document.getElementById('accessTermsStep').style.display='none';
     document.getElementById('accessWaitingStep').style.display='block';
-    document.getElementById('accessFlowStatus').textContent='Pedido enviado. A produção está aguardando o administrador aceitar o seu pedido.';
+    document.getElementById('accessFlowStatus').textContent='Pedido enviado. Aguardando o administrador aceitar o seu pedido.';
     document.getElementById('accessWaiting').style.display='block';
+    const radarNovo=document.getElementById('pedidoRadar'); if(radarNovo) radarNovo.classList.remove('aceito','recusado');
     msg.textContent='Solicitação enviada. Aguarde a confirmação do responsável.';
     clearInterval(_accessRequestTimer);
     _accessRequestTimer=setInterval(()=>consultarAutorizacaoDeAcesso(json.requestId),5000);
@@ -2790,24 +2868,25 @@ async function consultarAutorizacaoDeAcesso(requestId){
         localStorage.setItem(ACCESS_DEVICE_TOKEN_STORAGE,deviceAccessToken);
       }
       localStorage.removeItem(ACCESS_REQUEST_STORAGE); document.getElementById('accessWaiting').style.display='none'; msg.textContent='✅ Acesso autorizado. Entrando...';
-      const flowCard=document.getElementById('accessFlowCard');
       const flowStatus=document.getElementById('accessFlowStatus');
-      flowCard.classList.remove('accepted');
-      flowCard.classList.add('closing');
-      flowStatus.textContent='Acesso aprovado. Fechando o portão da produção...';
+      const radar=document.getElementById('pedidoRadar');
+      const stamp=document.getElementById('pedidoStamp');
+      flowStatus.textContent='Pedido aprovado pelo administrador.';
+      if(stamp) stamp.textContent='✔';
+      if(radar) radar.classList.add('aceito');
       setTimeout(function(){
-        flowCard.classList.remove('closing');
-        flowCard.classList.add('accepted');
         flowStatus.innerHTML='<span style="animation:acceptedPulse .8s ease-out;display:inline-block;font-size:18px;font-weight:800;color:var(--green);text-shadow:0 0 20px rgba(63,165,100,.6);">✅ ACEITADO</span>';
-      },30);
+      },550);
       setTimeout(async function(){ const ok=await loadFromGitHub(); if(ok){ document.getElementById('accessFlowScreen').classList.remove('show'); renderLoginAvatars(); tentarLoginAutomatico(); revealLoginScreen(); } },1900);
     }else if(json.status==='recusado'){
       clearInterval(_accessRequestTimer); localStorage.removeItem(ACCESS_REQUEST_STORAGE); document.getElementById('accessWaiting').style.display='none'; msg.textContent='A solicitação foi recusada pelo responsável.';
-      const flowCard=document.getElementById('accessFlowCard');
-      flowCard.classList.add('closing');
+      const radar=document.getElementById('pedidoRadar');
+      const stamp=document.getElementById('pedidoStamp');
+      if(stamp) stamp.textContent='✕';
+      if(radar) radar.classList.add('recusado');
       setTimeout(function(){
         document.getElementById('accessFlowStatus').innerHTML='<span style="animation:rejectedPulse .8s ease-out;display:inline-block;font-size:18px;font-weight:800;color:var(--red);text-shadow:0 0 20px rgba(224,80,63,.6);">❌ RECUSADO</span>';
-      },30);
+      },550);
     }
   }catch(e){}
 }
@@ -2819,9 +2898,10 @@ function restaurarPedidoDeAcessoPendente(){
     document.getElementById('accessFlowScreen').classList.add('show');
     document.getElementById('accessTermsStep').style.display='none';
     document.getElementById('accessWaitingStep').style.display='block';
-    document.getElementById('accessFlowStatus').textContent='Pedido em produção. Aguardando o administrador aceitar o seu pedido.';
+    document.getElementById('accessFlowStatus').textContent='Aguardando o administrador aceitar o seu pedido.';
     document.getElementById('accessWaiting').style.display='block';
     document.getElementById('accessWaitingStatus').textContent='Status: aguardando confirmação do responsável.';
+    const radarRest=document.getElementById('pedidoRadar'); if(radarRest) radarRest.classList.remove('aceito','recusado');
     clearInterval(_accessRequestTimer);
     _accessRequestTimer=setInterval(()=>consultarAutorizacaoDeAcesso(saved.id),5000);
     consultarAutorizacaoDeAcesso(saved.id);
@@ -2838,6 +2918,7 @@ function cancelarPedidoDeAcesso(){
   document.getElementById('accessTermsStep').style.display='';
   document.getElementById('accessWaitingStep').style.display='none';
   document.getElementById('accessWaiting').style.display='none';
+  const radarCancel=document.getElementById('pedidoRadar'); if(radarCancel) radarCancel.classList.remove('aceito','recusado');
   document.getElementById('cloudGate').style.display='flex';
   document.getElementById('cloudGateMsg').textContent='';
 }
@@ -9777,27 +9858,28 @@ document.getElementById('estoqueTab-novo').addEventListener('keydown', function(
     splash.remove();
     return;
   }
-  // gera partículas subindo, espalhadas pela largura da tela (menos partículas no celular, para otimizar)
-  const total = document.documentElement.classList.contains('is-mobile') ? 6 : 22;
+  // gera bolhas de vidro subindo, espalhadas pela largura da tela (menos bolhas no celular, para otimizar)
+  const total = document.documentElement.classList.contains('is-mobile') ? 5 : 20;
   for(let i=0;i<total;i++){
-    const p = document.createElement('div');
-    p.className = 'introParticle';
-    const size = 3 + Math.random()*5;
-    p.style.width = size+'px';
-    p.style.height = size+'px';
-    p.style.left = (Math.random()*100)+'vw';
-    p.style.animationDuration = (2.2 + Math.random()*1.6)+'s';
-    p.style.animationDelay = (Math.random()*1.4)+'s';
-    p.style.opacity = '0';
-    splash.appendChild(p);
+    const b = document.createElement('div');
+    b.className = 'introBubble';
+    const size = 3 + Math.random()*6;
+    b.style.width = size+'px';
+    b.style.height = size+'px';
+    b.style.left = (Math.random()*100)+'vw';
+    b.style.setProperty('--sway', (Math.random()*40-20)+'px');
+    b.style.animationDuration = (2.6 + Math.random()*2)+'s';
+    b.style.animationDelay = (Math.random()*1.6)+'s';
+    b.style.opacity = '0';
+    splash.appendChild(b);
   }
   // revela a tela seguinte (chave de acesso OU "conectando ao servidor") por trás, um pouco antes da splash sumir
-  setTimeout(()=>{ finishAutoConnect(); }, 2300);
-  // some com a splash depois da sequência de animação terminar
+  setTimeout(()=>{ finishAutoConnect(); }, 2550);
+  // some com a splash depois da sequência de estilhaços + logo + título terminar
   setTimeout(()=>{
     splash.classList.add('out');
-    setTimeout(()=>{ splash.remove(); }, 950);
-  }, 2750);
+    setTimeout(()=>{ splash.remove(); }, 900);
+  }, 3050);
 })();
 </script>
 </body>
