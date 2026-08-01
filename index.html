@@ -2202,8 +2202,21 @@ html.is-mobile .btn::before{ display:none; }
       <!-- ============ FUNCIONÁRIOS ============ -->
       <div class="view" id="view-funcionarios">
         <div class="tabs">
-          <button class="tabBtn active" onclick="setFuncTab('monitoramento')">Monitoramento</button>
+          <button class="tabBtn active" data-tab="lista" onclick="setFuncTab('lista')">Lista</button>
+          <button class="tabBtn" data-tab="cadastro" onclick="setFuncTab('cadastro')">Cadastrar</button>
+          <button class="tabBtn" data-tab="monitoramento" onclick="setFuncTab('monitoramento')">Monitoramento</button>
         </div>
+
+        <div id="funcTab-lista">
+          <div class="panel">
+            <h3>Funcionários cadastrados</h3>
+            <table>
+              <thead><tr><th></th><th>Nome</th><th>Usuário</th><th>Perfil</th><th>Comissão</th><th>Ações</th></tr></thead>
+              <tbody id="employeesTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
         <div id="funcTab-cadastro" style="display:none;">
         <div class="panel" style="max-width:520px;">
           <h3>Novo Funcionário</h3>
@@ -2232,7 +2245,7 @@ html.is-mobile .btn::before{ display:none; }
           </div>
           <div class="dimSmall" style="margin:-4px 0 10px;">
             <b>Restrito:</b> só vê e usa a tela de Vendas. <b>Só olhar:</b> vê todas as telas, mas não pode vender nem alterar nada.
-            <b>Pode mudar algumas coisas:</b> vende e edita Clientes/Fiado; o resto fica travado. <b>Acesso total:</b> sem restrições.
+            <b>Pode mudar algumas coisas:</b> vende, marca Fiado como pago, e só visualiza o Estoque (sem editar); o resto fica travado. <b>Acesso total:</b> sem restrições.
           </div>
           <button class="btn" data-perm="admin" onclick="saveEmployee()">Salvar Funcionário</button>
         </div>
@@ -2240,6 +2253,7 @@ html.is-mobile .btn::before{ display:none; }
 
         <div id="funcTab-monitoramento" style="display:none;">
           <div class="panel">
+
             <h3>Monitoramento de Funcionário</h3>
             <div class="field" style="max-width:340px;">
               <label>Escolha o funcionário</label>
@@ -4450,7 +4464,7 @@ function showView(name){
   if(name==='clientes') renderClientesLista();
   if(name==='caixa') renderCaixa();
   if(name==='relatorios') renderRelatorios();
-  if(name==='funcionarios') renderEmployees();
+  if(name==='funcionarios') setFuncTab('lista');
   if(name==='livrovendas') renderLivroVendas();
   if(name==='rendimento') renderRendimento();
   if(name==='config') renderConfig();
@@ -8477,7 +8491,7 @@ function saveEmployee(){
   log('Funcionário cadastrado: '+nome);
   ['f_nome','f_usuario','f_senha','f_comissao'].forEach(id=>document.getElementById(id).value='');
   useFotoPadraoNovoFuncionario();
-  renderEmployees();
+  setFuncTab('lista');
 }
 function renderEmployees(){
   const perm = getPerms();
@@ -8592,12 +8606,14 @@ function saveEditedEmployee(id){
 /* =========================================================
    MONITORAMENTO DE FUNCIONÁRIOS (dentro de Funcionários)
 ========================================================= */
-let funcTab = 'cadastro';
+let funcTab = 'lista';
 function setFuncTab(tab){
-  funcTab = tab || 'monitoramento';
-  document.getElementById('funcTab-cadastro').style.display = (tab==='cadastro') ? '' : 'none';
-  document.getElementById('funcTab-monitoramento').style.display = (tab==='monitoramento') ? '' : 'none';
-  document.querySelectorAll('#view-funcionarios .tabBtn').forEach((b,i)=> b.classList.toggle('active', (i===0 && funcTab==='monitoramento')));
+  funcTab = tab || 'lista';
+  document.getElementById('funcTab-lista').style.display = (funcTab==='lista') ? '' : 'none';
+  document.getElementById('funcTab-cadastro').style.display = (funcTab==='cadastro') ? '' : 'none';
+  document.getElementById('funcTab-monitoramento').style.display = (funcTab==='monitoramento') ? '' : 'none';
+  document.querySelectorAll('#view-funcionarios .tabBtn').forEach(b=> b.classList.toggle('active', b.dataset.tab===funcTab));
+  if(funcTab==='lista') renderEmployees();
   if(funcTab==='monitoramento'){ populateMonEmpSelect(); renderMonitoramento(); }
 }
 function populateMonEmpSelect(){
