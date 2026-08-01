@@ -2415,11 +2415,6 @@ html.is-mobile .btn::before{ display:none; }
           </div>
         </div>
         <div class="panel" style="max-width:520px;">
-          <h3>🎟️ Sorteio da Etiqueta Premiada</h3>
-          <div class="dimSmall" style="margin-top:-6px;margin-bottom:10px;">O site (separado) da etiqueta premiada só libera um número de sorteio para peças vendidas a partir deste valor. Deixe 0 para não exigir valor mínimo (qualquer venda concorre).</div>
-          <div class="field"><label>Valor mínimo por peça para concorrer</label><input id="cfg_sorteioValorMinimo" type="text" inputmode="decimal" placeholder="R$ 0,00" data-perm="admin" oninput="maskMoneyInput(this);saveSettingsLive()"></div>
-        </div>
-        <div class="panel" style="max-width:520px;">
           <h3>Etiqueta de Produtos</h3>
           <div class="field"><label>Link do QR Code (Instagram/site da loja)</label><input id="cfg_etiquetaQr" placeholder="instagram.com/sualoja" data-perm="admin" oninput="saveSettingsLive()"></div>
           <div class="field" style="display:flex;align-items:center;gap:8px;">
@@ -2537,7 +2532,23 @@ html.is-mobile .btn::before{ display:none; }
       <div class="view" id="view-sorteio">
         <div class="panel" style="max-width:820px;">
           <h3>🎟️ Sorteio — Etiqueta Premiada</h3>
-          <p class="dimSmall" style="margin-top:-6px;">Números confirmados pelo site (separado) da etiqueta premiada. Cada número (ex: <code>8927292722-1</code>) corresponde a 1 peça vendida que atingiu o valor mínimo configurado em Configurações. A escolha do ganhador é feita por você, manualmente — esta lista é só para consulta.</p>
+          <p class="dimSmall" style="margin-top:-6px;">O site (separado) da etiqueta premiada só libera um número de sorteio para peças vendidas a partir do valor mínimo abaixo. Deixe 0 para não exigir valor mínimo (qualquer venda concorre).</p>
+          <div class="field" style="max-width:260px;"><label>Valor mínimo por peça para concorrer</label><input id="cfg_sorteioValorMinimo" type="text" inputmode="decimal" placeholder="R$ 0,00" data-perm="admin" oninput="maskMoneyInput(this);saveSettingsLive();renderSorteio();"></div>
+        </div>
+
+        <div class="panel" style="max-width:820px;">
+          <h3>Todos os códigos elegíveis</h3>
+          <p class="dimSmall" style="margin-top:-6px;">Todas as peças já vendidas dentro do valor mínimo — inclusive as que ainda não foram escaneadas por nenhum cliente no site da etiqueta.</p>
+          <table id="sorteioElegiveisTable">
+            <thead><tr><th>Produto</th><th>Código de barras</th><th>Peças elegíveis (vendidas)</th><th>Já escaneadas</th><th>Faltam ser escaneadas</th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <p class="dimSmall" id="sorteioElegiveisEmptyMsg" style="display:none;margin-top:10px;">Nenhuma venda dentro do valor mínimo configurado ainda.</p>
+        </div>
+
+        <div class="panel" style="max-width:820px;">
+          <h3>Números confirmados</h3>
+          <p class="dimSmall" style="margin-top:-6px;">Números que já foram efetivamente reivindicados por um cliente no site da etiqueta (ex: <code>8927292722-1</code>). A escolha do ganhador é feita por você, manualmente — esta lista é só para consulta.</p>
           <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0 14px;">
             <input id="sorteioFilter" placeholder="Filtrar por número, código ou produto..." style="flex:1;min-width:220px;" oninput="renderSorteio()">
             <button class="btn secondary small" onclick="renderSorteio()">🔄 Atualizar</button>
@@ -8914,8 +8925,58 @@ function renderSorteio(){
   const emptyMsg = document.getElementById('sorteioEmptyMsg');
   const totalCount = document.getElementById('sorteioTotalCount');
   if(!tbody) return;
-  const q = (document.getElementById('sorteioFilter').value||'').trim().toLowerCase();
   const esc = v => String(v||'-').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+  // campo de valor mínimo (vive só aqui na aba Sorteio)
+  const minInput = document.getElementById('cfg_sorteioValorMinimo');
+  if(minInput && document.activeElement !== minInput){
+    minInput.value = fmtMoneyInput(DB.settings.sorteioValorMinimo || 0);
+  }
+  const minimo = Number(DB.settings.sorteioValorMinimo) || 0;
+
+  // ---- Tabela 1: todos os códigos elegíveis (vendidos dentro do valor mínimo) ----
+  const porBarcode = {}; // barcode -> { produtoNome, elegiveis }
+  (DB.sales||[]).forEach(venda=>{
+    if(venda.cancelled) return;
+    (venda.items||[]).forEach(it=>{
+      const prod = (DB.products||[]).find(p=>p.id===it.productId);
+      if(!prod || !prod.barcode) return;
+      const qty = Number(it.qty)||0;
+      if(qty<=0) return;
+      const linha = (Number(it.price)||0)*qty;
+      const desconto = itemDiscountAmount(it);
+      const unit = (linha - desconto)/qty;
+      if(unit < minimo) return;
+      if(!porBarcode[prod.barcode]) porBarcode[prod.barcode] = { produtoNome: prod.nome, elegiveis: 0 };
+      porBarcode[prod.barcode].elegiveis += qty;
+    });
+  });
+  const escaneadosPorBarcode = {};
+  (DB.sorteio||[]).forEach(r=>{ escaneadosPorBarcode[r.barcode] = (escaneadosPorBarcode[r.barcode]||0) + 1; });
+
+  const elegTbody = document.querySelector('#sorteioElegiveisTable tbody');
+  const elegEmpty = document.getElementById('sorteioElegiveisEmptyMsg');
+  const linhas = Object.keys(porBarcode).map(barcode=>{
+    const info = porBarcode[barcode];
+    const escaneadas = escaneadosPorBarcode[barcode] || 0;
+    const faltam = Math.max(0, info.elegiveis - escaneadas);
+    return { barcode, produtoNome: info.produtoNome, elegiveis: info.elegiveis, escaneadas, faltam };
+  }).sort((a,b)=> b.faltam - a.faltam);
+  if(elegTbody){
+    elegEmpty.style.display = linhas.length ? 'none' : '';
+    elegTbody.innerHTML = linhas.map(l => `
+      <tr>
+        <td>${esc(l.produtoNome)}</td>
+        <td>${esc(l.barcode)}</td>
+        <td>${l.elegiveis}</td>
+        <td>${l.escaneadas}</td>
+        <td><b>${l.faltam}</b></td>
+      </tr>
+    `).join('');
+  }
+
+  // ---- Tabela 2: números já confirmados pelo site da etiqueta ----
+  const q = (document.getElementById('sorteioFilter').value||'').trim().toLowerCase();
   let lista = (DB.sorteio||[]).slice().sort((a,b)=> new Date(b.dataScan) - new Date(a.dataScan));
   if(q){
     lista = lista.filter(r =>
@@ -8948,7 +9009,6 @@ function renderConfig(){
   document.getElementById('cfg_contato').value = DB.settings.contato;
   document.getElementById('cfg_impressora').value = DB.settings.impressora;
   document.getElementById('cfg_papel').value = DB.settings.papel;
-  document.getElementById('cfg_sorteioValorMinimo').value = fmtMoneyInput(DB.settings.sorteioValorMinimo || 0);
   document.getElementById('cfg_etiquetaQr').value = DB.settings.etiquetaQr || '';
   document.getElementById('cfg_etiquetaMostrarQr').checked = DB.settings.etiquetaMostrarQr !== false;
   document.getElementById('cfg_etiquetaMostrarBarras').checked = DB.settings.etiquetaMostrarBarras !== false;
@@ -9170,7 +9230,6 @@ function saveSettingsLive(){
   DB.settings.contato = document.getElementById('cfg_contato').value;
   DB.settings.impressora = document.getElementById('cfg_impressora').value;
   DB.settings.papel = document.getElementById('cfg_papel').value;
-  DB.settings.sorteioValorMinimo = moneyVal('cfg_sorteioValorMinimo');
   DB.settings.etiquetaQr = document.getElementById('cfg_etiquetaQr').value;
   DB.settings.etiquetaMostrarQr = document.getElementById('cfg_etiquetaMostrarQr').checked;
   DB.settings.etiquetaMostrarBarras = document.getElementById('cfg_etiquetaMostrarBarras').checked;
