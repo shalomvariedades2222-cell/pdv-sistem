@@ -1706,6 +1706,7 @@ html.is-mobile .btn::before{ display:none; }
     <button class="navBtn" data-view="funcionarios" onclick="showView('funcionarios')"><span class="navIcon">🧑‍💼</span> Funcionários</button>
     <button class="navBtn" data-view="livrovendas" onclick="showView('livrovendas')"><span class="navIcon">📖</span> Livro de Vendas</button>
     <button class="navBtn" data-view="rendimento" onclick="showView('rendimento')"><span class="navIcon">💰</span> Rendimento Total</button>
+    <button class="navBtn" data-view="sorteio" onclick="showView('sorteio')"><span class="navIcon">🎟️</span> Sorteio</button>
     <button class="navBtn" data-view="config" onclick="showView('config')"><span class="navIcon">⚙️</span> Configurações</button>
     <button class="navBtn" data-view="testador" onclick="showView('testador')"><span class="navIcon">🌐</span> Testador</button>
     <div class="userBox">
@@ -2414,6 +2415,11 @@ html.is-mobile .btn::before{ display:none; }
           </div>
         </div>
         <div class="panel" style="max-width:520px;">
+          <h3>🎟️ Sorteio da Etiqueta Premiada</h3>
+          <div class="dimSmall" style="margin-top:-6px;margin-bottom:10px;">O site (separado) da etiqueta premiada só libera um número de sorteio para peças vendidas a partir deste valor. Deixe 0 para não exigir valor mínimo (qualquer venda concorre).</div>
+          <div class="field"><label>Valor mínimo por peça para concorrer</label><input id="cfg_sorteioValorMinimo" type="text" inputmode="decimal" placeholder="R$ 0,00" data-perm="admin" oninput="maskMoneyInput(this);saveSettingsLive()"></div>
+        </div>
+        <div class="panel" style="max-width:520px;">
           <h3>Etiqueta de Produtos</h3>
           <div class="field"><label>Link do QR Code (Instagram/site da loja)</label><input id="cfg_etiquetaQr" placeholder="instagram.com/sualoja" data-perm="admin" oninput="saveSettingsLive()"></div>
           <div class="field" style="display:flex;align-items:center;gap:8px;">
@@ -2528,6 +2534,23 @@ html.is-mobile .btn::before{ display:none; }
         </div>
       </div>
 
+      <div class="view" id="view-sorteio">
+        <div class="panel" style="max-width:820px;">
+          <h3>🎟️ Sorteio — Etiqueta Premiada</h3>
+          <p class="dimSmall" style="margin-top:-6px;">Números confirmados pelo site (separado) da etiqueta premiada. Cada número (ex: <code>8927292722-1</code>) corresponde a 1 peça vendida que atingiu o valor mínimo configurado em Configurações. A escolha do ganhador é feita por você, manualmente — esta lista é só para consulta.</p>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0 14px;">
+            <input id="sorteioFilter" placeholder="Filtrar por número, código ou produto..." style="flex:1;min-width:220px;" oninput="renderSorteio()">
+            <button class="btn secondary small" onclick="renderSorteio()">🔄 Atualizar</button>
+            <span class="dimSmall" id="sorteioTotalCount"></span>
+          </div>
+          <table id="sorteioTable">
+            <thead><tr><th>Número</th><th>Produto</th><th>Código de barras</th><th>Registrado em</th><th>Dispositivo</th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <p class="dimSmall" id="sorteioEmptyMsg" style="display:none;margin-top:10px;">Nenhum número de sorteio registrado ainda.</p>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
@@ -2592,7 +2615,8 @@ let DB = {
   productNames: [],    // catálogo de nomes de peças {id, nome}
   trashProducts: [],   // lixeira: cópias completas de produtos excluídos {id, product, deletedAt} — recuperáveis por 6h, ver limparLixeiraExpirada()
   deleted: {},         // "lápides" de exclusão: deleted[campo][id] = timestamp — ver garantirEstruturaDeletados()
-  settings: { nomeLoja:'Shalom Variedades', contato:'', logo:'', impressora:'', papel:'80mm', etiquetaQr:'', etiquetaMostrarQr:true }
+  sorteio: [],          // números de sorteio confirmados pelo site (separado) da etiqueta premiada {id, barcode, numeroCompleto, produtoNome, deviceId, dataScan}
+  settings: { nomeLoja:'Shalom Variedades', contato:'', logo:'', impressora:'', papel:'80mm', etiquetaQr:'', etiquetaMostrarQr:true, sorteioValorMinimo:0 }
 };
 
 let currentUser = null;
@@ -2933,7 +2957,8 @@ function ativarModoTeste(){
     categoryGroups: [grupoTeste],
     categories: categoriasTeste,
     productNames: nomesTeste,
-    settings: { nomeLoja:'Shalom Variedades (MODO TESTE)', contato:'', logo:'', impressora:'', papel:'80mm', etiquetaQr:'', etiquetaMostrarQr:true }
+    sorteio: [],
+    settings: { nomeLoja:'Shalom Variedades (MODO TESTE)', contato:'', logo:'', impressora:'', papel:'80mm', etiquetaQr:'', etiquetaMostrarQr:true, sorteioValorMinimo:0 }
   };
 }
 
@@ -4326,7 +4351,7 @@ function renderAutoLoginBtn(){
 }
 function applyPermissions(){
   const perm = getPerms();
-  const staffOnlyViews = ['caixa','relatorios','funcionarios','config','livrovendas','rendimento'];
+  const staffOnlyViews = ['caixa','relatorios','funcionarios','config','livrovendas','rendimento','sorteio'];
   document.querySelectorAll('.navBtn').forEach(b=>{
     const view = b.dataset.view;
     if(perm.level==='restrito' && view!=='vendas' && view!=='testador'){ b.style.display='none'; return; }
@@ -4382,9 +4407,9 @@ function applyPermissions(){
 }
 
 /* ---------------- Navigation ---------------- */
-const viewTitles = {vendas:'Vendas (PDV)', estoque:'Estoque', clientes:'Clientes / Fiado', caixa:'Caixa / Financeiro', relatorios:'Relatórios', funcionarios:'Funcionários', livrovendas:'Livro de Vendas e Receita', rendimento:'Rendimento Total', config:'Configurações', testador:'Testador de Internet'};
+const viewTitles = {vendas:'Vendas (PDV)', estoque:'Estoque', clientes:'Clientes / Fiado', caixa:'Caixa / Financeiro', relatorios:'Relatórios', funcionarios:'Funcionários', livrovendas:'Livro de Vendas e Receita', rendimento:'Rendimento Total', config:'Configurações', testador:'Testador de Internet', sorteio:'Sorteio — Etiqueta Premiada'};
 function showView(name){
-  const staffOnlyViews = ['caixa','relatorios','funcionarios','config','livrovendas','rendimento'];
+  const staffOnlyViews = ['caixa','relatorios','funcionarios','config','livrovendas','rendimento','sorteio'];
   if(currentUser && !getPerms().isTotal && staffOnlyViews.includes(name)){
     name = 'vendas';
   }
@@ -4419,6 +4444,7 @@ function showView(name){
   if(name==='rendimento') renderRendimento();
   if(name==='config') renderConfig();
   if(name==='testador') avaliarConexao();
+  if(name==='sorteio') renderSorteio();
 }
 
 /* =========================================================
@@ -8879,6 +8905,37 @@ function refreshDeviceAuthStatus(){
   }
 }
 
+/* =========================================================
+   SORTEIO — ETIQUETA PREMIADA (leitura da lista alimentada pelo
+   site separado da etiqueta premiada, via Code.gs > registrarSorteio)
+========================================================= */
+function renderSorteio(){
+  const tbody = document.querySelector('#sorteioTable tbody');
+  const emptyMsg = document.getElementById('sorteioEmptyMsg');
+  const totalCount = document.getElementById('sorteioTotalCount');
+  if(!tbody) return;
+  const q = (document.getElementById('sorteioFilter').value||'').trim().toLowerCase();
+  const esc = v => String(v||'-').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  let lista = (DB.sorteio||[]).slice().sort((a,b)=> new Date(b.dataScan) - new Date(a.dataScan));
+  if(q){
+    lista = lista.filter(r =>
+      String(r.numeroCompleto||'').toLowerCase().includes(q) ||
+      String(r.barcode||'').toLowerCase().includes(q) ||
+      String(r.produtoNome||'').toLowerCase().includes(q)
+    );
+  }
+  totalCount.textContent = lista.length + ' número(s)';
+  emptyMsg.style.display = lista.length ? 'none' : '';
+  tbody.innerHTML = lista.map(r => `
+    <tr>
+      <td><b>${esc(r.numeroCompleto)}</b></td>
+      <td>${esc(r.produtoNome)}</td>
+      <td>${esc(r.barcode)}</td>
+      <td>${r.dataScan ? new Date(r.dataScan).toLocaleString('pt-BR') : '-'}</td>
+      <td class="dimSmall">${esc((r.deviceId||'').slice(0,10))}${r.deviceId && r.deviceId.length>10 ? '…' : ''}</td>
+    </tr>
+  `).join('');
+}
 function renderConfig(){
   renderIntervaloSincronizacaoBotoes();
   renderCacheInfo();
@@ -8891,6 +8948,7 @@ function renderConfig(){
   document.getElementById('cfg_contato').value = DB.settings.contato;
   document.getElementById('cfg_impressora').value = DB.settings.impressora;
   document.getElementById('cfg_papel').value = DB.settings.papel;
+  document.getElementById('cfg_sorteioValorMinimo').value = fmtMoneyInput(DB.settings.sorteioValorMinimo || 0);
   document.getElementById('cfg_etiquetaQr').value = DB.settings.etiquetaQr || '';
   document.getElementById('cfg_etiquetaMostrarQr').checked = DB.settings.etiquetaMostrarQr !== false;
   document.getElementById('cfg_etiquetaMostrarBarras').checked = DB.settings.etiquetaMostrarBarras !== false;
@@ -9112,6 +9170,7 @@ function saveSettingsLive(){
   DB.settings.contato = document.getElementById('cfg_contato').value;
   DB.settings.impressora = document.getElementById('cfg_impressora').value;
   DB.settings.papel = document.getElementById('cfg_papel').value;
+  DB.settings.sorteioValorMinimo = moneyVal('cfg_sorteioValorMinimo');
   DB.settings.etiquetaQr = document.getElementById('cfg_etiquetaQr').value;
   DB.settings.etiquetaMostrarQr = document.getElementById('cfg_etiquetaMostrarQr').checked;
   DB.settings.etiquetaMostrarBarras = document.getElementById('cfg_etiquetaMostrarBarras').checked;
@@ -9252,7 +9311,9 @@ function importBackupFile(file){
   reader.onload = e=>{
     try{
       const data = JSON.parse(e.target.result);
-      DB = Object.assign({products:[],customers:[],sales:[],employees:[{id:'u1',nome:'Administrador',usuario:'admin',senha:'admin',perfil:'total',comissao:0}],cashSessions:[],cashCurrentOpenId:null,ledger:[],contas:[],incomingStock:[],outgoingStock:[],kits:[],logs:[],stockRequests:[],accessRequests:[],categoryGroups:[],categories:[],productNames:[],settings:{nomeLoja:'Shalom Variedades',contato:'',logo:'',impressora:'',papel:'80mm',etiquetaQr:'',etiquetaMostrarQr:true}}, data);
+      DB = Object.assign({products:[],customers:[],sales:[],employees:[{id:'u1',nome:'Administrador',usuario:'admin',senha:'admin',perfil:'total',comissao:0}],cashSessions:[],cashCurrentOpenId:null,ledger:[],contas:[],incomingStock:[],outgoingStock:[],kits:[],logs:[],stockRequests:[],accessRequests:[],categoryGroups:[],categories:[],productNames:[],sorteio:[],settings:{nomeLoja:'Shalom Variedades',contato:'',logo:'',impressora:'',papel:'80mm',etiquetaQr:'',etiquetaMostrarQr:true,sorteioValorMinimo:0}}, data);
+      if(!Array.isArray(DB.sorteio)) DB.sorteio = [];
+      if(typeof DB.settings.sorteioValorMinimo==='undefined') DB.settings.sorteioValorMinimo = 0;
       normalizePerfis();
       fixDuplicateBarcodes();
       ensureCatalogDefaults();
