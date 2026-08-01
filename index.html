@@ -2548,6 +2548,8 @@ html.is-mobile .btn::before{ display:none; }
           <h3>🎟️ Sorteio — Etiqueta Premiada</h3>
           <p class="dimSmall" style="margin-top:-6px;">O site (separado) da etiqueta premiada só libera um número de sorteio para peças vendidas a partir do valor mínimo abaixo. Deixe 0 para não exigir valor mínimo (qualquer venda concorre).</p>
           <div class="field" style="max-width:260px;"><label>Valor mínimo por peça para concorrer</label><input id="cfg_sorteioValorMinimo" type="text" inputmode="decimal" placeholder="R$ 0,00" data-perm="admin" oninput="maskMoneyInput(this);saveSettingsLive();renderSorteio();"></div>
+          <div class="field" style="max-width:260px;"><label>Data do sorteio</label><input id="cfg_dataSorteio" type="date" data-perm="admin" oninput="saveSettingsLive();renderSorteio();"></div>
+          <p class="dimSmall" style="margin-top:-6px;">Essa data aparece no popup de "parabéns" do site da etiqueta, assim que a pessoa é confirmada no sorteio. É só informativa — não bloqueia nada sozinha.</p>
         </div>
 
         <div class="panel" style="max-width:820px;">
@@ -2641,7 +2643,7 @@ let DB = {
   trashProducts: [],   // lixeira: cópias completas de produtos excluídos {id, product, deletedAt} — recuperáveis por 6h, ver limparLixeiraExpirada()
   deleted: {},         // "lápides" de exclusão: deleted[campo][id] = timestamp — ver garantirEstruturaDeletados()
   sorteio: [],          // números de sorteio confirmados pelo site (separado) da etiqueta premiada {id, barcode, numeroCompleto, produtoNome, deviceId, dataScan}
-  settings: { nomeLoja:'Shalom Variedades', contato:'', logo:'', impressora:'', papel:'80mm', etiquetaQr:'', etiquetaMostrarQr:true, sorteioValorMinimo:0 }
+  settings: { nomeLoja:'Shalom Variedades', contato:'', logo:'', impressora:'', papel:'80mm', etiquetaQr:'', etiquetaMostrarQr:true, sorteioValorMinimo:0, dataSorteio:'' }
 };
 
 let currentUser = null;
@@ -2983,7 +2985,7 @@ function ativarModoTeste(){
     categories: categoriasTeste,
     productNames: nomesTeste,
     sorteio: [],
-    settings: { nomeLoja:'Shalom Variedades (MODO TESTE)', contato:'', logo:'', impressora:'', papel:'80mm', etiquetaQr:'', etiquetaMostrarQr:true, sorteioValorMinimo:0 }
+    settings: { nomeLoja:'Shalom Variedades (MODO TESTE)', contato:'', logo:'', impressora:'', papel:'80mm', etiquetaQr:'', etiquetaMostrarQr:true, sorteioValorMinimo:0, dataSorteio:'' }
   };
 }
 
@@ -8949,6 +8951,10 @@ function renderSorteio(){
     minInput.value = fmtMoneyInput(DB.settings.sorteioValorMinimo || 0);
   }
   const minimo = Number(DB.settings.sorteioValorMinimo) || 0;
+  const dataSorteioInput = document.getElementById('cfg_dataSorteio');
+  if(dataSorteioInput && document.activeElement !== dataSorteioInput){
+    dataSorteioInput.value = DB.settings.dataSorteio || '';
+  }
 
   // ---- Tabela 1: todos os códigos elegíveis (vendidos dentro do valor mínimo) ----
   const porBarcode = {}; // barcode -> { produtoNome, elegiveis }
@@ -9254,6 +9260,10 @@ function saveSettingsLive(){
   DB.settings.etiquetaTamanho = document.getElementById('cfg_etiquetaTamanho').value;
   DB.settings.etiquetaCor = document.getElementById('cfg_etiquetaCor').value;
   DB.settings.etiquetaModoCustom = document.getElementById('cfg_etiquetaModoCustom').checked;
+  const minInputSave = document.getElementById('cfg_sorteioValorMinimo');
+  if(minInputSave) DB.settings.sorteioValorMinimo = parseMoneyStr(minInputSave.value);
+  const dataSorteioInput = document.getElementById('cfg_dataSorteio');
+  if(dataSorteioInput) DB.settings.dataSorteio = dataSorteioInput.value;
   const notifCheckbox = document.getElementById('cfg_enableDeviceAcceptNotif');
   if(notifCheckbox){
     setDeviceAcceptNotifEnabled(notifCheckbox.checked);
@@ -9386,9 +9396,10 @@ function importBackupFile(file){
   reader.onload = e=>{
     try{
       const data = JSON.parse(e.target.result);
-      DB = Object.assign({products:[],customers:[],sales:[],employees:[{id:'u1',nome:'Administrador',usuario:'admin',senha:'admin',perfil:'total',comissao:0}],cashSessions:[],cashCurrentOpenId:null,ledger:[],contas:[],incomingStock:[],outgoingStock:[],kits:[],logs:[],stockRequests:[],accessRequests:[],categoryGroups:[],categories:[],productNames:[],sorteio:[],settings:{nomeLoja:'Shalom Variedades',contato:'',logo:'',impressora:'',papel:'80mm',etiquetaQr:'',etiquetaMostrarQr:true,sorteioValorMinimo:0}}, data);
+      DB = Object.assign({products:[],customers:[],sales:[],employees:[{id:'u1',nome:'Administrador',usuario:'admin',senha:'admin',perfil:'total',comissao:0}],cashSessions:[],cashCurrentOpenId:null,ledger:[],contas:[],incomingStock:[],outgoingStock:[],kits:[],logs:[],stockRequests:[],accessRequests:[],categoryGroups:[],categories:[],productNames:[],sorteio:[],settings:{nomeLoja:'Shalom Variedades',contato:'',logo:'',impressora:'',papel:'80mm',etiquetaQr:'',etiquetaMostrarQr:true,sorteioValorMinimo:0,dataSorteio:''}}, data);
       if(!Array.isArray(DB.sorteio)) DB.sorteio = [];
       if(typeof DB.settings.sorteioValorMinimo==='undefined') DB.settings.sorteioValorMinimo = 0;
+      if(typeof DB.settings.dataSorteio==='undefined') DB.settings.dataSorteio = '';
       normalizePerfis();
       fixDuplicateBarcodes();
       ensureCatalogDefaults();
