@@ -1707,6 +1707,7 @@ html.is-mobile .btn::before{ display:none; }
     <button class="navBtn" data-view="livrovendas" onclick="showView('livrovendas')"><span class="navIcon">📖</span> Livro de Vendas</button>
     <button class="navBtn" data-view="rendimento" onclick="showView('rendimento')"><span class="navIcon">💰</span> Rendimento Total</button>
     <button class="navBtn" data-view="sorteio" onclick="showView('sorteio')"><span class="navIcon">🎟️</span> Sorteio</button>
+    <button class="navBtn" data-view="notificacao" onclick="showView('notificacao')"><span class="navIcon">🔔</span> Notificação</button>
     <button class="navBtn" data-view="config" onclick="showView('config')"><span class="navIcon">⚙️</span> Configurações</button>
     <button class="navBtn" data-view="testador" onclick="showView('testador')"><span class="navIcon">🌐</span> Testador</button>
     <div class="userBox">
@@ -2594,6 +2595,81 @@ html.is-mobile .btn::before{ display:none; }
 
           <div id="sorteioVencedorAtual" style="margin-top:16px;"></div>
         </div>
+
+        <div class="panel" style="max-width:820px;">
+          <h3>🔔 Notificar clientes</h3>
+          <p class="dimSmall" style="margin-top:-6px;">Notificações agora ficam numa aba própria, com mais opções (mandar pra um cliente específico, agendar, avisar o vencedor automaticamente).</p>
+          <button class="btn small" onclick="showView('notificacao')">🔔 Ir para a aba Notificação</button>
+        </div>
+      </div>
+
+      <div class="view" id="view-notificacao">
+        <div class="panel" style="max-width:900px;">
+          <h3>🔔 Notificação — Site da Etiqueta Premiada</h3>
+          <p class="dimSmall" style="margin-top:-6px;">Manda avisos push pro celular de quem ativou notificação no site da etiqueta — chega mesmo com o navegador fechado.</p>
+
+          <div class="tabs" style="margin:14px 0;flex-wrap:wrap;">
+            <button class="tabBtn active" id="notifTabBtn-agora" onclick="mudarNotifTab('agora')">🚀 Enviar agora</button>
+            <button class="tabBtn" id="notifTabBtn-individual" onclick="mudarNotifTab('individual')">🎯 Cliente específico</button>
+            <button class="tabBtn" id="notifTabBtn-agendadas" onclick="mudarNotifTab('agendadas')">🕒 Agendadas</button>
+            <button class="tabBtn" id="notifTabBtn-sorteiotab" onclick="mudarNotifTab('sorteiotab')">🏆 Integração com sorteio</button>
+            <button class="tabBtn" id="notifTabBtn-historico" onclick="mudarNotifTab('historico')">📜 Histórico</button>
+          </div>
+
+          <div id="notifTab-agora">
+            <div class="field"><label>Título</label><input id="notifEtiquetaTitulo" type="text" maxlength="80" placeholder="Ex: Sorteio realizado! 🎉" data-perm="admin"></div>
+            <div class="field"><label>Mensagem</label><textarea id="notifEtiquetaMensagem" maxlength="300" rows="3" placeholder="Ex: O número vencedor já saiu! Confira se foi você." data-perm="admin"></textarea></div>
+            <button class="btn small" data-perm="admin" onclick="enviarNotificacaoEtiqueta()">🚀 Enviar pra todo mundo</button>
+            <p class="dimSmall" id="notifEtiquetaStatus" style="margin-top:8px;"></p>
+          </div>
+
+          <div id="notifTab-individual" style="display:none;">
+            <p class="dimSmall">Manda a notificação só pro celular de quem escaneou aquele número específico (a lista vem dos números confirmados na aba Sorteio).</p>
+            <div class="field"><label>Cliente / número confirmado</label><select id="notifIndividualSelect" data-perm="admin"><option value="">Selecione...</option></select></div>
+            <div class="field"><label>Título</label><input id="notifIndividualTitulo" type="text" maxlength="80" placeholder="Ex: Parabéns! 🎉" data-perm="admin"></div>
+            <div class="field"><label>Mensagem</label><textarea id="notifIndividualMensagem" maxlength="300" rows="3" placeholder="Ex: Você foi o sorteado! Passe na loja pra retirar seu prêmio." data-perm="admin"></textarea></div>
+            <button class="btn small" data-perm="admin" onclick="enviarNotificacaoIndividual()">🎯 Enviar só pra esse cliente</button>
+            <p class="dimSmall" id="notifIndividualStatus" style="margin-top:8px;"></p>
+          </div>
+
+          <div id="notifTab-agendadas" style="display:none;">
+            <p class="dimSmall">Programe uma notificação pra ser enviada sozinha numa data/hora futura (ex: lembrete do sorteio, aviso de promoção).</p>
+            <div class="field"><label>Título</label><input id="notifAgendadaTitulo" type="text" maxlength="80" data-perm="admin"></div>
+            <div class="field"><label>Mensagem</label><textarea id="notifAgendadaMensagem" maxlength="300" rows="3" data-perm="admin"></textarea></div>
+            <div class="field" style="max-width:260px;"><label>Data e hora do envio</label><input id="notifAgendadaQuando" type="datetime-local" data-perm="admin"></div>
+            <button class="btn small" data-perm="admin" onclick="agendarNotificacao()">🕒 Agendar</button>
+            <p class="dimSmall" id="notifAgendadaStatus" style="margin-top:8px;"></p>
+
+            <h3 style="margin-top:20px;">Programadas</h3>
+            <button class="btn secondary small" onclick="carregarAgendadas()">🔄 Atualizar</button>
+            <table id="notifAgendadasTable" style="margin-top:10px;">
+              <thead><tr><th>Título</th><th>Mensagem</th><th>Enviar em</th><th>Status</th><th></th></tr></thead>
+              <tbody></tbody>
+            </table>
+            <p class="dimSmall" id="notifAgendadasEmptyMsg" style="display:none;margin-top:10px;">Nenhuma mensagem agendada.</p>
+            <p class="dimSmall" style="margin-top:10px;">⚠️ Pra isso funcionar sozinho (sem precisar deixar o PDV aberto), é preciso rodar 1 vez a função <code>configurarGatilhoAgendadas_</code> no editor do Apps Script — veja o tutorial.</p>
+          </div>
+
+          <div id="notifTab-sorteiotab" style="display:none;">
+            <p class="dimSmall">Quando você define o vencedor do sorteio (aba Sorteio), o sistema pode avisar automaticamente só aquele cliente, sem precisar mandar nada na mão.</p>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:10px 0;">
+              <input type="checkbox" id="cfg_notifVencedorAuto" onchange="saveSettingsLive()" style="width:auto;margin:0;" data-perm="admin">
+              Avisar automaticamente o vencedor quando for definido
+            </label>
+            <div class="field"><label>Título da mensagem</label><input id="cfg_notifVencedorTitulo" type="text" maxlength="80" placeholder="Ex: Parabéns, você ganhou! 🎉" onchange="saveSettingsLive()" data-perm="admin"></div>
+            <div class="field"><label>Mensagem (use {numero} onde quiser que apareça o número sorteado)</label><textarea id="cfg_notifVencedorMensagem" maxlength="300" rows="3" placeholder="Ex: O número {numero} foi o sorteado — parabéns! Passe na loja pra retirar seu prêmio." onchange="saveSettingsLive()" data-perm="admin"></textarea></div>
+          </div>
+
+          <div id="notifTab-historico" style="display:none;">
+            <button class="btn secondary small" onclick="carregarHistoricoNotificacoesEtiqueta()">🔄 Atualizar histórico</button>
+            <table id="notifEtiquetaHistoricoTable" style="margin-top:10px;">
+              <thead><tr><th>Título</th><th>Mensagem</th><th>Destinatário</th><th>Tipo</th><th>Enviado em</th></tr></thead>
+              <tbody></tbody>
+            </table>
+            <p class="dimSmall" id="notifEtiquetaHistoricoEmptyMsg" style="display:none;margin-top:10px;">Nenhuma notificação enviada ainda.</p>
+          </div>
+        </div>
+
       </div>
 
     </div>
@@ -4401,7 +4477,7 @@ function renderAutoLoginBtn(){
 }
 function applyPermissions(){
   const perm = getPerms();
-  const staffOnlyViews = ['caixa','relatorios','funcionarios','config','livrovendas','rendimento','sorteio'];
+  const staffOnlyViews = ['caixa','relatorios','funcionarios','config','livrovendas','rendimento','sorteio','notificacao'];
   document.querySelectorAll('.navBtn').forEach(b=>{
     const view = b.dataset.view;
     if(perm.level==='restrito' && view!=='vendas' && view!=='testador'){ b.style.display='none'; return; }
@@ -4457,9 +4533,9 @@ function applyPermissions(){
 }
 
 /* ---------------- Navigation ---------------- */
-const viewTitles = {vendas:'Vendas (PDV)', estoque:'Estoque', clientes:'Clientes / Fiado', caixa:'Caixa / Financeiro', relatorios:'Relatórios', funcionarios:'Funcionários', livrovendas:'Livro de Vendas e Receita', rendimento:'Rendimento Total', config:'Configurações', testador:'Testador de Internet', sorteio:'Sorteio — Etiqueta Premiada'};
+const viewTitles = {vendas:'Vendas (PDV)', estoque:'Estoque', clientes:'Clientes / Fiado', caixa:'Caixa / Financeiro', relatorios:'Relatórios', funcionarios:'Funcionários', livrovendas:'Livro de Vendas e Receita', rendimento:'Rendimento Total', config:'Configurações', testador:'Testador de Internet', sorteio:'Sorteio — Etiqueta Premiada', notificacao:'Notificação — Etiqueta Premiada'};
 function showView(name){
-  const staffOnlyViews = ['caixa','relatorios','funcionarios','config','livrovendas','rendimento','sorteio'];
+  const staffOnlyViews = ['caixa','relatorios','funcionarios','config','livrovendas','rendimento','sorteio','notificacao'];
   if(currentUser && !getPerms().isTotal && staffOnlyViews.includes(name)){
     name = 'vendas';
   }
@@ -4494,7 +4570,8 @@ function showView(name){
   if(name==='rendimento') renderRendimento();
   if(name==='config') renderConfig();
   if(name==='testador') avaliarConexao();
-  if(name==='sorteio') renderSorteio();
+  if(name==='sorteio'){ renderSorteio(); }
+  if(name==='notificacao'){ renderNotificacaoView(); }
 }
 
 /* =========================================================
@@ -9101,6 +9178,24 @@ function definirVencedor_(registro){
   DB.settings.sorteioVencedorEscolhidoEm = new Date().toISOString();
   flashSaving();
   renderSorteio();
+  avisarVencedorAutomaticoSeAtivado_(registro);
+}
+
+// Integração Sorteio → Notificação: se a opção estiver ligada (aba Notificação),
+// avisa automaticamente só o cliente que ganhou, sem precisar mandar na mão.
+async function avisarVencedorAutomaticoSeAtivado_(registro){
+  if(!DB.settings.notifVencedorAuto || !registro || !registro.deviceId) return;
+  const titulo = (DB.settings.notifVencedorTitulo || 'Parabéns, você ganhou! 🎉').trim();
+  const mensagem = (DB.settings.notifVencedorMensagem || 'O número {numero} foi o sorteado — parabéns! Passe na loja pra retirar seu prêmio.')
+    .replace(/\{numero\}/g, registro.numeroCompleto);
+  try{
+    await cloudPost(Object.assign({
+      tipo:'enviarNotificacaoParaDispositivo',
+      destinatarioDeviceId: registro.deviceId,
+      destinatarioLabel: registro.numeroCompleto,
+      titulo, mensagem
+    }, cloudCredentials()));
+  }catch(e){ /* silencioso — o vencedor já foi salvo normalmente, só o aviso falhou */ }
 }
 
 function sortearVencedorAleatorio(){
@@ -9128,6 +9223,188 @@ function limparVencedor(){
   DB.settings.sorteioVencedorEscolhidoEm = '';
   flashSaving();
   renderSorteio();
+}
+
+/* ---------------------------------------------------------
+   Notificações para o site da etiqueta premiada. Não fica em
+   DB (não é dado da loja em si) — vai direto pro servidor via
+   POST autenticado. Ver Code.gs (funções que começam com
+   notificar/enviar/agendar/listar + Etiqueta).
+--------------------------------------------------------- */
+let notifTabAtual = 'agora';
+function mudarNotifTab(tab){
+  notifTabAtual = tab;
+  ['agora','individual','agendadas','sorteiotab','historico'].forEach(function(t){
+    const pane = document.getElementById('notifTab-'+t);
+    const btn = document.getElementById('notifTabBtn-'+t);
+    if(pane) pane.style.display = (t===tab) ? '' : 'none';
+    if(btn) btn.classList.toggle('active', t===tab);
+  });
+  if(tab==='individual') renderNotifIndividualSelect();
+  if(tab==='agendadas') carregarAgendadas();
+  if(tab==='historico') carregarHistoricoNotificacoesEtiqueta();
+}
+function renderNotificacaoView(){
+  mudarNotifTab(notifTabAtual);
+  const auto = document.getElementById('cfg_notifVencedorAuto');
+  if(auto) auto.checked = !!DB.settings.notifVencedorAuto;
+  const tit = document.getElementById('cfg_notifVencedorTitulo');
+  if(tit) tit.value = DB.settings.notifVencedorTitulo || '';
+  const msg = document.getElementById('cfg_notifVencedorMensagem');
+  if(msg) msg.value = DB.settings.notifVencedorMensagem || '';
+  renderNotifIndividualSelect();
+}
+// Lista pra escolher "cliente específico" — usa os mesmos números já
+// confirmados no site da etiqueta (DB.sorteio), igual à escolha de vencedor.
+function renderNotifIndividualSelect(){
+  const select = document.getElementById('notifIndividualSelect');
+  if(!select || document.activeElement === select) return;
+  const confirmados = (DB.sorteio||[]).slice().sort((a,b)=> new Date(b.dataScan) - new Date(a.dataScan));
+  const atual = select.value;
+  select.innerHTML = '<option value="">Selecione...</option>' + confirmados.map(r =>
+    `<option value="${r.deviceId}">${r.numeroCompleto} — ${r.produtoNome}</option>`
+  ).join('');
+  if(confirmados.some(r=>r.deviceId===atual)) select.value = atual;
+}
+
+async function enviarNotificacaoEtiqueta(){
+  const tituloEl = document.getElementById('notifEtiquetaTitulo');
+  const mensagemEl = document.getElementById('notifEtiquetaMensagem');
+  const statusEl = document.getElementById('notifEtiquetaStatus');
+  const titulo = (tituloEl.value||'').trim();
+  const mensagem = (mensagemEl.value||'').trim();
+  if(!titulo || !mensagem){
+    if(statusEl){ statusEl.textContent = 'Preencha título e mensagem antes de enviar.'; statusEl.style.color = 'var(--red)'; }
+    return;
+  }
+  if(statusEl){ statusEl.textContent = 'Enviando...'; statusEl.style.color = 'var(--text-dim)'; }
+  try{
+    const res = await cloudPost(Object.assign({tipo:'enviarNotificacaoEtiqueta', titulo, mensagem}, cloudCredentials()));
+    const json = await res.json();
+    if(!res.ok || !json.ok){
+      if(statusEl){ statusEl.textContent = (json&&json.error) || 'Não foi possível enviar a notificação.'; statusEl.style.color = 'var(--red)'; }
+      return;
+    }
+    if(statusEl){ statusEl.textContent = 'Notificação enviada pra todo mundo que ativou!'; statusEl.style.color = 'var(--green)'; }
+    tituloEl.value = '';
+    mensagemEl.value = '';
+  }catch(e){
+    if(statusEl){ statusEl.textContent = 'Sem conexão para enviar a notificação agora.'; statusEl.style.color = 'var(--red)'; }
+  }
+}
+
+// Manda só pra um cliente/número específico (usa o token de push só daquele aparelho)
+async function enviarNotificacaoIndividual(){
+  const select = document.getElementById('notifIndividualSelect');
+  const tituloEl = document.getElementById('notifIndividualTitulo');
+  const mensagemEl = document.getElementById('notifIndividualMensagem');
+  const statusEl = document.getElementById('notifIndividualStatus');
+  const deviceId = select ? select.value : '';
+  const titulo = (tituloEl.value||'').trim();
+  const mensagem = (mensagemEl.value||'').trim();
+  if(!deviceId){ if(statusEl){ statusEl.textContent = 'Selecione o cliente/número.'; statusEl.style.color = 'var(--red)'; } return; }
+  if(!titulo || !mensagem){ if(statusEl){ statusEl.textContent = 'Preencha título e mensagem.'; statusEl.style.color = 'var(--red)'; } return; }
+  const label = select.options[select.selectedIndex] ? select.options[select.selectedIndex].textContent : deviceId;
+  if(statusEl){ statusEl.textContent = 'Enviando...'; statusEl.style.color = 'var(--text-dim)'; }
+  try{
+    const res = await cloudPost(Object.assign({tipo:'enviarNotificacaoParaDispositivo', destinatarioDeviceId: deviceId, destinatarioLabel: label, titulo, mensagem}, cloudCredentials()));
+    const json = await res.json();
+    if(!res.ok || !json.ok){
+      if(statusEl){ statusEl.textContent = (json&&json.error) || 'Não foi possível enviar.'; statusEl.style.color = 'var(--red)'; }
+      return;
+    }
+    if(statusEl){ statusEl.textContent = json.aviso || 'Notificação enviada pra esse cliente!'; statusEl.style.color = json.aviso ? 'var(--yellow)' : 'var(--green)'; }
+    tituloEl.value = '';
+    mensagemEl.value = '';
+  }catch(e){
+    if(statusEl){ statusEl.textContent = 'Sem conexão para enviar a notificação agora.'; statusEl.style.color = 'var(--red)'; }
+  }
+}
+
+// Agenda uma notificação pra ser mandada sozinha numa data/hora futura
+async function agendarNotificacao(){
+  const tituloEl = document.getElementById('notifAgendadaTitulo');
+  const mensagemEl = document.getElementById('notifAgendadaMensagem');
+  const quandoEl = document.getElementById('notifAgendadaQuando');
+  const statusEl = document.getElementById('notifAgendadaStatus');
+  const titulo = (tituloEl.value||'').trim();
+  const mensagem = (mensagemEl.value||'').trim();
+  const enviarEm = quandoEl.value;
+  if(!titulo || !mensagem || !enviarEm){
+    if(statusEl){ statusEl.textContent = 'Preencha título, mensagem e a data/hora do envio.'; statusEl.style.color = 'var(--red)'; }
+    return;
+  }
+  if(new Date(enviarEm).getTime() <= Date.now()){
+    if(statusEl){ statusEl.textContent = 'Escolha uma data/hora no futuro.'; statusEl.style.color = 'var(--red)'; }
+    return;
+  }
+  if(statusEl){ statusEl.textContent = 'Agendando...'; statusEl.style.color = 'var(--text-dim)'; }
+  try{
+    const res = await cloudPost(Object.assign({tipo:'agendarNotificacaoEtiqueta', titulo, mensagem, enviarEm}, cloudCredentials()));
+    const json = await res.json();
+    if(!res.ok || !json.ok){
+      if(statusEl){ statusEl.textContent = (json&&json.error) || 'Não foi possível agendar.'; statusEl.style.color = 'var(--red)'; }
+      return;
+    }
+    if(statusEl){ statusEl.textContent = 'Mensagem agendada!'; statusEl.style.color = 'var(--green)'; }
+    tituloEl.value = ''; mensagemEl.value = ''; quandoEl.value = '';
+    carregarAgendadas();
+  }catch(e){
+    if(statusEl){ statusEl.textContent = 'Sem conexão para agendar agora.'; statusEl.style.color = 'var(--red)'; }
+  }
+}
+async function carregarAgendadas(){
+  const tbody = document.querySelector('#notifAgendadasTable tbody');
+  const emptyMsg = document.getElementById('notifAgendadasEmptyMsg');
+  if(!tbody) return;
+  const esc = v => String(v||'-').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  try{
+    const res = await cloudPost(Object.assign({tipo:'listarAgendadasEtiqueta'}, cloudCredentials()));
+    const json = await res.json();
+    if(!res.ok || !json.ok || !Array.isArray(json.agendadas)) return;
+    const lista = json.agendadas;
+    emptyMsg.style.display = lista.length ? 'none' : '';
+    tbody.innerHTML = lista.map(m => `
+      <tr>
+        <td><b>${esc(m.titulo)}</b></td>
+        <td>${esc(m.mensagem)}</td>
+        <td>${m.enviarEm ? new Date(m.enviarEm).toLocaleString('pt-BR') : '-'}</td>
+        <td>${m.enviada ? '✅ Enviada' : '🕒 Aguardando'}</td>
+        <td>${m.enviada ? '' : `<button class="btn secondary small" onclick="cancelarAgendada('${m.id}')">🗑️ Cancelar</button>`}</td>
+      </tr>
+    `).join('');
+  }catch(e){ /* silencioso */ }
+}
+async function cancelarAgendada(id){
+  if(!confirm('Cancelar essa mensagem agendada?')) return;
+  try{
+    await cloudPost(Object.assign({tipo:'cancelarAgendadaEtiqueta', id}, cloudCredentials()));
+    carregarAgendadas();
+  }catch(e){ alert('Sem conexão para cancelar agora.'); }
+}
+
+async function carregarHistoricoNotificacoesEtiqueta(){
+  const tbody = document.querySelector('#notifEtiquetaHistoricoTable tbody');
+  const emptyMsg = document.getElementById('notifEtiquetaHistoricoEmptyMsg');
+  if(!tbody) return;
+  const esc = v => String(v||'-').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const rotuloTipo = { broadcast:'📣 Todo mundo', individual:'🎯 Específico', agendada:'🕒 Agendada' };
+  try{
+    const res = await cloudPost(Object.assign({tipo:'listarEnviosNotificacaoEtiqueta'}, cloudCredentials()));
+    const json = await res.json();
+    if(!res.ok || !json.ok || !Array.isArray(json.envios)){ return; }
+    const lista = json.envios;
+    emptyMsg.style.display = lista.length ? 'none' : '';
+    tbody.innerHTML = lista.map(n => `
+      <tr>
+        <td><b>${esc(n.titulo)}</b></td>
+        <td>${esc(n.mensagem)}</td>
+        <td>${esc(n.destinatario==='todos' ? 'Todo mundo' : n.destinatario)}</td>
+        <td>${rotuloTipo[n.tipo] || esc(n.tipo)}</td>
+        <td>${n.criadoEm ? new Date(n.criadoEm).toLocaleString('pt-BR') : '-'}</td>
+      </tr>
+    `).join('');
+  }catch(e){ /* silencioso — só é um histórico auxiliar */ }
 }
 function renderConfig(){
   renderIntervaloSincronizacaoBotoes();
@@ -9378,6 +9655,12 @@ function saveSettingsLive(){
   if(notifCheckbox){
     setDeviceAcceptNotifEnabled(notifCheckbox.checked);
   }
+  const notifVencedorAuto = document.getElementById('cfg_notifVencedorAuto');
+  if(notifVencedorAuto) DB.settings.notifVencedorAuto = notifVencedorAuto.checked;
+  const notifVencedorTitulo = document.getElementById('cfg_notifVencedorTitulo');
+  if(notifVencedorTitulo) DB.settings.notifVencedorTitulo = notifVencedorTitulo.value;
+  const notifVencedorMensagem = document.getElementById('cfg_notifVencedorMensagem');
+  if(notifVencedorMensagem) DB.settings.notifVencedorMensagem = notifVencedorMensagem.value;
   document.getElementById('storeNameLabel').textContent = DB.settings.nomeLoja || 'Shalom Variedades';
   flashSaving();
 }
