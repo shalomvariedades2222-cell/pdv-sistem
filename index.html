@@ -2794,7 +2794,7 @@ function existeAlteracaoPendenteSalva(){
    PREENCHA o valor abaixo antes de publicar (URL do Web App, veja o
    guia COMO-CONFIGURAR-DRIVE.md):
 ====================================================================== */
-const APPSCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxDgBWX60fE4-mRPAedAQPsyEBKObEgyKYiRgsIZc2bAji7U5FqoDG9Kb0lQKVF1STd/exec'; // ex: 'https://script.google.com/macros/s/AKfycb.../exec'
+const APPSCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyOFgAnrKrNqKDEA43If31qPvn5IhMCXWKOHG3PNG-1wQTRa53qa-e552bcMTr7c1lk/exec'; // ex: 'https://script.google.com/macros/s/AKfycb.../exec'
 
 let ghToken = null;      // chave de acesso (mesmo nome interno de antes, só que agora não é token do GitHub)
 let deviceAccessToken = null; // autorização alternativa, vinculada a este dispositivo
@@ -3677,6 +3677,21 @@ let _ghSaveTimer = null;
 function autoSaveGitHub(){
   clearTimeout(_ghSaveTimer);
   _ghSaveTimer = setTimeout(()=>{
+    // Se já existe um envio em andamento (fetch ainda esperando resposta do
+    // servidor), NÃO dispara outro POST em cima dele. Isso acontecia sempre
+    // que o usuário mexia em algo de novo enquanto o salvamento anterior
+    // ainda estava "no ar" (rede lenta, Apps Script demorando etc.): os dois
+    // POSTs iam com a mesma versão (driveVersion só é atualizado depois que
+    // o primeiro responde), o servidor aceitava um e recusava o outro por
+    // conflito, e o app entrava num vaivém de "combinando com outro
+    // aparelho" — que na prática era o mesmo aparelho brigando com ele
+    // mesmo, e é o que fazia parecer que ele "fica tentando sincronizar" e
+    // às vezes a alteração não ia pro servidor. Em vez disso, espera este
+    // salvamento terminar e tenta de novo automaticamente.
+    if(_salvandoAgora){
+      autoSaveGitHub();
+      return;
+    }
     _ghSaveTimer = null; // libera a checagem automática (checkRemoteVersion) assim que o salvamento realmente começa
     saveToGitHubNow();
   }, 500); // qualquer alteração no sistema é enviada ao servidor 0,50s depois de parar de mexer
@@ -3775,23 +3790,32 @@ async function checkRemoteVersion(){
           _avisoSyncAtivo = true;
           mostrarSincronizandoOutroAparelho(); // avisa (com animação) que já sabemos que tem novidade e estamos baixando
         }
-        const ok = await loadFromGitHub();
-        if(ok){
-          if(currentUser) renderAll(); else renderLoginAvatars();
-          if(podeAvisar){
-            const el = document.getElementById('saveStatus');
-            el.classList.add('syncPulse');
-            setTimeout(()=>el.classList.remove('syncPulse'), 500);
-            setSaveStatus('Atualizado com dados de outro aparelho', fmtAgora());
-            // Marca o relógio SÓ AGORA, depois que o carregamento terminou — antes essa marca
-            // era feita com o horário de ANTES do fetch, então em conexão lenta (ou quando o
-            // outro aparelho salva dados e foto em requisições separadas e próximas) o tempo
-            // gasto baixando já "comia" boa parte da janela de 2,5s, e um segundo aviso quase
-            // imediato passava pela checagem achando que já tinha esperado o suficiente.
-            _ultimoAvisoSyncTs = Date.now();
+        // try/finally: antes, se loadFromGitHub() ou o render que vem depois
+        // lançasse um erro no meio do caminho, a linha que zera _avisoSyncAtivo
+        // nunca era executada e essa trava ficava presa em "true" pra sempre —
+        // dali em diante o app parava de mostrar (e, em alguns pontos que
+        // dependem dela) de tentar avisar sobre novas sincronizações, dando a
+        // impressão de que ele "ficou preso tentando sincronizar".
+        try{
+          const ok = await loadFromGitHub();
+          if(ok){
+            if(currentUser) renderAll(); else renderLoginAvatars();
+            if(podeAvisar){
+              const el = document.getElementById('saveStatus');
+              el.classList.add('syncPulse');
+              setTimeout(()=>el.classList.remove('syncPulse'), 500);
+              setSaveStatus('Atualizado com dados de outro aparelho', fmtAgora());
+              // Marca o relógio SÓ AGORA, depois que o carregamento terminou — antes essa marca
+              // era feita com o horário de ANTES do fetch, então em conexão lenta (ou quando o
+              // outro aparelho salva dados e foto em requisições separadas e próximas) o tempo
+              // gasto baixando já "comia" boa parte da janela de 2,5s, e um segundo aviso quase
+              // imediato passava pela checagem achando que já tinha esperado o suficiente.
+              _ultimoAvisoSyncTs = Date.now();
+            }
           }
+        } finally {
+          if(podeAvisar) _avisoSyncAtivo = false; // libera a trava mesmo se o carregamento/render falhar, senão o aviso fica bloqueado pra sempre
         }
-        if(podeAvisar) _avisoSyncAtivo = false; // libera a trava mesmo se o carregamento falhar, senão o aviso fica bloqueado pra sempre
       }
     }
   }catch(e){ /* falha silenciosa: tenta de novo no próximo ciclo */ }
