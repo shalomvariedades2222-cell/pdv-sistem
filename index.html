@@ -537,6 +537,7 @@ html.anim-off-login #connectingScreen *{animation:none !important;}
 .etq-barcodeNum{font-family:'Courier New',monospace;font-weight:700;font-style:italic;font-size:clamp(6px, calc(8px * var(--etq-scale,1)), 9px);letter-spacing:0.5px;flex:0 0 auto;}
 .etq-barcodeSvgWrap{width:100%;flex:1 1 0;min-height:0;}
 .etq-barcodeSvgWrap canvas{width:100%;height:100%;display:block;}
+.etqPrintItem{display:block;width:50mm;height:30mm;margin:0 0 0 0;page-break-after:always;page-break-inside:avoid;}
 
 .etqModeloBtn{
   border:2px solid var(--line);background:var(--panel2);border-radius:10px;padding:14px;
@@ -1878,6 +1879,11 @@ html.is-mobile .btn::before{ display:none; }
               <div class="dimSmall" style="margin-top:4px;">Deixe em branco para gerar automaticamente, ou digite/escaneie um código próprio.</div>
             </div>
             <div class="field" style="margin-top:8px;">
+              <label>Quantidade de etiquetas para imprimir</label>
+              <input id="p_qtdEtiquetas" type="number" min="1" value="1" style="max-width:180px;">
+              <div class="dimSmall" style="margin-top:4px;">Se colocar 10, serão geradas 10 etiquetas com códigos diferentes e o estoque inicial será ajustado para 10.</div>
+            </div>
+            <div class="field" style="margin-top:8px;">
               <label>Foto do produto</label>
               <input type="file" accept="image/*" onchange="previewProductImage(this)">
               <div><img id="p_imgPreview" class="imgUploadPreview" style="display:none;"></div>
@@ -2787,8 +2793,8 @@ function existeAlteracaoPendenteSalva(){
    PREENCHA o valor abaixo antes de publicar (URL do Web App, veja o
    guia COMO-CONFIGURAR-DRIVE.md):
 ====================================================================== */
-const APPSCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwFo-lttB-EtsVxnz46926P3zLxTr01K5ne7K01XI7Ao7nkvDA8oOlqQFg-1SBRg-_y/exec'; // ex: 'https://script.google.com/macros/s/AKfycb.../exec'
-const APPSCRIPT_URL_FALLBACK = 'https://script.google.com/macros/s/AKfycbwFo-lttB-EtsVxnz46926P3zLxTr01K5ne7K01XI7Ao7nkvDA8oOlqQFg-1SBRg-_y/exec';
+const APPSCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyOFgAnrKrNqKDEA43If31qPvn5IhMCXWKOHG3PNG-1wQTRa53qa-e552bcMTr7c1lk/exec'; // ex: 'https://script.google.com/macros/s/AKfycb.../exec'
+const APPSCRIPT_URL_FALLBACK = 'https://script.google.com/macros/s/AKfycbzrYkrdqMSA60K-rp28eGaCEtTCayhDUZPYxvdPajVqddim4ZRpc1MDqwlZ2F117hdu/exec';
 
 let ghToken = null;      // chave de acesso (mesmo nome interno de antes, só que agora não é token do GitHub)
 let deviceAccessToken = null; // autorização alternativa, vinculada a este dispositivo
@@ -4183,10 +4189,36 @@ function checkCPFField(inputId, fbId){
   if(validarCPF(el.value)){ fb.textContent='✓ CPF válido'; fb.style.color='var(--green)'; }
   else{ fb.textContent='✗ CPF inválido'; fb.style.color='var(--red)'; }
 }
+function getProdutoBarcodes(p){
+  if(!p) return [];
+  const lista = [];
+  const adicionar = function(valor){
+    if(typeof valor !== 'string') return;
+    const v = valor.trim();
+    if(v && !lista.includes(v)) lista.push(v);
+  };
+  adicionar(p.barcode);
+  (p.barcodes || []).forEach(adicionar);
+  return lista;
+}
+function produtoTemBarcode(p, valor){
+  if(!p || !valor) return false;
+  return getProdutoBarcodes(p).includes(String(valor).trim());
+}
+function findProductByBarcode(code){
+  const q = String(code||'').trim();
+  if(!q) return null;
+  return DB.products.find(function(p){ return getProdutoBarcodes(p).some(function(barcode){ return String(barcode||'').trim()===q; }); });
+}
+function isBarcodeDisponivel(valor){
+  const v = String(valor||'').trim();
+  if(!v) return false;
+  return !DB.products.some(function(p){ return produtoTemBarcode(p, v); });
+}
 function genBarcode(){
   let code;
   do{ code = '789' + Math.floor(1000000000 + Math.random()*8999999999).toString().slice(0,10); }
-  while(DB.products.some(p=>p.barcode===code));
+  while(!isBarcodeDisponivel(code));
   return code;
 }
 function applyBrandLogo(){
@@ -4637,9 +4669,11 @@ function renderSearch(){
   }
   document.getElementById('productGrid').style.display='none';
   document.getElementById('productGridLbl').style.display='none';
-  const results = DB.products.filter(p=>
-    p.nome.toLowerCase().includes(q) || p.barcode.includes(q)
-  ).slice(0,8);
+  const results = DB.products.filter(p=>{
+    const nomeOk = p.nome.toLowerCase().includes(q);
+    const barcodeOk = getProdutoBarcodes(p).some(function(barcode){ return String(barcode||'').includes(q); });
+    return nomeOk || barcodeOk;
+  }).slice(0,8);
   box.innerHTML = results.map(p=>`
     <div class="searchItem" onclick="addToCart('${p.id}')">
       <div>
@@ -4685,7 +4719,7 @@ function pdvSearchKey(e){
     if(isModalOpen()) return; // não interfere com popups abertos (ex: confirmar pagamento)
     const q = document.getElementById('searchBox').value.trim().toLowerCase();
     if(!q) return; // evita casar com o primeiro produto quando o campo está vazio
-    const match = DB.products.find(p=> p.barcode===q ) || DB.products.find(p=>p.nome.toLowerCase().includes(q));
+    const match = findProductByBarcode(q) || DB.products.find(p=>p.nome.toLowerCase().includes(q));
     if(match){ addToCart(match.id); document.getElementById('searchBox').value=''; renderSearch(); }
   }
 }
@@ -5432,9 +5466,15 @@ function saveNewProduct(){
   const venda = moneyVal('p_venda');
   let barcode = document.getElementById('p_barcode').value.trim();
   if(!barcode) barcode = genBarcode();
-  else if(DB.products.some(x=>x.barcode===barcode)){
+  else if(DB.products.some(x=>produtoTemBarcode(x, barcode))){
     alert('Esse código de barras já pertence a outro produto. Um novo código foi gerado automaticamente.');
     barcode = genBarcode();
+  }
+  const qtdEtiquetas = Math.max(1, parseInt(document.getElementById('p_qtdEtiquetas').value,10) || 1);
+  const listaBarcodes = [barcode];
+  while(listaBarcodes.length < qtdEtiquetas){
+    const candidato = genBarcode();
+    if(!listaBarcodes.includes(candidato)) listaBarcodes.push(candidato);
   }
   const p = {
     id: uid('prod'),
@@ -5442,9 +5482,10 @@ function saveNewProduct(){
     tamanho: document.getElementById('p_tamanho').value.trim(),
     cor: document.getElementById('p_cor').value.trim(),
     custo, venda,
-    estoque: Number(document.getElementById('p_estoque').value)||1,
+    estoque: Math.max(Number(document.getElementById('p_estoque').value)||1, qtdEtiquetas),
     estoqueMin: Number(document.getElementById('p_estoqueMin').value)||3,
-    barcode,
+    barcode: listaBarcodes[0],
+    barcodes: listaBarcodes.slice(1),
     foto: document.getElementById('p_imgPreview').dataset.data || '',
     dataCadastro: todayISO(),
     cadastradoPor: currentUser ? currentUser.nome : '-'
@@ -5454,14 +5495,15 @@ function saveNewProduct(){
   log('Produto cadastrado: '+nome);
   renderEstoqueLista();
   registrarAdicaoRecente(p);
-  ['p_tamanho','p_cor','p_custo','p_venda','p_barcode'].forEach(id=>document.getElementById(id).value='');
+  ['p_tamanho','p_cor','p_custo','p_venda','p_barcode','p_qtdEtiquetas'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('p_estoque').value = '1';
+  document.getElementById('p_qtdEtiquetas').value = '1';
   document.getElementById('p_imgPreview').style.display='none';
   document.getElementById('marginPreview').textContent='Margem: —';
   /* Permanece na aba "Cadastrar" (não vai mais para a lista de Estoque) e mostra
      uma notificação bem visível confirmando que o produto já foi salvo no estoque. */
   mostrarPopupEstoqueSalvo(p.nome, p.estoque);
-  perguntarImprimirEtiquetaNovoProduto(p.id);
+  perguntarImprimirEtiquetaNovoProduto(p.id, qtdEtiquetas);
 }
 /* =========================================================
    PERGUNTAR SE QUER IMPRIMIR A ETIQUETA LOGO APÓS CADASTRAR
@@ -5469,20 +5511,21 @@ function saveNewProduct(){
    Enter imprime direto, sem escolher modelo nem passar por outra tela;
    "Não" fecha e não imprime nada.
 ========================================================= */
-function perguntarImprimirEtiquetaNovoProduto(productId){
+function perguntarImprimirEtiquetaNovoProduto(productId, qtdEtiquetas){
+  const qtd = Math.max(1, Number(qtdEtiquetas)||1);
   showModal(`
     <button class="modalClose" onclick="closeModal()">×</button>
     <h3>Produto cadastrado!</h3>
-    <div style="margin:2px 0 18px;color:var(--text);line-height:1.5;">Deseja imprimir a etiqueta deste produto agora?</div>
+    <div style="margin:2px 0 18px;color:var(--text);line-height:1.5;">Deseja imprimir ${qtd} etiqueta${qtd>1?'s':''} com ${qtd>1?'códigos diferentes':'código'} agora?</div>
     <div class="dimSmall" style="margin-bottom:14px;">Pressione <b>Enter</b> para imprimir direto, ou clique em "Não".</div>
     <div style="display:flex;gap:8px;">
       <button class="btn secondary" style="flex:1;" id="btnNaoImprimirEtiqueta">Não</button>
-      <button class="btn" id="btnSimImprimirEtiqueta" style="flex:1;">🖨️ Sim, imprimir</button>
+      <button class="btn" id="btnSimImprimirEtiqueta" style="flex:1;">🖨️ Sim, imprimir ${qtd}</button>
     </div>
   `);
   const btnSim = document.getElementById('btnSimImprimirEtiqueta');
   const btnNao = document.getElementById('btnNaoImprimirEtiqueta');
-  const confirmar = function(){ closeModal(); imprimirEtiquetaAposCadastro(productId); };
+  const confirmar = function(){ closeModal(); imprimirEtiquetaAposCadastro(productId, qtd); };
   const cancelar = function(){ closeModal(); };
   btnSim.onclick = confirmar;
   btnNao.onclick = cancelar;
@@ -5495,7 +5538,7 @@ function perguntarImprimirEtiquetaNovoProduto(productId){
 }
 /* Imprime na hora, sem passar pela tela de escolher modelo: usa o modelo
    preferido do produto (se tiver) ou o modelo Premium como padrão. */
-function imprimirEtiquetaAposCadastro(productId){
+function imprimirEtiquetaAposCadastro(productId, quantidade){
   const p = DB.products.find(x=>x.id===productId);
   if(!p) return;
   const modelos = DB.settings.etiquetaModelos || [];
@@ -5510,7 +5553,7 @@ function imprimirEtiquetaAposCadastro(productId){
     modeloPref = 'custom:'+modelos[0].id;
   }
   if(!modeloPref) modeloPref = 'premium';
-  _etqState = {productId, modelo: modeloPref};
+  _etqState = {productId, modelo: modeloPref, quantidade: Math.max(1, Number(quantidade)||1)};
   imprimirEtiquetaFinal();
 }
 /* =========================================================
@@ -5632,7 +5675,7 @@ function scannerProcessCode(){
   if(!code) return;
   input.value = '';
 
-  const existing = DB.products.find(p=>p.barcode===code);
+  const existing = findProductByBarcode(code);
   if(existing){
     toast('Esse código já pertence ao produto "'+existing.nome+'". Use a busca por código de barras na aba Produtos.', 'erro');
     input.focus();
@@ -5949,7 +5992,7 @@ function scannerLookupProcessCode(){
   const code=(input&&input.value||'').trim();
   if(!code) return;
   const message=document.getElementById('scannerLookupMessage');
-  const prod=DB.products.find(function(p){ return String(p.barcode||'')===code; });
+  const prod=findProductByBarcode(code);
   if(prod){
     message.innerHTML=`
       <div class="panel" style="background:var(--panel2);margin:0;border:1px solid var(--green);">
@@ -6069,7 +6112,7 @@ function addEstoqueProcessCode(){
   if(!code) return;
   input.value = '';
 
-  const prod = DB.products.find(p=>p.barcode===code);
+  const prod = findProductByBarcode(code);
   if(!prod){
     toast('Código não encontrado no estoque. Abrindo cadastro de código novo...', 'erro');
     scannerSetMode('novo');
@@ -6346,7 +6389,7 @@ function buscarProdutoPorCodigoBarras(){
   const campo = document.getElementById('estoqueBarcodeFilter');
   const q = (campo && campo.value || '').trim();
   if(!q) return;
-  const match = DB.products.find(p=>p.barcode===q);
+  const match = findProductByBarcode(q);
   if(match){
     if(campo) campo.value = '';
     renderEstoqueLista();
@@ -6365,7 +6408,7 @@ function renderEstoqueLista(manerScroll){
   const perm = getPerms();
   const hideFinance = !perm.isTotal;
   let list = DB.products.filter(p=>p.nome.toLowerCase().includes(filter));
-  if(bcFilter) list = list.filter(p=>p.barcode.includes(bcFilter));
+  if(bcFilter) list = list.filter(p=>getProdutoBarcodes(p).some(function(barcode){ return String(barcode||'').includes(bcFilter); }));
 
   // agrupa automaticamente por categoria — peças da mesma categoria ficam sempre juntas
   const groups = {};
@@ -6455,7 +6498,7 @@ let _etqState = {productId:null, modelo:null};
 const ETQ_FONTES = {padrao:"Arial,Helvetica,sans-serif", elegante:"Georgia,'Times New Roman',serif", moderna:"'Courier New',monospace"};
 const ETQ_TAMANHOS = {pequeno:0.85, medio:1, grande:1.15, extra:1.3};
 
-function buildEtiquetaHTML(p, modelo, sfx){
+function buildEtiquetaHTML(p, modelo, sfx, barcodeValue){
   const preco = Number(p.venda)||0;
   const precoInt = Math.floor(preco);
   const precoCents = Math.round((preco-precoInt)*100);
@@ -6471,6 +6514,7 @@ function buildEtiquetaHTML(p, modelo, sfx){
   const fonteCss = ETQ_FONTES[DB.settings.etiquetaFonte] || ETQ_FONTES.padrao;
   const escala = ETQ_TAMANHOS[DB.settings.etiquetaTamanho] || 1;
   const corDestaque = DB.settings.etiquetaCor || '#000000';
+  const codigoExibido = barcodeValue || p.barcode || '';
   const etqStyle = `--etq-font:${fonteCss};--etq-scale:${escala};--etq-accent:${corDestaque};`;
 
   // coluna QR: se desativado no sistema, a coluna some e o preço ocupa a etiqueta toda
@@ -6518,25 +6562,28 @@ function buildEtiquetaHTML(p, modelo, sfx){
       </div>
       <div class="etq-divider"></div>
       <div class="etq-bottom">
-        <div class="etq-barcodeNum">${p.barcode||''}</div>
+        <div class="etq-barcodeNum">${codigoExibido}</div>
         ${barcodeSvgHtml}
       </div>
     </div>`;
 }
 
-function renderEtiquetaInto(container, p, modelo, sfx){
-  if(!p.barcode){ p.barcode = genBarcode(); autoSaveLocal(); autoSaveToFile(); }
+function renderEtiquetaInto(container, p, modelo, sfx, barcodeValue){
+  const codigoExibido = barcodeValue || p.barcode || '';
+  if(!codigoExibido){
+    const novoCodigo = genBarcode();
+    p.barcode = novoCodigo;
+    autoSaveLocal(); autoSaveToFile();
+  }
   if(modelo==='custom' || (typeof modelo==='string' && modelo.indexOf('custom:')===0)){
     const idModelo = modelo==='custom' ? null : modelo.slice(7);
-    renderEtiquetaCustomInto(container, p, sfx, idModelo);
+    renderEtiquetaCustomInto(container, p, sfx, idModelo, barcodeValue);
     return;
   }
-  container.innerHTML = buildEtiquetaHTML(p, modelo, sfx);
-  // código de barras físico CODE128, gerado sempre a partir do p.barcode já existente no cadastro
-  // (o número já aparece separado em .etq-barcodeNum, então aqui só desenhamos as barras, se ativadas)
+  container.innerHTML = buildEtiquetaHTML(p, modelo, sfx, codigoExibido);
   const mostrarBarras = DB.settings.etiquetaMostrarBarras !== false;
   if(mostrarBarras){
-    desenharBarcodeComRetry(sfx, p.barcode, 0);
+    desenharBarcodeComRetry(sfx, codigoExibido, 0);
   }
   const mostrarQr = DB.settings.etiquetaMostrarQr !== false && !!(DB.settings.etiquetaQr && DB.settings.etiquetaQr.trim());
   if(mostrarQr){
@@ -6714,16 +6761,31 @@ function imprimirEtiquetaFinal(){
   if(!p) return;
   salvarModeloSeMarcado();
   const area = document.getElementById('printArea');
-  renderEtiquetaInto(area, p, _etqState.modelo, 'print');
+  if(!area) return;
+  area.innerHTML = '';
+  const qtd = Math.max(1, Number(_etqState.quantidade)||1);
+  const codigos = [];
+  const barcodesJaSalvos = getProdutoBarcodes(p);
+  barcodesJaSalvos.forEach(function(code){ if(code && !codigos.includes(code)) codigos.push(code); });
+  if(!codigos.includes(p.barcode||'')) codigos.unshift(p.barcode||'');
+  while(codigos.length < qtd){
+    const novo = genBarcode();
+    if(!codigos.includes(novo)) codigos.push(novo);
+  }
+  codigos.slice(0, qtd).forEach(function(codigo, index){
+    const item = document.createElement('div');
+    item.className = 'etqPrintItem';
+    renderEtiquetaInto(item, p, _etqState.modelo, 'print_' + index, codigo);
+    area.appendChild(item);
+  });
   atualizarTamanhoPaginaImpressao_(dimsDoModeloEscolhido_());
   area.style.display='block';
   closeModal();
-  // espera o navegador pintar de fato o SVG do código de barras antes de chamar print();
-  // um setTimeout curto às vezes dispara antes do repaint e o código de barras sai em branco.
-  requestAnimationFrame(()=>{
-    requestAnimationFrame(()=>{
+  requestAnimationFrame(function(){
+    requestAnimationFrame(function(){
       window.print();
       area.style.display='none';
+      area.innerHTML='';
     });
   });
 }
@@ -7532,15 +7594,16 @@ function obterModeloEtiquetaCustom(idModelo){
   if(modelos.length) return modelos[0];
   return {layout: (DB.settings.etiquetaLayout&&DB.settings.etiquetaLayout.length)?DB.settings.etiquetaLayout:defaultEtiquetaLayout(), orientacao: DB.settings.etiquetaOrientacao||'horizontal'};
 }
-function renderEtiquetaCustomInto(container, p, sfx, idModelo){
+function renderEtiquetaCustomInto(container, p, sfx, idModelo, barcodeValue){
   const modelo = obterModeloEtiquetaCustom(idModelo);
   const layout = (modelo.layout && modelo.layout.length) ? modelo.layout : defaultEtiquetaLayout();
   const corDestaque = DB.settings.etiquetaCor || '#000000';
   const {w,h} = modelo.orientacao==='vertical' ? {w:30,h:50} : {w:50,h:30};
+  const pParaEtiqueta = Object.assign({}, p, {barcode: barcodeValue || p.barcode || ''});
   container.innerHTML = `<div class="etq etqCustom" style="--etq-accent:${corDestaque};width:${w}mm;height:${h}mm;">${layout.map(el=>etqElementDivHTML(el, false)).join('')}</div>`;
   layout.forEach(el=>{
     const box = container.querySelector(`[data-elid="${el.id}"]`);
-    if(box) preencherConteudoElemento(box, el, p, sfx);
+    if(box) preencherConteudoElemento(box, el, pParaEtiqueta, sfx);
   });
 }
 
@@ -7619,7 +7682,7 @@ function saveEditedProduct(id){
   const nome = document.getElementById('e_nome').value.trim();
   if(!nome){ alert('Informe o nome do produto.'); return; }
   let barcode = document.getElementById('e_barcode').value.trim() || genBarcode();
-  const collides = DB.products.some(x=>x.id!==id && x.barcode===barcode);
+  const collides = DB.products.some(x=>x.id!==id && produtoTemBarcode(x, barcode));
   if(collides){
     barcode = genBarcode();
     alert('Esse código de barras já pertence a outro produto. Um novo código foi gerado automaticamente.');
