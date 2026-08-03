@@ -4127,6 +4127,61 @@ function ensureCatalogDefaults(){
     });
   }
   applyBrandLogo();
+  recalcularEstoqueDosProdutos_();
+}
+/* ------------------------------------------------------------
+   ESTOQUE — RECÁLCULO A PARTIR DO HISTÓRICO (autocorreção do "estoque
+   menor do que deveria")
+   O campo "estoque" de cada produto é ajustado direto (+=, -=) em vários
+   lugares (venda, cancelamento de venda, entrada, saída, ajuste rápido,
+   conferência por etiqueta). Isso funciona certinho NUM SÓ APARELHO, mas
+   quando dois aparelhos mexem no MESMO produto antes de sincronizar, o
+   merge (mergeDB_) precisa escolher um "vencedor" pro produto inteiro —
+   e o valor de estoque do lado que perde fica pra trás, mesmo que aquele
+   lado tivesse acabado de repor mercadoria ou cancelar uma venda (que
+   devolve peça ao estoque). Essa reposição/devolução "some" do número
+   final, e o estoque mostrado fica menor do que devia.
+   Para corrigir isso de vez, o estoque de cada produto passa a ser
+   RECALCULADO (não só ajustado) toda vez que os dados chegam do servidor
+   ou são mesclados entre aparelhos, direto a partir do que realmente
+   aconteceu:
+     estoque = estoqueInicial (ponto de partida, fixo)
+               + tudo que entrou (DB.incomingStock)
+               - tudo que saiu (DB.outgoingStock)
+               - peças vendidas em vendas NÃO canceladas (DB.sales)
+   Essas três listas são combinadas por ID no merge sem perder nada de
+   nenhum aparelho (cada entrada tem um id próprio) — então recalcular a
+   partir delas corrige sozinho qualquer estoque que tenha ficado
+   defasado por uma sincronização entre dois aparelhos, sem precisar
+   mexer em nenhum dos lugares que já ajustam o estoque na hora (eles
+   continuam dando o retorno visual imediato de sempre; este recálculo
+   só confirma/corrige o número toda vez que os dados são carregados).
+   Na primeira vez que um produto passa por aqui (ele ainda não tem
+   "estoqueInicial" salvo), o ponto de partida é descoberto "desfazendo"
+   os movimentos já registrados a partir do estoque atual — assim a
+   ativação desta correção não dá nenhum salto no número already exibido,
+   só passa a proteger dali pra frente.
+------------------------------------------------------------ */
+function recalcularEstoqueDosProdutos_(){
+  if(!Array.isArray(DB.products) || !DB.products.length) return;
+  const mov = {}; // productId -> {entradas, saidas, vendidas}
+  DB.products.forEach(function(p){ if(p && p.id!=null) mov[p.id] = {entradas:0, saidas:0, vendidas:0}; });
+  (DB.incomingStock||[]).forEach(function(m){ const a=mov[m.productId]; if(a) a.entradas += Number(m.qtd)||0; });
+  (DB.outgoingStock||[]).forEach(function(m){ const a=mov[m.productId]; if(a) a.saidas += Number(m.qtd)||0; });
+  (DB.sales||[]).forEach(function(venda){
+    if(venda.cancelled) return; // venda cancelada nunca desconta estoque
+    (venda.items||[]).forEach(function(it){ const a=mov[it.productId]; if(a) a.vendidas += Number(it.qty)||0; });
+  });
+  DB.products.forEach(function(p){
+    if(!p || p.id==null) return;
+    const m = mov[p.id] || {entradas:0, saidas:0, vendidas:0};
+    if(typeof p.estoqueInicial !== 'number' || isNaN(p.estoqueInicial)){
+      // primeira vez: descobre o ponto de partida desfazendo os movimentos já
+      // registrados a partir do estoque atual, pra não dar salto nenhum agora
+      p.estoqueInicial = (Number(p.estoque)||0) - m.entradas + m.saidas + m.vendidas;
+    }
+    p.estoque = Math.max(0, p.estoqueInicial + m.entradas - m.saidas - m.vendidas);
+  });
 }
 /* ---------------- Monitoramento: valores padrão para meta de vendas e ponto ---------------- */
 function ensureEmployeeDefaults(){
@@ -9446,7 +9501,18 @@ async function enviarNotificacaoEtiqueta(){
       if(statusEl){ statusEl.textContent = erroDetalhado; statusEl.style.color = 'var(--red)'; }
       return;
     }
-    if(statusEl){ statusEl.textContent = 'Notificação enviada pra todo mundo que ativou!'; statusEl.style.color = 'var(--green)'; }
+    if(statusEl){
+      if(json.aviso){
+        statusEl.textContent = json.aviso;
+        statusEl.style.color = 'var(--yellow, orange)';
+      } else if(typeof json.enviados === 'number'){
+        statusEl.textContent = 'Notificação enviada com sucesso pra ' + json.enviados + ' aparelho(s)!';
+        statusEl.style.color = 'var(--green)';
+      } else {
+        statusEl.textContent = 'Notificação enviada pra todo mundo que ativou!';
+        statusEl.style.color = 'var(--green)';
+      }
+    }
     tituloEl.value = '';
     mensagemEl.value = '';
   }catch(e){
