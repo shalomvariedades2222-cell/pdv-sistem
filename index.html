@@ -2202,8 +2202,21 @@ html.is-mobile .btn::before{ display:none; }
       <!-- ============ FUNCIONÁRIOS ============ -->
       <div class="view" id="view-funcionarios">
         <div class="tabs">
-          <button class="tabBtn active" onclick="setFuncTab('monitoramento')">Monitoramento</button>
+          <button class="tabBtn active" data-tab="lista" onclick="setFuncTab('lista')">Lista</button>
+          <button class="tabBtn" data-tab="cadastro" onclick="setFuncTab('cadastro')">Cadastrar</button>
+          <button class="tabBtn" data-tab="monitoramento" onclick="setFuncTab('monitoramento')">Monitoramento</button>
         </div>
+
+        <div id="funcTab-lista">
+          <div class="panel">
+            <h3>Funcionários cadastrados</h3>
+            <table>
+              <thead><tr><th></th><th>Nome</th><th>Usuário</th><th>Perfil</th><th>Comissão</th><th>Ações</th></tr></thead>
+              <tbody id="employeesTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
         <div id="funcTab-cadastro" style="display:none;">
         <div class="panel" style="max-width:520px;">
           <h3>Novo Funcionário</h3>
@@ -2232,7 +2245,7 @@ html.is-mobile .btn::before{ display:none; }
           </div>
           <div class="dimSmall" style="margin:-4px 0 10px;">
             <b>Restrito:</b> só vê e usa a tela de Vendas. <b>Só olhar:</b> vê todas as telas, mas não pode vender nem alterar nada.
-            <b>Pode mudar algumas coisas:</b> vende e edita Clientes/Fiado; o resto fica travado. <b>Acesso total:</b> sem restrições.
+            <b>Pode mudar algumas coisas:</b> vende, marca Fiado como pago, e só visualiza o Estoque (sem editar); o resto fica travado. <b>Acesso total:</b> sem restrições.
           </div>
           <button class="btn" data-perm="admin" onclick="saveEmployee()">Salvar Funcionário</button>
         </div>
@@ -2240,6 +2253,7 @@ html.is-mobile .btn::before{ display:none; }
 
         <div id="funcTab-monitoramento" style="display:none;">
           <div class="panel">
+
             <h3>Monitoramento de Funcionário</h3>
             <div class="field" style="max-width:340px;">
               <label>Escolha o funcionário</label>
@@ -2533,10 +2547,9 @@ html.is-mobile .btn::before{ display:none; }
         <div class="panel" style="max-width:820px;">
           <h3>🎟️ Sorteio — Etiqueta Premiada</h3>
           <p class="dimSmall" style="margin-top:-6px;">O site (separado) da etiqueta premiada só libera um número de sorteio para peças vendidas a partir do valor mínimo abaixo. Deixe 0 para não exigir valor mínimo (qualquer venda concorre).</p>
-          <div style="display:flex;gap:14px;flex-wrap:wrap;">
-            <div class="field" style="max-width:260px;"><label>Valor mínimo por peça para concorrer</label><input id="cfg_sorteioValorMinimo" type="text" inputmode="decimal" placeholder="R$ 0,00" data-perm="admin" oninput="maskMoneyInput(this);saveSettingsLive();renderSorteio();"></div>
-            <div class="field" style="max-width:200px;"><label>Data do sorteio (opcional)</label><input id="cfg_dataSorteio" type="date" data-perm="admin" oninput="saveSettingsLive()"></div>
-          </div>
+          <div class="field" style="max-width:260px;"><label>Valor mínimo por peça para concorrer</label><input id="cfg_sorteioValorMinimo" type="text" inputmode="decimal" placeholder="R$ 0,00" data-perm="admin" oninput="maskMoneyInput(this);saveSettingsLive();renderSorteio();"></div>
+          <div class="field" style="max-width:260px;"><label>Data do sorteio</label><input id="cfg_dataSorteio" type="date" data-perm="admin" oninput="saveSettingsLive();renderSorteio();"></div>
+          <p class="dimSmall" style="margin-top:-6px;">Essa data aparece no popup de "parabéns" do site da etiqueta, assim que a pessoa é confirmada no sorteio. É só informativa — não bloqueia nada sozinha.</p>
         </div>
 
         <div class="panel" style="max-width:820px;">
@@ -2551,7 +2564,7 @@ html.is-mobile .btn::before{ display:none; }
 
         <div class="panel" style="max-width:820px;">
           <h3>Números confirmados</h3>
-          <p class="dimSmall" style="margin-top:-6px;">Números que já foram efetivamente reivindicados por um cliente no site da etiqueta (ex: <code>8927292722-1</code>). Só entram nesta lista (e no sorteio abaixo) os códigos já escaneados — dá pra acompanhar quantas peças já vieram.</p>
+          <p class="dimSmall" style="margin-top:-6px;">Números que já foram efetivamente reivindicados por um cliente no site da etiqueta (ex: <code>8927292722-1</code>). A escolha do ganhador é feita por você, manualmente — esta lista é só para consulta.</p>
           <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0 14px;">
             <input id="sorteioFilter" placeholder="Filtrar por número, código ou produto..." style="flex:1;min-width:220px;" oninput="renderSorteio()">
             <button class="btn secondary small" onclick="renderSorteio()">🔄 Atualizar</button>
@@ -2562,54 +2575,6 @@ html.is-mobile .btn::before{ display:none; }
             <tbody></tbody>
           </table>
           <p class="dimSmall" id="sorteioEmptyMsg" style="display:none;margin-top:10px;">Nenhum número de sorteio registrado ainda.</p>
-        </div>
-
-        <div class="panel" style="max-width:820px;">
-          <h3>🏆 Escolher o vencedor</h3>
-          <p class="dimSmall" style="margin-top:-6px;">Escolha como o vencedor vai ser definido, sempre entre os números já escaneados/confirmados no site da etiqueta (lista acima).</p>
-          <div style="display:flex;gap:16px;flex-wrap:wrap;margin:10px 0 14px;">
-            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-              <input type="radio" name="sorteioModoVencedor" id="sorteioModoVencedorAuto" value="automatico" data-perm="admin" onchange="mudarModoVencedor(this.value)">
-              🎲 Sortear aleatoriamente
-            </label>
-            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-              <input type="radio" name="sorteioModoVencedor" id="sorteioModoVencedorManual" value="manual" data-perm="admin" onchange="mudarModoVencedor(this.value)">
-              ✋ Escolher manualmente
-            </label>
-          </div>
-
-          <div id="sorteioModoAutomaticoBox" style="display:none;">
-            <button class="btn small" data-perm="admin" onclick="sortearVencedorAleatorio()">🎲 Sortear vencedor agora</button>
-          </div>
-
-          <div id="sorteioModoManualBox" style="display:none;">
-            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
-              <div class="field" style="flex:1;min-width:240px;">
-                <label>Número confirmado</label>
-                <select id="sorteioVencedorSelect" data-perm="admin"><option value="">Selecione...</option></select>
-              </div>
-              <button class="btn small" data-perm="admin" onclick="definirVencedorManual()">✅ Definir como vencedor</button>
-            </div>
-          </div>
-
-          <div id="sorteioVencedorAtual" style="margin-top:16px;"></div>
-        </div>
-
-        <div class="panel" style="max-width:820px;">
-          <h3>📣 Notificar clientes (site da etiqueta)</h3>
-          <p class="dimSmall" style="margin-top:-6px;">Manda uma notificação pro celular de quem estiver com o site da etiqueta aberto e tiver ativado as notificações (ex: avisar o resultado do sorteio, uma promoção, etc.). Chega em até ~20 segundos.</p>
-          <div class="field"><label>Título</label><input id="notifEtiquetaTitulo" type="text" maxlength="80" placeholder="Ex: Sorteio realizado! 🎉" data-perm="admin"></div>
-          <div class="field"><label>Mensagem</label><textarea id="notifEtiquetaMensagem" maxlength="300" rows="3" placeholder="Ex: O número vencedor já saiu! Confira se foi você." data-perm="admin"></textarea></div>
-          <button class="btn small" data-perm="admin" onclick="enviarNotificacaoEtiqueta()">🚀 Enviar notificação</button>
-          <p class="dimSmall" id="notifEtiquetaStatus" style="margin-top:8px;"></p>
-
-          <h3 style="margin-top:20px;">Histórico enviado</h3>
-          <button class="btn secondary small" onclick="carregarHistoricoNotificacoesEtiqueta()">🔄 Atualizar histórico</button>
-          <table id="notifEtiquetaHistoricoTable" style="margin-top:10px;">
-            <thead><tr><th>Título</th><th>Mensagem</th><th>Enviado em</th></tr></thead>
-            <tbody></tbody>
-          </table>
-          <p class="dimSmall" id="notifEtiquetaHistoricoEmptyMsg" style="display:none;margin-top:10px;">Nenhuma notificação enviada ainda.</p>
         </div>
       </div>
 
@@ -2678,7 +2643,7 @@ let DB = {
   trashProducts: [],   // lixeira: cópias completas de produtos excluídos {id, product, deletedAt} — recuperáveis por 6h, ver limparLixeiraExpirada()
   deleted: {},         // "lápides" de exclusão: deleted[campo][id] = timestamp — ver garantirEstruturaDeletados()
   sorteio: [],          // números de sorteio confirmados pelo site (separado) da etiqueta premiada {id, barcode, numeroCompleto, produtoNome, deviceId, dataScan}
-  settings: { nomeLoja:'Shalom Variedades', contato:'', logo:'', impressora:'', papel:'80mm', etiquetaQr:'', etiquetaMostrarQr:true, sorteioValorMinimo:0,dataSorteio:'', sorteioModoVencedor:'manual', sorteioVencedorNumero:'', sorteioVencedorBarcode:'', sorteioVencedorProduto:'', sorteioVencedorEscolhidoEm:'' }
+  settings: { nomeLoja:'Shalom Variedades', contato:'', logo:'', impressora:'', papel:'80mm', etiquetaQr:'', etiquetaMostrarQr:true, sorteioValorMinimo:0, dataSorteio:'' }
 };
 
 let currentUser = null;
@@ -2728,7 +2693,7 @@ function existeAlteracaoPendenteSalva(){
    PREENCHA o valor abaixo antes de publicar (URL do Web App, veja o
    guia COMO-CONFIGURAR-DRIVE.md):
 ====================================================================== */
-const APPSCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyOFgAnrKrNqKDEA43If31qPvn5IhMCXWKOHG3PNG-1wQTRa53qa-e552bcMTr7c1lk/exec'; // ex: 'https://script.google.com/macros/s/AKfycb.../exec'
+const APPSCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxozzj37mCBSFePUhwZU9cu-gT8TtQ7cCOJ6TJ49ES9K-FmUAigZBBdndQIruZkFl2k/exec'; // ex: 'https://script.google.com/macros/s/AKfycb.../exec'
 
 let ghToken = null;      // chave de acesso (mesmo nome interno de antes, só que agora não é token do GitHub)
 let deviceAccessToken = null; // autorização alternativa, vinculada a este dispositivo
@@ -3020,7 +2985,7 @@ function ativarModoTeste(){
     categories: categoriasTeste,
     productNames: nomesTeste,
     sorteio: [],
-    settings: { nomeLoja:'Shalom Variedades (MODO TESTE)', contato:'', logo:'', impressora:'', papel:'80mm', etiquetaQr:'', etiquetaMostrarQr:true, sorteioValorMinimo:0,dataSorteio:'', sorteioModoVencedor:'manual', sorteioVencedorNumero:'', sorteioVencedorBarcode:'', sorteioVencedorProduto:'', sorteioVencedorEscolhidoEm:'' }
+    settings: { nomeLoja:'Shalom Variedades (MODO TESTE)', contato:'', logo:'', impressora:'', papel:'80mm', etiquetaQr:'', etiquetaMostrarQr:true, sorteioValorMinimo:0, dataSorteio:'' }
   };
 }
 
@@ -3962,11 +3927,6 @@ function ensureCatalogDefaults(){
   if(!DB.settings.etiquetaTamanho) DB.settings.etiquetaTamanho = 'medio';
   if(!DB.settings.etiquetaCor) DB.settings.etiquetaCor = '#000000';
   if(typeof DB.settings.etiquetaModoCustom==='undefined') DB.settings.etiquetaModoCustom = false;
-  if(DB.settings.sorteioModoVencedor!=='automatico' && DB.settings.sorteioModoVencedor!=='manual') DB.settings.sorteioModoVencedor = 'manual';
-  if(typeof DB.settings.sorteioVencedorNumero==='undefined') DB.settings.sorteioVencedorNumero = '';
-  if(typeof DB.settings.sorteioVencedorBarcode==='undefined') DB.settings.sorteioVencedorBarcode = '';
-  if(typeof DB.settings.sorteioVencedorProduto==='undefined') DB.settings.sorteioVencedorProduto = '';
-  if(typeof DB.settings.sorteioVencedorEscolhidoEm==='undefined') DB.settings.sorteioVencedorEscolhidoEm = '';
   if(!Array.isArray(DB.settings.etiquetaLayout)) DB.settings.etiquetaLayout = [];
   if(!DB.settings.etiquetaOrientacao) DB.settings.etiquetaOrientacao = 'horizontal'; // 'horizontal' (50x30mm) ou 'vertical' (30x50mm) — só vale pro editor personalizado
   if(!Array.isArray(DB.settings.etiquetaModelos)) DB.settings.etiquetaModelos = [];
@@ -4506,12 +4466,12 @@ function showView(name){
   if(name==='clientes') renderClientesLista();
   if(name==='caixa') renderCaixa();
   if(name==='relatorios') renderRelatorios();
-  if(name==='funcionarios') renderEmployees();
+  if(name==='funcionarios') setFuncTab('lista');
   if(name==='livrovendas') renderLivroVendas();
   if(name==='rendimento') renderRendimento();
   if(name==='config') renderConfig();
   if(name==='testador') avaliarConexao();
-  if(name==='sorteio'){ renderSorteio(); carregarHistoricoNotificacoesEtiqueta(); }
+  if(name==='sorteio') renderSorteio();
 }
 
 /* =========================================================
@@ -8533,7 +8493,7 @@ function saveEmployee(){
   log('Funcionário cadastrado: '+nome);
   ['f_nome','f_usuario','f_senha','f_comissao'].forEach(id=>document.getElementById(id).value='');
   useFotoPadraoNovoFuncionario();
-  renderEmployees();
+  setFuncTab('lista');
 }
 function renderEmployees(){
   const perm = getPerms();
@@ -8648,12 +8608,14 @@ function saveEditedEmployee(id){
 /* =========================================================
    MONITORAMENTO DE FUNCIONÁRIOS (dentro de Funcionários)
 ========================================================= */
-let funcTab = 'cadastro';
+let funcTab = 'lista';
 function setFuncTab(tab){
-  funcTab = tab || 'monitoramento';
-  document.getElementById('funcTab-cadastro').style.display = (tab==='cadastro') ? '' : 'none';
-  document.getElementById('funcTab-monitoramento').style.display = (tab==='monitoramento') ? '' : 'none';
-  document.querySelectorAll('#view-funcionarios .tabBtn').forEach((b,i)=> b.classList.toggle('active', (i===0 && funcTab==='monitoramento')));
+  funcTab = tab || 'lista';
+  document.getElementById('funcTab-lista').style.display = (funcTab==='lista') ? '' : 'none';
+  document.getElementById('funcTab-cadastro').style.display = (funcTab==='cadastro') ? '' : 'none';
+  document.getElementById('funcTab-monitoramento').style.display = (funcTab==='monitoramento') ? '' : 'none';
+  document.querySelectorAll('#view-funcionarios .tabBtn').forEach(b=> b.classList.toggle('active', b.dataset.tab===funcTab));
+  if(funcTab==='lista') renderEmployees();
   if(funcTab==='monitoramento'){ populateMonEmpSelect(); renderMonitoramento(); }
 }
 function populateMonEmpSelect(){
@@ -8983,16 +8945,16 @@ function renderSorteio(){
   if(!tbody) return;
   const esc = v => String(v||'-').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
-  // campo de valor mínimo e data do sorteio (vivem só aqui na aba Sorteio)
+  // campo de valor mínimo (vive só aqui na aba Sorteio)
   const minInput = document.getElementById('cfg_sorteioValorMinimo');
   if(minInput && document.activeElement !== minInput){
     minInput.value = fmtMoneyInput(DB.settings.sorteioValorMinimo || 0);
   }
-  const dataInput = document.getElementById('cfg_dataSorteio');
-  if(dataInput && document.activeElement !== dataInput){
-    dataInput.value = DB.settings.dataSorteio || '';
-  }
   const minimo = Number(DB.settings.sorteioValorMinimo) || 0;
+  const dataSorteioInput = document.getElementById('cfg_dataSorteio');
+  if(dataSorteioInput && document.activeElement !== dataSorteioInput){
+    dataSorteioInput.value = DB.settings.dataSorteio || '';
+  }
 
   // ---- Tabela 1: todos os códigos elegíveis (vendidos dentro do valor mínimo) ----
   const porBarcode = {}; // barcode -> { produtoNome, elegiveis }
@@ -9056,149 +9018,6 @@ function renderSorteio(){
       <td class="dimSmall">${esc((r.deviceId||'').slice(0,10))}${r.deviceId && r.deviceId.length>10 ? '…' : ''}</td>
     </tr>
   `).join('');
-
-  renderEscolhaVencedor(esc);
-}
-
-/* ---------------------------------------------------------
-   Escolha do vencedor: sempre a partir dos números JÁ
-   CONFIRMADOS (DB.sorteio) — nunca dos elegíveis não escaneados,
-   pra sempre existir uma peça de fato reivindicada por trás do
-   número sorteado/escolhido.
---------------------------------------------------------- */
-function renderEscolhaVencedor(esc){
-  const modo = (DB.settings.sorteioModoVencedor === 'automatico') ? 'automatico' : 'manual';
-  const radioAuto = document.getElementById('sorteioModoVencedorAuto');
-  const radioManual = document.getElementById('sorteioModoVencedorManual');
-  if(radioAuto) radioAuto.checked = (modo === 'automatico');
-  if(radioManual) radioManual.checked = (modo === 'manual');
-  const boxAuto = document.getElementById('sorteioModoAutomaticoBox');
-  const boxManual = document.getElementById('sorteioModoManualBox');
-  if(boxAuto) boxAuto.style.display = (modo === 'automatico') ? '' : 'none';
-  if(boxManual) boxManual.style.display = (modo === 'manual') ? '' : 'none';
-
-  const confirmados = (DB.sorteio||[]).slice().sort((a,b)=> new Date(b.dataScan) - new Date(a.dataScan));
-  const select = document.getElementById('sorteioVencedorSelect');
-  if(select && document.activeElement !== select){
-    const atual = select.value;
-    select.innerHTML = '<option value="">Selecione...</option>' + confirmados.map(r =>
-      `<option value="${esc(r.numeroCompleto)}">${esc(r.numeroCompleto)} — ${esc(r.produtoNome)}</option>`
-    ).join('');
-    if(confirmados.some(r=>r.numeroCompleto===atual)) select.value = atual;
-  }
-
-  const box = document.getElementById('sorteioVencedorAtual');
-  if(!box) return;
-  const numero = DB.settings.sorteioVencedorNumero;
-  if(!numero){
-    box.innerHTML = `<p class="dimSmall">Nenhum vencedor definido ainda.</p>`;
-    return;
-  }
-  const quando = DB.settings.sorteioVencedorEscolhidoEm ? new Date(DB.settings.sorteioVencedorEscolhidoEm).toLocaleString('pt-BR') : '-';
-  box.innerHTML = `
-    <div class="panel" style="background:var(--panel2);">
-      <div class="dimSmall">Vencedor atual (${modo==='automatico' ? 'sorteado' : 'escolhido manualmente'} em ${quando})</div>
-      <h3 style="margin:4px 0;">🏆 ${esc(numero)}</h3>
-      <div class="dimSmall">${esc(DB.settings.sorteioVencedorProduto)} — código ${esc(DB.settings.sorteioVencedorBarcode)}</div>
-      <button class="btn secondary small" style="margin-top:10px;" data-perm="admin" onclick="limparVencedor()">🗑️ Limpar vencedor</button>
-    </div>
-  `;
-}
-
-function mudarModoVencedor(modo){
-  DB.settings.sorteioModoVencedor = (modo === 'automatico') ? 'automatico' : 'manual';
-  flashSaving();
-  renderSorteio();
-}
-
-function definirVencedor_(registro){
-  DB.settings.sorteioVencedorNumero = registro.numeroCompleto;
-  DB.settings.sorteioVencedorBarcode = registro.barcode;
-  DB.settings.sorteioVencedorProduto = registro.produtoNome;
-  DB.settings.sorteioVencedorEscolhidoEm = new Date().toISOString();
-  flashSaving();
-  renderSorteio();
-}
-
-function sortearVencedorAleatorio(){
-  const pool = (DB.sorteio||[]);
-  if(!pool.length){ alert('Ainda não há nenhum número confirmado pelo site da etiqueta para sortear.'); return; }
-  if(!confirm('Sortear agora um vencedor entre os ' + pool.length + ' número(s) já confirmado(s)? O vencedor atual (se houver) será substituído.')) return;
-  const escolhido = pool[Math.floor(Math.random() * pool.length)];
-  definirVencedor_(escolhido);
-}
-
-function definirVencedorManual(){
-  const select = document.getElementById('sorteioVencedorSelect');
-  const numero = select ? select.value : '';
-  if(!numero){ alert('Selecione um número da lista de confirmados.'); return; }
-  const registro = (DB.sorteio||[]).find(r => r.numeroCompleto === numero);
-  if(!registro){ alert('Número não encontrado na lista de confirmados.'); return; }
-  definirVencedor_(registro);
-}
-
-function limparVencedor(){
-  if(!confirm('Remover o vencedor atual? Você poderá sortear ou escolher outro depois.')) return;
-  DB.settings.sorteioVencedorNumero = '';
-  DB.settings.sorteioVencedorBarcode = '';
-  DB.settings.sorteioVencedorProduto = '';
-  DB.settings.sorteioVencedorEscolhidoEm = '';
-  flashSaving();
-  renderSorteio();
-}
-
-/* ---------------------------------------------------------
-   Notificações para o site da etiqueta premiada. Não fica em
-   DB (não é dado da loja em si) — vai direto pro servidor via
-   POST autenticado, e o próprio site da etiqueta consulta em
-   até ~20s (ver Code.gs > notificarEtiqueta_ / minhasNotificacoesEtiqueta_).
---------------------------------------------------------- */
-async function enviarNotificacaoEtiqueta(){
-  const tituloEl = document.getElementById('notifEtiquetaTitulo');
-  const mensagemEl = document.getElementById('notifEtiquetaMensagem');
-  const statusEl = document.getElementById('notifEtiquetaStatus');
-  const titulo = (tituloEl.value||'').trim();
-  const mensagem = (mensagemEl.value||'').trim();
-  if(!titulo || !mensagem){
-    if(statusEl){ statusEl.textContent = 'Preencha título e mensagem antes de enviar.'; statusEl.style.color = 'var(--red)'; }
-    return;
-  }
-  if(statusEl){ statusEl.textContent = 'Enviando...'; statusEl.style.color = 'var(--text-dim)'; }
-  try{
-    const res = await cloudPost(Object.assign({tipo:'enviarNotificacaoEtiqueta', titulo, mensagem}, cloudCredentials()));
-    const json = await res.json();
-    if(!res.ok || !json.ok){
-      if(statusEl){ statusEl.textContent = (json&&json.error) || 'Não foi possível enviar a notificação.'; statusEl.style.color = 'var(--red)'; }
-      return;
-    }
-    if(statusEl){ statusEl.textContent = 'Notificação enviada! Deve chegar em até ~20 segundos pra quem estiver com o site aberto.'; statusEl.style.color = 'var(--green)'; }
-    tituloEl.value = '';
-    mensagemEl.value = '';
-    carregarHistoricoNotificacoesEtiqueta();
-  }catch(e){
-    if(statusEl){ statusEl.textContent = 'Sem conexão para enviar a notificação agora.'; statusEl.style.color = 'var(--red)'; }
-  }
-}
-
-async function carregarHistoricoNotificacoesEtiqueta(){
-  const tbody = document.querySelector('#notifEtiquetaHistoricoTable tbody');
-  const emptyMsg = document.getElementById('notifEtiquetaHistoricoEmptyMsg');
-  if(!tbody) return;
-  const esc = v => String(v||'-').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  try{
-    const res = await cloudPost(Object.assign({tipo:'listarNotificacoesEtiqueta'}, cloudCredentials()));
-    const json = await res.json();
-    if(!res.ok || !json.ok || !Array.isArray(json.notificacoes)){ return; }
-    const lista = json.notificacoes;
-    emptyMsg.style.display = lista.length ? 'none' : '';
-    tbody.innerHTML = lista.map(n => `
-      <tr>
-        <td><b>${esc(n.titulo)}</b></td>
-        <td>${esc(n.mensagem)}</td>
-        <td>${n.criadoEm ? new Date(n.criadoEm).toLocaleString('pt-BR') : '-'}</td>
-      </tr>
-    `).join('');
-  }catch(e){ /* silencioso — só é um histórico auxiliar */ }
 }
 function renderConfig(){
   renderIntervaloSincronizacaoBotoes();
@@ -9433,10 +9252,6 @@ function saveSettingsLive(){
   DB.settings.contato = document.getElementById('cfg_contato').value;
   DB.settings.impressora = document.getElementById('cfg_impressora').value;
   DB.settings.papel = document.getElementById('cfg_papel').value;
-  const cfgSorteioMin = document.getElementById('cfg_sorteioValorMinimo');
-  if(cfgSorteioMin) DB.settings.sorteioValorMinimo = moneyVal('cfg_sorteioValorMinimo');
-  const cfgDataSorteio = document.getElementById('cfg_dataSorteio');
-  if(cfgDataSorteio) DB.settings.dataSorteio = cfgDataSorteio.value;
   DB.settings.etiquetaQr = document.getElementById('cfg_etiquetaQr').value;
   DB.settings.etiquetaMostrarQr = document.getElementById('cfg_etiquetaMostrarQr').checked;
   DB.settings.etiquetaMostrarBarras = document.getElementById('cfg_etiquetaMostrarBarras').checked;
@@ -9445,6 +9260,10 @@ function saveSettingsLive(){
   DB.settings.etiquetaTamanho = document.getElementById('cfg_etiquetaTamanho').value;
   DB.settings.etiquetaCor = document.getElementById('cfg_etiquetaCor').value;
   DB.settings.etiquetaModoCustom = document.getElementById('cfg_etiquetaModoCustom').checked;
+  const minInputSave = document.getElementById('cfg_sorteioValorMinimo');
+  if(minInputSave) DB.settings.sorteioValorMinimo = parseMoneyStr(minInputSave.value);
+  const dataSorteioInput = document.getElementById('cfg_dataSorteio');
+  if(dataSorteioInput) DB.settings.dataSorteio = dataSorteioInput.value;
   const notifCheckbox = document.getElementById('cfg_enableDeviceAcceptNotif');
   if(notifCheckbox){
     setDeviceAcceptNotifEnabled(notifCheckbox.checked);
