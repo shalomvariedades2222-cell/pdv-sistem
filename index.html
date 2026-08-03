@@ -2550,10 +2550,11 @@ html.is-mobile .btn::before{ display:none; }
           <h3>Todos os códigos elegíveis</h3>
           <p class="dimSmall" style="margin-top:-6px;">Todas as peças já vendidas dentro do valor mínimo — inclusive as que ainda não foram escaneadas por nenhum cliente no site da etiqueta.</p>
           <table id="sorteioElegiveisTable">
-            <thead><tr><th>Produto</th><th>Código de barras</th><th>Peças elegíveis (vendidas)</th><th>Já escaneadas</th><th>Faltam ser escaneadas</th></tr></thead>
+            <thead><tr><th>Produto</th><th>Código de barras</th><th>Peças elegíveis (vendidas)</th><th>Já escaneadas</th><th>Faltam ser escaneadas</th><th></th></tr></thead>
             <tbody></tbody>
           </table>
           <p class="dimSmall" id="sorteioElegiveisEmptyMsg" style="display:none;margin-top:10px;">Nenhuma venda dentro do valor mínimo configurado ainda.</p>
+          <div id="sorteioElegiveisExcluidosBox" style="display:none;margin-top:12px;"></div>
         </div>
 
         <div class="panel" style="max-width:820px;">
@@ -2793,8 +2794,7 @@ function existeAlteracaoPendenteSalva(){
    PREENCHA o valor abaixo antes de publicar (URL do Web App, veja o
    guia COMO-CONFIGURAR-DRIVE.md):
 ====================================================================== */
-const APPSCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwmlVCeg2O_KjyFd8Ju-zHpGKJbIVgs7NwtmoA8MZkDw-D9ty-TgkDwbLUcWefGJVMS/exec'; // ex: 'https://script.google.com/macros/s/AKfycb.../exec'
-const APPSCRIPT_URL_FALLBACK = 'https://script.google.com/macros/s/AKfycbwmlVCeg2O_KjyFd8Ju-zHpGKJbIVgs7NwtmoA8MZkDw-D9ty-TgkDwbLUcWefGJVMS/exec';
+const APPSCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyOFgAnrKrNqKDEA43If31qPvn5IhMCXWKOHG3PNG-1wQTRa53qa-e552bcMTr7c1lk/exec'; // ex: 'https://script.google.com/macros/s/AKfycb.../exec'
 
 let ghToken = null;      // chave de acesso (mesmo nome interno de antes, só que agora não é token do GitHub)
 let deviceAccessToken = null; // autorização alternativa, vinculada a este dispositivo
@@ -2806,24 +2806,20 @@ const ACCESS_REQUEST_STORAGE = 'slmsys_access_request_v1';
 const ACCESS_DEVICE_TOKEN_STORAGE = 'slmsys_device_access_token_v1';
 const ACCESS_REQUEST_RECEIVE_STORAGE = 'slmsys_receive_access_requests_v1';
 const KEY_MAX_ATTEMPTS = 3, KEY_LOCK_MS = 5 * 60 * 1000;
-async function fetchComFallback(urls, options={}){
-  let lastError = null;
-  for (const url of urls) {
-    try {
-      const res = await fetch(url, options);
-      if (res && (res.ok || res.status < 500)) return res;
-      lastError = new Error('HTTP ' + res.status);
-    } catch (e) {
-      lastError = e;
-    }
+async function fetchComFallback(url, options={}, timeoutMs){
+  const controller = timeoutMs ? new AbortController() : null;
+  const timeoutId = controller ? setTimeout(()=>controller.abort(), timeoutMs) : null;
+  try {
+    return await fetch(url, controller ? Object.assign({}, options, {signal: controller.signal}) : options);
+  } finally {
+    if(timeoutId) clearTimeout(timeoutId);
   }
-  throw lastError || new Error('Failed to fetch');
 }
 async function cloudPost(payload, options={}){
-  return fetchComFallback([APPSCRIPT_URL, APPSCRIPT_URL_FALLBACK], Object.assign({method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)}, options));
+  return fetchComFallback(APPSCRIPT_URL, Object.assign({method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)}, options));
 }
-async function cloudGet(params){
-  return fetchComFallback([APPSCRIPT_URL + '?' + new URLSearchParams(params).toString(), APPSCRIPT_URL_FALLBACK + '?' + new URLSearchParams(params).toString()], {cache:'no-store'});
+async function cloudGet(params, timeoutMs){
+  return fetchComFallback(APPSCRIPT_URL + '?' + new URLSearchParams(params).toString(), {cache:'no-store'}, timeoutMs);
 }
 async function lerRespostaJson(res){
   const text = await res.text();
@@ -3133,15 +3129,11 @@ async function loadFromGitHub(){
   _ultimaFalhaFoiDeRede = false;
   try{
     const credParam = ghToken ? 'key='+encodeURIComponent(ghToken) : 'deviceToken='+encodeURIComponent(deviceAccessToken||'');
-    const url = APPSCRIPT_URL+'?'+credParam+'&_='+Date.now();
-    const controller = new AbortController();
-    const timeoutId = setTimeout(()=>controller.abort(), TIMEOUT_CONEXAO_MS);
-    let res;
-    try{
-      res = await fetch(url, {signal:controller.signal, cache:'no-store'});
-    } finally {
-      clearTimeout(timeoutId);
-    }
+    const res = await fetchComFallback(
+      APPSCRIPT_URL+'?'+credParam+'&_='+Date.now(),
+      {cache:'no-store'},
+      TIMEOUT_CONEXAO_MS
+    );
     if(!res.ok){ msg.textContent = 'Erro ao conectar (' + res.status + ').'; return false; }
     const json = await res.json();
     if(json.ok === false){
@@ -3390,8 +3382,11 @@ let _fotosEmEnvio = {};
 async function carregarFotosDoServidor(){
   if(!hasCloudCredential()) return;
   try{
-    const url=APPSCRIPT_URL+'?'+(ghToken?'key='+encodeURIComponent(ghToken):'deviceToken='+encodeURIComponent(deviceAccessToken))+'&fotos=1&_='+Date.now();
-    const res = await fetch(url, {cache:'no-store'});
+    const credParam = (ghToken?'key='+encodeURIComponent(ghToken):'deviceToken='+encodeURIComponent(deviceAccessToken))+'&fotos=1&_='+Date.now();
+    const res = await fetchComFallback(
+      APPSCRIPT_URL+'?'+credParam,
+      {cache:'no-store'}
+    );
     if(res.ok){
       const json = await res.json();
       if(json.ok){
@@ -3429,11 +3424,7 @@ async function salvarFotosNoServidor(){
   _fotosPendentes = {};
   Object.assign(_fotosEmEnvio, paraEnviar); // marca como "em envio" ANTES do fetch, pra proteger contra sincronizações concorrentes
   try{
-    const res = await fetch(APPSCRIPT_URL, {
-      method:'POST',
-      headers: {'Content-Type':'text/plain;charset=utf-8'},
-      body: JSON.stringify(Object.assign({ tipo:'fotos', fotos:paraEnviar }, cloudCredentials()))
-    });
+    const res = await cloudPost(Object.assign({ tipo:'fotos', fotos:paraEnviar }, cloudCredentials()));
     const json = res.ok ? await res.json() : { ok:false };
     if(!json.ok){
       // devolve pra fila e tenta de novo depois (sem perder o que já estava pendente)
@@ -3490,11 +3481,7 @@ async function saveToGitHubNow(){
   if(!hasCloudCredential()){ setSaveStatus('Salvo neste aparelho', fmtAgora()); return false; }
   _salvandoAgora = true;
   try{
-    const res = await fetch(APPSCRIPT_URL, {
-      method:'POST',
-      headers: {'Content-Type':'text/plain;charset=utf-8'}, // evita preflight CORS no Apps Script
-      body: JSON.stringify(Object.assign({version:driveVersion,data:prepararDadosSemFotos_(DB)},cloudCredentials()))
-    });
+    const res = await cloudPost(Object.assign({version:driveVersion,data:prepararDadosSemFotos_(DB)},cloudCredentials()));
     if(!res.ok){
       console.error('Falha ao salvar no Drive:', res.status);
       setSaveStatus('Falha ao salvar no servidor', fmtAgora());
@@ -3764,8 +3751,11 @@ async function checkRemoteVersion(){
   if(modalAberto) return;
   _syncPolling = true;
   try{
-    const url=APPSCRIPT_URL+'?'+(ghToken?'key='+encodeURIComponent(ghToken):'deviceToken='+encodeURIComponent(deviceAccessToken))+'&onlyVersion=1&_='+Date.now();
-    const res = await fetch(url, {cache:'no-store'});
+    const credParam = ghToken?'key='+encodeURIComponent(ghToken):'deviceToken='+encodeURIComponent(deviceAccessToken);
+    const res = await fetchComFallback(
+      APPSCRIPT_URL+'?'+credParam+'&onlyVersion=1&_='+Date.now(),
+      {cache:'no-store'}
+    );
     if(res.ok){
       const json = await res.json();
       // só chega aqui quando o servidor tem uma versão diferente da nossa — ou seja,
@@ -3871,8 +3861,11 @@ async function checkAccessRequests(){
   if(!getPerms().isTotal || !hasCloudCredential() || !recebePedidosNesteDispositivo() || _accessRequestsPolling) return;
   _accessRequestsPolling=true;
   try{
-    const url=APPSCRIPT_URL+'?'+(ghToken?'key='+encodeURIComponent(ghToken):'deviceToken='+encodeURIComponent(deviceAccessToken))+'&onlyAccessRequests=1&_='+Date.now();
-    const res=await fetch(url,{cache:'no-store'});
+    const credParam = ghToken?'key='+encodeURIComponent(ghToken):'deviceToken='+encodeURIComponent(deviceAccessToken);
+    const res = await fetchComFallback(
+      APPSCRIPT_URL+'?'+credParam+'&onlyAccessRequests=1&_='+Date.now(),
+      {cache:'no-store'}
+    );
     if(!res.ok) return;
     const json=await res.json();
     if(!json.ok || !Array.isArray(json.accessRequests)) return;
@@ -9285,9 +9278,11 @@ function renderSorteio(){
   const escaneadosPorBarcode = {};
   (DB.sorteio||[]).forEach(r=>{ escaneadosPorBarcode[r.barcode] = (escaneadosPorBarcode[r.barcode]||0) + 1; });
 
+  const excluidos = (DB.settings.sorteioBarcodesExcluidos || []);
   const elegTbody = document.querySelector('#sorteioElegiveisTable tbody');
   const elegEmpty = document.getElementById('sorteioElegiveisEmptyMsg');
-  const linhas = Object.keys(porBarcode).map(barcode=>{
+  const excluidosBox = document.getElementById('sorteioElegiveisExcluidosBox');
+  const linhas = Object.keys(porBarcode).filter(barcode=> !excluidos.includes(barcode)).map(barcode=>{
     const info = porBarcode[barcode];
     const escaneadas = escaneadosPorBarcode[barcode] || 0;
     const faltam = Math.max(0, info.elegiveis - escaneadas);
@@ -9302,8 +9297,34 @@ function renderSorteio(){
         <td>${l.elegiveis}</td>
         <td>${l.escaneadas}</td>
         <td><b>${l.faltam}</b></td>
+        <td><button class="btn danger small" data-perm="admin" onclick="excluirCodigoElegivelSorteio('${esc(l.barcode)}','${esc(l.produtoNome)}')" title="Excluir este código elegível da lista">🗑️ Excluir</button></td>
       </tr>
     `).join('');
+  }
+  if(excluidosBox){
+    if(excluidos.length){
+      excluidosBox.style.display = '';
+      excluidosBox.innerHTML = `
+        <details>
+          <summary class="dimSmall" style="cursor:pointer;">${excluidos.length} código(s) excluído(s) da lista de elegíveis (clique para ver / restaurar)</summary>
+          <p class="dimSmall" style="margin:8px 0 0;">Restaurar volta a permitir escaneamentos <b>novos</b> desse código. Números que já haviam sido confirmados antes da exclusão foram apagados e não voltam.</p>
+          <table style="margin-top:8px;">
+            <thead><tr><th>Código de barras</th><th></th></tr></thead>
+            <tbody>
+              ${excluidos.map(bc => `
+                <tr>
+                  <td>${esc(bc)}</td>
+                  <td><button class="btn secondary small" data-perm="admin" onclick="restaurarCodigoElegivelSorteio('${esc(bc)}')">↩️ Restaurar</button></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </details>
+      `;
+    }else{
+      excluidosBox.style.display = 'none';
+      excluidosBox.innerHTML = '';
+    }
   }
 
   // ---- Tabela 2: números já confirmados pelo site da etiqueta ----
@@ -9329,6 +9350,48 @@ function renderSorteio(){
   `).join('');
 
   renderEscolhaVencedor(esc);
+}
+
+/* ---------------------------------------------------------
+   Excluir/restaurar um código de barras da lista de "códigos
+   elegíveis" do sorteio. Não apaga a venda nem o produto — só
+   tira aquele código de barras específico dessa lista (ex: peça
+   vendida por engano dentro do valor mínimo, ou código de teste).
+--------------------------------------------------------- */
+function excluirCodigoElegivelSorteio(barcode, produtoNome){
+  const confirmadosDoCodigo = (DB.sorteio||[]).filter(r => r.barcode === barcode);
+  const qtdConfirmados = confirmadosDoCodigo.length;
+  const avisoConfirmados = qtdConfirmados
+    ? `<br><br>⚠️ Esse código já tem <b>${qtdConfirmados} número(s) confirmado(s)</b> por cliente(s) no site da etiqueta — eles também serão apagados junto e isso <b>não pode ser desfeito</b>.`
+    : '';
+  confirmModal(
+    `Excluir o código <b>${barcode}</b>${produtoNome ? ' ('+produtoNome+')' : ''} da lista de códigos elegíveis do sorteio? A venda continua registrada normalmente, só o código sai desta lista e dos escaneamentos.${avisoConfirmados}`,
+    ()=>{
+      if(!DB.settings.sorteioBarcodesExcluidos) DB.settings.sorteioBarcodesExcluidos = [];
+      if(!DB.settings.sorteioBarcodesExcluidos.includes(barcode)){
+        DB.settings.sorteioBarcodesExcluidos.push(barcode);
+      }
+      // remove também os números já confirmados (escaneados) desse código de barras
+      const eraVencedor = DB.settings.sorteioVencedorBarcode === barcode;
+      DB.sorteio = (DB.sorteio||[]).filter(r => r.barcode !== barcode);
+      if(eraVencedor){
+        // o vencedor atual era um número desse código que acabou de ser removido
+        DB.settings.sorteioVencedorNumero = '';
+        DB.settings.sorteioVencedorBarcode = '';
+        DB.settings.sorteioVencedorProduto = '';
+        DB.settings.sorteioVencedorEscolhidoEm = '';
+      }
+      flashSaving();
+      renderSorteio();
+    },
+    { titulo: 'Excluir código elegível?', textoBtn: 'Excluir' }
+  );
+}
+
+function restaurarCodigoElegivelSorteio(barcode){
+  DB.settings.sorteioBarcodesExcluidos = (DB.settings.sorteioBarcodesExcluidos || []).filter(bc => bc !== barcode);
+  flashSaving();
+  renderSorteio();
 }
 
 /* ---------------------------------------------------------
@@ -9499,6 +9562,8 @@ async function enviarNotificacaoEtiqueta(){
     const erroDetalhado = (json && json.error) || (text && text.trim().slice(0, 220)) || 'Não foi possível enviar a notificação.';
     if(!res.ok || !json || !json.ok){
       if(statusEl){ statusEl.textContent = erroDetalhado; statusEl.style.color = 'var(--red)'; }
+      log('❌ Falha ao enviar notificação "'+titulo+'" pra todo mundo: '+erroDetalhado);
+      carregarHistoricoNotificacoesEtiqueta();
       return;
     }
     if(statusEl){
@@ -9513,11 +9578,14 @@ async function enviarNotificacaoEtiqueta(){
         statusEl.style.color = 'var(--green)';
       }
     }
+    log((json.aviso ? '⚠️ ' : '📣 ') + 'Notificação "'+titulo+'" enviada pra todo mundo' + (typeof json.enviados==='number' ? ' ('+json.enviados+' aparelho(s))' : '') + (json.aviso ? ' — '+json.aviso : ''));
+    carregarHistoricoNotificacoesEtiqueta();
     tituloEl.value = '';
     mensagemEl.value = '';
   }catch(e){
     const detalhe = e && e.message ? e.message : 'Sem conexão para enviar a notificação agora.';
     if(statusEl){ statusEl.textContent = detalhe; statusEl.style.color = 'var(--red)'; }
+    log('❌ Falha ao enviar notificação "'+titulo+'" pra todo mundo: '+detalhe);
   }
 }
 
@@ -9544,14 +9612,19 @@ async function enviarNotificacaoIndividual(){
     const erroDetalhado = (json && json.error) || (text && text.trim().slice(0, 220)) || 'Não foi possível enviar.';
     if(!res.ok || !json || !json.ok){
       if(statusEl){ statusEl.textContent = erroDetalhado; statusEl.style.color = 'var(--red)'; }
+      log('❌ Falha ao enviar notificação individual pra '+label+': '+erroDetalhado);
+      carregarHistoricoNotificacoesEtiqueta();
       return;
     }
     if(statusEl){ statusEl.textContent = json.aviso || 'Notificação enviada pra esse cliente!'; statusEl.style.color = json.aviso ? 'var(--yellow)' : 'var(--green)'; }
+    log((json.aviso ? '⚠️ ' : '🎯 ') + 'Notificação "'+titulo+'" enviada pra '+label + (json.aviso ? ' — '+json.aviso : ''));
+    carregarHistoricoNotificacoesEtiqueta();
     tituloEl.value = '';
     mensagemEl.value = '';
   }catch(e){
     const detalhe = e && e.message ? e.message : 'Sem conexão para enviar a notificação agora.';
     if(statusEl){ statusEl.textContent = detalhe; statusEl.style.color = 'var(--red)'; }
+    log('❌ Falha ao enviar notificação individual pra '+label+': '+detalhe);
   }
 }
 
