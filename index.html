@@ -2793,8 +2793,8 @@ function existeAlteracaoPendenteSalva(){
    PREENCHA o valor abaixo antes de publicar (URL do Web App, veja o
    guia COMO-CONFIGURAR-DRIVE.md):
 ====================================================================== */
-const APPSCRIPT_URL = 'https://script.google.com/macros/s/AKfycbybteIYK2S0LgG5Ek1zKpc0YehtGTsHBNIda5v7EVvI8W-BXzEMmHSWqEpMkWZpsMGW/exec'; // ex: 'https://script.google.com/macros/s/AKfycb.../exec'
-const APPSCRIPT_URL_FALLBACK = 'https://script.google.com/macros/s/AKfycbybteIYK2S0LgG5Ek1zKpc0YehtGTsHBNIda5v7EVvI8W-BXzEMmHSWqEpMkWZpsMGW/exec';
+const APPSCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyOFgAnrKrNqKDEA43If31qPvn5IhMCXWKOHG3PNG-1wQTRa53qa-e552bcMTr7c1lk/exec'; // ex: 'https://script.google.com/macros/s/AKfycb.../exec'
+const APPSCRIPT_URL_FALLBACK = 'https://script.google.com/macros/s/AKfycbzrYkrdqMSA60K-rp28eGaCEtTCayhDUZPYxvdPajVqddim4ZRpc1MDqwlZ2F117hdu/exec';
 
 let ghToken = null;      // chave de acesso (mesmo nome interno de antes, só que agora não é token do GitHub)
 let deviceAccessToken = null; // autorização alternativa, vinculada a este dispositivo
@@ -3817,6 +3817,49 @@ function reiniciarLoopSincronizacao(){
   passo();
 }
 reiniciarLoopSincronizacao();
+
+/* ------------------------------------------------------------
+   RETOMADA APÓS FICAR EM SEGUNDO PLANO (celular destravado, notebook/PC
+   saindo da suspensão, ou voltando pra essa aba depois de um tempo)
+   Enquanto o app fica em segundo plano ou o aparelho dorme, o sistema
+   operacional/navegador PAUSA os temporizadores (setTimeout/setInterval)
+   deste JavaScript — inclusive o loop de sincronização acima. Por isso,
+   ao voltar, o app podia ficar um tempo mostrando dados antigos (o caixa
+   "guardado" de antes) sem perceber que precisa se atualizar com o
+   servidor, e sem tentar reconectar sozinho.
+   Esta parte percebe quando a página volta a ficar visível (celular
+   destravado, notebook acordando, ou troca de aba) e força, na hora:
+   1) reiniciar o loop de sincronização (não espera o próximo ciclo, que
+      pode estar atrasado por causa da pausa);
+   2) se este aparelho tinha alguma alteração feita aqui sem confirmação
+      do servidor (ex: ficou um tempo sem internet, ou o servidor recusou
+      por algum motivo), passa pelo mesmo caminho já usado quando a
+      internet volta: primeiro BUSCA o que há de mais recente no servidor,
+      combina com o que foi feito aqui, e só DEPOIS reenvia — nunca salva
+      "às cegas" por cima do que pode ter mudado enquanto este aparelho
+      estava parado (evita um caixa antigo sobrescrever dados mais novos
+      de outro aparelho).
+------------------------------------------------------------ */
+let _resincronizandoAoVoltar = false;
+async function sincronizarAoVoltar(){
+  if(_resincronizandoAoVoltar) return;
+  if(!hasCloudCredential() || modoTeste) return;
+  if(!navigator.onLine) return;
+  _resincronizandoAoVoltar = true;
+  try{
+    reiniciarLoopSincronizacao(); // já checa a versão do servidor agora, sem esperar o timer antigo
+    if(existeAlteracaoPendenteSalva()){
+      await despejarAlteracoesPendentesAoReconectar(); // busca primeiro, combina, e só então envia
+    }
+  } finally {
+    _resincronizandoAoVoltar = false;
+  }
+}
+document.addEventListener('visibilitychange', function(){
+  if(document.visibilityState === 'visible') sincronizarAoVoltar();
+});
+window.addEventListener('focus', sincronizarAoVoltar);
+window.addEventListener('pageshow', function(){ sincronizarAoVoltar(); });
 
 /* ---------------- Pedidos de acesso: atualização independente ----------------
    O polling geral não atualiza o DB enquanto há um modal aberto, para não
