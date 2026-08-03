@@ -2801,6 +2801,12 @@ const ACCESS_REQUEST_RECEIVE_STORAGE = 'slmsys_receive_access_requests_v1';
 const KEY_MAX_ATTEMPTS = 3, KEY_LOCK_MS = 5 * 60 * 1000;
 function cloudPost(payload, options={}){ return fetch(APPSCRIPT_URL, Object.assign({method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)},options)); }
 function cloudGet(params){ return fetch(APPSCRIPT_URL+'?'+new URLSearchParams(params).toString(), {cache:'no-store'}); }
+async function lerRespostaJson(res){
+  const text = await res.text();
+  let json = null;
+  try { json = text ? JSON.parse(text) : null; } catch(e) {}
+  return { text, json };
+}
 function getKeyGuard(){ try{return JSON.parse(localStorage.getItem(KEY_GUARD_STORAGE)||'{}');}catch(e){return{};} }
 function setKeyGuard(v){ try{localStorage.setItem(KEY_GUARD_STORAGE,JSON.stringify(v));}catch(e){} }
 function getDeviceId(){ try{ let id=localStorage.getItem(DEVICE_ID_STORAGE); if(!id){ id=(crypto.randomUUID?crypto.randomUUID():uid('device'))+'-'+Date.now().toString(36); localStorage.setItem(DEVICE_ID_STORAGE,id); } return id; }catch(e){return uid('device');} }
@@ -9306,16 +9312,18 @@ async function enviarNotificacaoEtiqueta(){
   if(statusEl){ statusEl.textContent = 'Enviando...'; statusEl.style.color = 'var(--text-dim)'; }
   try{
     const res = await cloudPost(Object.assign({tipo:'enviarNotificacaoEtiqueta', titulo, mensagem}, cloudCredentials()));
-    const json = await res.json();
-    if(!res.ok || !json.ok){
-      if(statusEl){ statusEl.textContent = (json&&json.error) || 'Não foi possível enviar a notificação.'; statusEl.style.color = 'var(--red)'; }
+    const { json, text } = await lerRespostaJson(res);
+    const erroDetalhado = (json && json.error) || (text && text.trim().slice(0, 220)) || 'Não foi possível enviar a notificação.';
+    if(!res.ok || !json || !json.ok){
+      if(statusEl){ statusEl.textContent = erroDetalhado; statusEl.style.color = 'var(--red)'; }
       return;
     }
     if(statusEl){ statusEl.textContent = 'Notificação enviada pra todo mundo que ativou!'; statusEl.style.color = 'var(--green)'; }
     tituloEl.value = '';
     mensagemEl.value = '';
   }catch(e){
-    if(statusEl){ statusEl.textContent = 'Sem conexão para enviar a notificação agora.'; statusEl.style.color = 'var(--red)'; }
+    const detalhe = e && e.message ? e.message : 'Sem conexão para enviar a notificação agora.';
+    if(statusEl){ statusEl.textContent = detalhe; statusEl.style.color = 'var(--red)'; }
   }
 }
 
@@ -9334,16 +9342,18 @@ async function enviarNotificacaoIndividual(){
   if(statusEl){ statusEl.textContent = 'Enviando...'; statusEl.style.color = 'var(--text-dim)'; }
   try{
     const res = await cloudPost(Object.assign({tipo:'enviarNotificacaoParaDispositivo', destinatarioDeviceId: deviceId, destinatarioLabel: label, titulo, mensagem}, cloudCredentials()));
-    const json = await res.json();
-    if(!res.ok || !json.ok){
-      if(statusEl){ statusEl.textContent = (json&&json.error) || 'Não foi possível enviar.'; statusEl.style.color = 'var(--red)'; }
+    const { json, text } = await lerRespostaJson(res);
+    const erroDetalhado = (json && json.error) || (text && text.trim().slice(0, 220)) || 'Não foi possível enviar.';
+    if(!res.ok || !json || !json.ok){
+      if(statusEl){ statusEl.textContent = erroDetalhado; statusEl.style.color = 'var(--red)'; }
       return;
     }
     if(statusEl){ statusEl.textContent = json.aviso || 'Notificação enviada pra esse cliente!'; statusEl.style.color = json.aviso ? 'var(--yellow)' : 'var(--green)'; }
     tituloEl.value = '';
     mensagemEl.value = '';
   }catch(e){
-    if(statusEl){ statusEl.textContent = 'Sem conexão para enviar a notificação agora.'; statusEl.style.color = 'var(--red)'; }
+    const detalhe = e && e.message ? e.message : 'Sem conexão para enviar a notificação agora.';
+    if(statusEl){ statusEl.textContent = detalhe; statusEl.style.color = 'var(--red)'; }
   }
 }
 
@@ -9367,16 +9377,18 @@ async function agendarNotificacao(){
   if(statusEl){ statusEl.textContent = 'Agendando...'; statusEl.style.color = 'var(--text-dim)'; }
   try{
     const res = await cloudPost(Object.assign({tipo:'agendarNotificacaoEtiqueta', titulo, mensagem, enviarEm}, cloudCredentials()));
-    const json = await res.json();
-    if(!res.ok || !json.ok){
-      if(statusEl){ statusEl.textContent = (json&&json.error) || 'Não foi possível agendar.'; statusEl.style.color = 'var(--red)'; }
+    const { json, text } = await lerRespostaJson(res);
+    const erroDetalhado = (json && json.error) || (text && text.trim().slice(0, 220)) || 'Não foi possível agendar.';
+    if(!res.ok || !json || !json.ok){
+      if(statusEl){ statusEl.textContent = erroDetalhado; statusEl.style.color = 'var(--red)'; }
       return;
     }
     if(statusEl){ statusEl.textContent = 'Mensagem agendada!'; statusEl.style.color = 'var(--green)'; }
     tituloEl.value = ''; mensagemEl.value = ''; quandoEl.value = '';
     carregarAgendadas();
   }catch(e){
-    if(statusEl){ statusEl.textContent = 'Sem conexão para agendar agora.'; statusEl.style.color = 'var(--red)'; }
+    const detalhe = e && e.message ? e.message : 'Sem conexão para agendar agora.';
+    if(statusEl){ statusEl.textContent = detalhe; statusEl.style.color = 'var(--red)'; }
   }
 }
 async function carregarAgendadas(){
