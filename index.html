@@ -940,6 +940,16 @@ th{
 }
 td{padding:8px;border-bottom:1px solid #2a221c;}
 tr:hover td{background:#251c17;}
+/* ---------- Livro de Vendas: agrupa visualmente os itens de UMA MESMA
+   compra (carrinho com vários produtos) dentro de uma "caixa" alaranjada
+   fraca, e mostra o total daquela compra na última linha do grupo. ---------- */
+.livroGrupoVenda td{background:rgba(255,106,26,.07);}
+.livroGrupoVenda:hover td{background:rgba(255,106,26,.13);}
+.livroGrupoVenda td:first-child{border-left:3px solid var(--orange);}
+.livroGrupoVendaInicio td{border-top:1px solid rgba(255,106,26,.4);}
+.livroGrupoVendaFim td{border-bottom:1px solid rgba(255,106,26,.4);background:rgba(255,106,26,.13);}
+.livroGrupoVendaFim:hover td{background:rgba(255,106,26,.18);}
+.livroGrupoVendaFim td:first-child{border-left:3px solid var(--orange);}
 
 .btn{
   background:var(--orange);border:none;color:#1a1110;font-weight:700;font-size:12.5px;
