@@ -3268,9 +3268,11 @@ function marcarFotoAlterada(chave, valor){
 }
 
 let _fotosSaveTimer = null;
-function agendarSalvarFotos(){
+let _fotosBackoffMs = 150; // volta a esse valor a cada sucesso; dobra a cada falha seguida (até um teto), pra não martelar o servidor sem parar quando ele está fora do ar ou sem cota
+function agendarSalvarFotos(depoisDeFalha){
   clearTimeout(_fotosSaveTimer);
-  _fotosSaveTimer = setTimeout(salvarFotosNoServidor, 150);
+  if(!depoisDeFalha) _fotosBackoffMs = 150; // é uma alteração nova do usuário, não uma retentativa: volta ao ritmo normal
+  _fotosSaveTimer = setTimeout(salvarFotosNoServidor, _fotosBackoffMs);
 }
 
 async function salvarFotosNoServidor(){
@@ -3286,15 +3288,17 @@ async function salvarFotosNoServidor(){
     });
     const json = res.ok ? await res.json() : { ok:false };
     if(!json.ok){
-      // devolve pra fila e tenta de novo depois (sem perder o que já estava pendente)
+      // devolve pra fila e tenta de novo depois, com espera cada vez maior (sem perder o que já estava pendente)
       Object.assign(paraEnviar, _fotosPendentes);
       _fotosPendentes = paraEnviar;
-      agendarSalvarFotos();
+      _fotosBackoffMs = Math.min(_fotosBackoffMs * 2, 30000);
+      agendarSalvarFotos(true);
     }
   }catch(e){
     Object.assign(paraEnviar, _fotosPendentes);
     _fotosPendentes = paraEnviar;
-    agendarSalvarFotos();
+    _fotosBackoffMs = Math.min(_fotosBackoffMs * 2, 30000);
+    agendarSalvarFotos(true);
   }finally{
     // libera as chaves de "em envio" só depois do fetch terminar (sucesso ou falha)
     Object.keys(paraEnviar).forEach(chave=>{ delete _fotosEmEnvio[chave]; });
@@ -3575,15 +3579,22 @@ const SYNC_INTERVAL_OPCOES = [
   {ms:0,     label:'⚡ Instantâneo'}
 ];
 const SYNC_INTERVAL_PADRAO_MS = 2500;
+const SYNC_INTERVAL_STORAGE = 'slmsys_sync_interval_ms_v1';
+// Preferência de CADA APARELHO, não da loja: fica só no localStorage deste
+// dispositivo, nunca é enviada ao servidor. Antes ficava em DB.settings (salva
+// e sincronizada com todos os outros aparelhos, e cada troca disparava um
+// salvamento completo no servidor à toa) — mas a velocidade de checagem que faz
+// sentido pra um celular específico não tem por que valer pros outros aparelhos
+// da loja, então isso foi corrigido para não depender do servidor.
 function getIntervaloSincronizacaoMs(){
-  const n = Number(DB.settings && DB.settings.syncIntervalMs);
+  let n = NaN;
+  try{ n = Number(localStorage.getItem(SYNC_INTERVAL_STORAGE)); }catch(e){}
   return Number.isFinite(n) && n>=0 ? n : SYNC_INTERVAL_PADRAO_MS;
 }
 function setIntervaloSincronizacaoMs(ms){
-  DB.settings.syncIntervalMs = ms;
+  try{ localStorage.setItem(SYNC_INTERVAL_STORAGE, String(ms)); }catch(e){}
   renderIntervaloSincronizacaoBotoes();
   reiniciarLoopSincronizacao();
-  flashSaving(); // essa escolha vale pra loja inteira, então é salva e enviada ao servidor como as demais configurações
 }
 function renderIntervaloSincronizacaoBotoes(){
   const wrap = document.getElementById('syncIntervalWrap');
@@ -3949,7 +3960,6 @@ function ensureCatalogDefaults(){
   if(typeof DB.settings.receberPedidosAcesso==='undefined') DB.settings.receberPedidosAcesso = false;
   DB.sales.forEach(s=>{ if(typeof s.cancelled==='undefined') s.cancelled=false; });
   ensureEmployeeDefaults();
-  if(typeof DB.settings.syncIntervalMs==='undefined' || DB.settings.syncIntervalMs===null) DB.settings.syncIntervalMs = SYNC_INTERVAL_PADRAO_MS;
   if(typeof DB.settings.metaCrescimentoPct==='undefined') DB.settings.metaCrescimentoPct = 0;
   if(typeof DB.settings.estoqueLiberacaoMinutos==='undefined' || !DB.settings.estoqueLiberacaoMinutos) DB.settings.estoqueLiberacaoMinutos = 60;
   if(typeof DB.settings.etiquetaMostrarBarras==='undefined') DB.settings.etiquetaMostrarBarras = true;
