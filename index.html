@@ -5293,7 +5293,7 @@ function estaNaAreaCadastro(){
   return !!(viewEstoque && viewEstoque.classList.contains('active') && estoqueTab==='novo');
 }
 function registrarAdicaoRecente(p){
-  const item = { id:p.id, nome:p.nome, ts:Date.now() };
+  const item = { id:p.id, nome:p.nome, barcode:p.barcode||'', ts:Date.now() };
   recentAdds.unshift(item);
   renderRecentAdds();
   setTimeout(function(){ expirarAdicaoRecente(item.id); }, RECENT_ADD_MS);
@@ -5344,11 +5344,13 @@ function renderRecentAdds(){
     el.innerHTML = recentAdds.length
       ? recentAdds.map(function(item){
           const nomeSeguro = (item.nome||'').replace(/</g,'&lt;');
+          const codigoSeguro = (item.barcode||'').replace(/</g,'&lt;');
           return `
           <div class="recentAddItem">
             <div class="recentAddInfo">
               <span class="recentAddBadge">✔ Adicionado agora</span>
               <div class="recentAddName" title="${nomeSeguro}">${nomeSeguro}</div>
+              ${codigoSeguro ? `<div class="dimSmall">Código: <b style="color:var(--text);">${codigoSeguro}</b></div>` : ''}
               <div class="dimSmall" id="recentAddTime-${containerId}-${item.id}">${formatElapsedHMS(Date.now()-item.ts)} atrás</div>
             </div>
             <button type="button" class="btn secondary small" onclick="imprimirEtiquetaAposCadastro('${item.id}')">Tentar imprimir novamente</button>
@@ -6723,27 +6725,45 @@ function dimsDoModeloEscolhido_(){
   return {w:50,h:30};
 }
 function imprimirEtiquetaFinal(){
-  const p = DB.products.find(x=>x.id===_etqState.productId);
-  if(!p) return;
-  salvarModeloSeMarcado();
   const area = document.getElementById('printArea');
   if(!area) return;
+  // Quando vem de um cadastro de VÁRIAS peças (ex.: popup "Escolher Qtd. e
+  // Imprimir"), _etqState.productIds traz um produto/item de estoque separado
+  // pra cada peça, cada um já com o seu próprio código de barras. Nesse caso
+  // imprime UMA etiqueta por produto da lista, em vez de imprimir só a etiqueta
+  // do primeiro (que era o bug: sempre saía 1 etiqueta só, mesmo cadastrando
+  // várias peças de uma vez).
+  const produtosMultiplos = (_etqState.productIds && _etqState.productIds.length)
+    ? _etqState.productIds.map(function(id){ return DB.products.find(x=>x.id===id); }).filter(Boolean)
+    : null;
+  const p = DB.products.find(x=>x.id===_etqState.productId);
+  if(!p && !(produtosMultiplos && produtosMultiplos.length)) return;
+  if(p) salvarModeloSeMarcado();
   area.innerHTML = '';
-  const qtd = Math.max(1, Number(_etqState.quantidade)||1);
-  const codigos = [];
-  const barcodesJaSalvos = getProdutoBarcodes(p);
-  barcodesJaSalvos.forEach(function(code){ if(code && !codigos.includes(code)) codigos.push(code); });
-  if(!codigos.includes(p.barcode||'')) codigos.unshift(p.barcode||'');
-  while(codigos.length < qtd){
-    const novo = genBarcode();
-    if(!codigos.includes(novo)) codigos.push(novo);
+  if(produtosMultiplos && produtosMultiplos.length){
+    produtosMultiplos.forEach(function(prod, index){
+      const item = document.createElement('div');
+      item.className = 'etqPrintItem';
+      renderEtiquetaInto(item, prod, _etqState.modelo, 'print_' + index, prod.barcode);
+      area.appendChild(item);
+    });
+  } else {
+    const qtd = Math.max(1, Number(_etqState.quantidade)||1);
+    const codigos = [];
+    const barcodesJaSalvos = getProdutoBarcodes(p);
+    barcodesJaSalvos.forEach(function(code){ if(code && !codigos.includes(code)) codigos.push(code); });
+    if(!codigos.includes(p.barcode||'')) codigos.unshift(p.barcode||'');
+    while(codigos.length < qtd){
+      const novo = genBarcode();
+      if(!codigos.includes(novo)) codigos.push(novo);
+    }
+    codigos.slice(0, qtd).forEach(function(codigo, index){
+      const item = document.createElement('div');
+      item.className = 'etqPrintItem';
+      renderEtiquetaInto(item, p, _etqState.modelo, 'print_' + index, codigo);
+      area.appendChild(item);
+    });
   }
-  codigos.slice(0, qtd).forEach(function(codigo, index){
-    const item = document.createElement('div');
-    item.className = 'etqPrintItem';
-    renderEtiquetaInto(item, p, _etqState.modelo, 'print_' + index, codigo);
-    area.appendChild(item);
-  });
   atualizarTamanhoPaginaImpressao_(dimsDoModeloEscolhido_());
   area.style.display='block';
   closeModal();
