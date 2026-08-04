@@ -8440,6 +8440,101 @@ function confirmCancelSale(saleId){
   renderAll();
   alert('Venda cancelada. Estoque, fiado e relatórios já foram atualizados.');
 }
+/* ---------- Cancelamento de UMA ÚNICA PEÇA dentro de uma compra com
+   vários produtos (grupo do Livro de Vendas). Estorna só o estoque
+   daquela peça, reduz o total/fiado/pontos proporcionalmente e mantém
+   as outras peças da mesma compra intactas. ---------- */
+function openCancelItemModal(saleId, itemIndex){
+  const sale = DB.sales.find(s=>s.id===saleId);
+  if(!sale || sale.cancelled) return;
+  const it = sale.items[itemIndex];
+  if(!it || it.cancelled) return;
+  const itemTotal = it.price*it.qty;
+  showModal(`
+    <button class="modalClose" onclick="closeModal()">×</button>
+    <h3>Cancelar Peça</h3>
+    <div class="payRow"><span>Compra</span><span>#${sale.id.slice(-5)}</span></div>
+    <div class="payRow"><span>Peça</span><span>${it.name} (x${it.qty})</span></div>
+    <div class="payRow"><span>Valor da peça</span><span>${fmtMoney(itemTotal)}</span></div>
+    <p class="dimSmall">Ao cancelar apenas esta peça: o estoque dela é estornado, o valor é retirado do total da compra (as demais peças continuam vendidas normalmente), e o fiado/pontos vinculados são ajustados. Essa ação não pode ser desfeita.</p>
+    <div class="field"><label>Senha do administrador</label>
+      <input id="cancelItemPass" type="password" placeholder="Senha do admin" onkeydown="if(event.key==='Enter'){event.preventDefault();confirmCancelItem('${saleId}',${itemIndex})}">
+    </div>
+    <div id="cancelItemErr" class="dimSmall" style="color:var(--red);"></div>
+    <div style="display:flex;gap:8px;margin-top:8px;">
+      <button class="btn danger" style="flex:1;" onclick="confirmCancelItem('${saleId}',${itemIndex})">Confirmar Cancelamento da Peça</button>
+      <button class="btn secondary" onclick="closeModal()">Voltar</button>
+    </div>
+  `);
+  setTimeout(()=>{ const inp=document.getElementById('cancelItemPass'); if(inp) inp.focus(); }, 50);
+}
+function confirmCancelItem(saleId, itemIndex){
+  const pass = document.getElementById('cancelItemPass').value;
+  const admin = DB.employees.find(e=>e.perfil==='total' && e.senha===pass);
+  if(!admin){
+    const err = document.getElementById('cancelItemErr');
+    if(err) err.textContent = 'Senha de administrador incorreta.';
+    return;
+  }
+  const sale = DB.sales.find(s=>s.id===saleId);
+  if(!sale || sale.cancelled){ closeModal(); return; }
+  const it = sale.items[itemIndex];
+  if(!it || it.cancelled){ closeModal(); return; }
+
+  const itemGross = it.price*it.qty;
+  const itemDisc = itemDiscountAmount(it);
+  const itemNet = Math.max(0, itemGross - itemDisc);
+
+  // estorna o estoque só dessa peça
+  const p = DB.products.find(x=>x.id===it.productId);
+  if(p) p.estoque += it.qty;
+
+  // reduz o total da compra (as demais peças continuam valendo)
+  sale.subtotal = Math.max(0, (sale.subtotal||0) - itemGross);
+  sale.itemDiscounts = Math.max(0, (sale.itemDiscounts||0) - itemDisc);
+  sale.total = Math.max(0, sale.total - itemNet);
+
+  // ajusta fiado e pontos vinculados a essa compra, proporcionalmente à peça cancelada
+  if(sale.customerId){
+    const cust = DB.customers.find(c=>c.id===sale.customerId);
+    if(cust){
+      if(sale.debt>0){
+        const abate = Math.min(itemNet, sale.debt);
+        sale.debt = Math.max(0, sale.debt - abate);
+        const d = cust.debts.find(x=>x.saleId===sale.id);
+        if(d){
+          d.value = Math.max(0, d.value - abate);
+          if(d.value - d.paid <= 0.001) cust.debts = cust.debts.filter(x=>x.id!==d.id);
+        }
+      }
+      cust.pontos = Math.max(0, (cust.pontos||0) - Math.floor(itemNet/10));
+    }
+  }
+
+  // ajusta o lançamento no livro caixa referente a essa compra
+  const ledgerEntry = DB.ledger.find(l=>l.saleId===sale.id);
+  if(ledgerEntry){
+    ledgerEntry.valor = Math.max(0, ledgerEntry.valor - itemNet);
+    if(ledgerEntry.valor <= 0.001) DB.ledger = DB.ledger.filter(l=>l!==ledgerEntry);
+  }
+
+  it.cancelled = true;
+  it.cancelledAt = todayISO();
+  it.cancelledBy = admin.nome;
+
+  // se essa era a última peça ativa da compra, a compra inteira fica cancelada
+  const aindaAtivas = sale.items.some(x=>!x.cancelled);
+  if(!aindaAtivas){
+    sale.cancelled = true;
+    sale.cancelledAt = todayISO();
+    sale.cancelledBy = admin.nome;
+  }
+
+  log(`Peça cancelada na compra #${sale.id.slice(-5)}: ${it.name} x${it.qty} (${fmtMoney(itemNet)}) — autorizado por ${admin.nome}.`);
+  closeModal();
+  renderAll();
+  alert('Peça cancelada. Estoque, fiado e relatórios já foram atualizados.');
+}
 function renderFiadoOverview(){
   const withDebt = DB.customers.filter(c=>customerDebtTotal(c)>0.001);
   document.getElementById('totalFiadoAberto').textContent = fmtMoney(withDebt.reduce((s,c)=>s+customerDebtTotal(c),0));
@@ -9034,18 +9129,49 @@ function renderLivroVendas(){
   let receita=0, custo=0, qtdPecas=0;
   const rows = [];
   sales.forEach(s=>{
-    s.items.forEach(it=>{
+    // itens realmente ativos dessa venda (uma peça pode ter sido cancelada
+    // individualmente mesmo que a venda como um todo continue ativa)
+    const itensAtivos = s.items.filter(it=>!it.cancelled);
+    const ehGrupo = s.items.length > 1; // carrinho com mais de um produto = "compra" a destacar
+    s.items.forEach((it,idx)=>{
       const p = DB.products.find(x=>x.id===it.productId);
       const custoUn = p ? (p.custo||0) : 0;
-      if(!s.cancelled){
+      const itemCancelado = !!it.cancelled;
+      if(!s.cancelled && !itemCancelado){
         receita += it.price*it.qty;
         custo += custoUn*it.qty;
         qtdPecas += it.qty;
       }
-      const statusHtml = s.cancelled ? '<span class="badge pending">Cancelada</span>' : '<span class="badge ok">Ativa</span>';
-      const actionHtml = s.cancelled ? '' : `<button class="btn small danger" onclick="openCancelSaleModal('${s.id}')">Cancelar venda</button>`;
-      rows.push(`<tr><td>${fmtDateTime(s.date)}</td><td>${it.name}</td><td>${it.qty}</td><td>${fmtMoney(custoUn)}</td><td>${fmtMoney(it.price)}</td><td>${fmtMoney(it.price*it.qty)}</td><td>${s.sellerName||'-'}</td><td>${statusHtml}</td><td>${actionHtml}</td></tr>`);
+      let statusHtml;
+      if(s.cancelled) statusHtml = '<span class="badge pending">Cancelada</span>';
+      else if(itemCancelado) statusHtml = '<span class="badge pending">Peça cancelada</span>';
+      else statusHtml = '<span class="badge ok">Ativa</span>';
+
+      let actionHtml = '';
+      if(!s.cancelled && !itemCancelado){
+        // se a venda tem mais de uma peça ainda ativa, dá pra cancelar só essa
+        // peça; senão (é a última peça ativa), cancela a venda inteira
+        if(itensAtivos.length > 1){
+          actionHtml = `<button class="btn small danger" onclick="openCancelItemModal('${s.id}',${idx})">Cancelar peça</button>`;
+        } else {
+          actionHtml = `<button class="btn small danger" onclick="openCancelSaleModal('${s.id}')">Cancelar venda</button>`;
+        }
+      }
+
+      const classes = [];
+      if(ehGrupo){
+        classes.push('livroGrupoVenda');
+        if(idx===0) classes.push('livroGrupoVendaInicio');
+      }
+      const classAttr = classes.length ? ` class="${classes.join(' ')}"` : '';
+
+      rows.push(`<tr${classAttr}><td>${fmtDateTime(s.date)}</td><td>${it.name}</td><td>${it.qty}</td><td>${fmtMoney(custoUn)}</td><td>${fmtMoney(it.price)}</td><td>${fmtMoney(it.price*it.qty)}</td><td>${s.sellerName||'-'}</td><td>${statusHtml}</td><td>${actionHtml}</td></tr>`);
     });
+    // linha de fechamento do grupo: destaca o valor bruto da compra inteira
+    if(ehGrupo){
+      const statusResumo = s.cancelled ? 'Venda cancelada' : (itensAtivos.length ? `${itensAtivos.length} peça(s) ativa(s)` : 'Todas as peças canceladas');
+      rows.push(`<tr class="livroGrupoVenda livroGrupoVendaFim"><td colspan="5" style="text-align:right;font-weight:700;">Total da compra #${s.id.slice(-5)} (valor bruto) — ${statusResumo}</td><td style="font-weight:700;">${fmtMoney(s.total)}</td><td colspan="3"></td></tr>`);
+    }
   });
   document.getElementById('livroReceita').textContent = fmtMoney(receita);
   document.getElementById('livroCusto').textContent = fmtMoney(custo);
