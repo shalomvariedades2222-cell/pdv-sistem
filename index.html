@@ -1886,7 +1886,11 @@ html.is-mobile .btn::before{ display:none; }
               <input type="file" accept="image/*" onchange="previewProductImage(this)">
               <div><img id="p_imgPreview" class="imgUploadPreview" style="display:none;"></div>
             </div>
-            <button class="btn" data-perm="estoque" style="margin-top:10px;" onclick="saveNewProduct()">Salvar Produto</button>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="btn" data-perm="estoque" style="margin-top:10px;flex:1;" onclick="saveNewProduct()">Salvar Produto</button>
+              <button class="btn secondary" data-perm="estoque" type="button" style="margin-top:10px;flex:1;" onclick="abrirPopupQtdEImprimir()" title="Atalho: Alt+Enter">🖨️ Escolher Qtd. e Imprimir</button>
+            </div>
+            <div class="dimSmall" style="margin-top:4px;">Atalho <b>Alt+Enter</b>: abre a janela para escolher quantas peças, e ao pressionar Enter nela o produto já é salvo e imprime na hora.</div>
           </div>
           <div class="panel recentAddsPanel" id="recentAddsCadastroWrap">
             <h3 style="margin-top:0;">🆕 Adicionados agora</h3>
@@ -5348,12 +5352,13 @@ function renderRecentAdds(){
               <div class="dimSmall" id="recentAddTime-${containerId}-${item.id}">${formatElapsedHMS(Date.now()-item.ts)} atrás</div>
             </div>
             <button type="button" class="btn secondary small" onclick="imprimirEtiquetaAposCadastro('${item.id}')">Tentar imprimir novamente</button>
+            <button type="button" class="btn danger small" onclick="excluirRecemAdicionado('${item.id}')">🗑️ Excluir</button>
           </div>`;
         }).join('')
       : '<div class="recentAddsEmpty">Nenhum produto cadastrado nos últimos 30 segundos.</div>';
   });
 }
-function saveNewProduct(){
+function saveNewProduct(imprimirDireto){
   if(modoTeste){ alert('No modo teste o cadastro de produtos fica bloqueado. Os itens de teste já vêm pré-configurados.'); return; }
   if(!requirePerm(getPerms().canEditStock)) return;
   const nome = document.getElementById('p_nome').value.trim();
@@ -5399,7 +5404,50 @@ function saveNewProduct(){
   /* Permanece na aba "Cadastrar" (não vai mais para a lista de Estoque) e mostra
      uma notificação bem visível confirmando que o produto já foi salvo no estoque. */
   mostrarPopupEstoqueSalvo(p.nome, p.estoque);
-  perguntarImprimirEtiquetaNovoProduto(p.id, qtdEtiquetas);
+  if(imprimirDireto){
+    imprimirEtiquetaAposCadastro(p.id, qtdEtiquetas);
+  } else {
+    perguntarImprimirEtiquetaNovoProduto(p.id, qtdEtiquetas);
+  }
+}
+/* =========================================================
+   POPUP "ESCOLHER QUANTIDADE E IMPRIMIR" (atalho Alt+Enter)
+   Abre uma janela para digitar quantas peças (etiquetas com
+   códigos diferentes) o produto vai ter. Ao pressionar Enter
+   dentro dessa janela, o produto já é salvo e a impressão das
+   etiquetas sai na hora, sem perguntar de novo.
+========================================================= */
+function abrirPopupQtdEImprimir(){
+  if(modoTeste){ alert('No modo teste o cadastro de produtos fica bloqueado. Os itens de teste já vêm pré-configurados.'); return; }
+  if(!requirePerm(getPerms().canEditStock)) return;
+  const nome = document.getElementById('p_nome').value.trim();
+  if(!nome){ alert('Informe o nome do produto.'); return; }
+  const atual = Math.max(1, parseInt(document.getElementById('p_qtdEtiquetas').value,10) || 1);
+  showModal(`
+    <button class="modalClose" onclick="closeModal()">×</button>
+    <h3>Quantas peças?</h3>
+    <div style="margin:2px 0 14px;color:var(--text);line-height:1.5;">Informe a quantidade de peças. Cada uma sai com um código de etiqueta diferente.</div>
+    <div class="field"><label>Quantidade de peças</label><input id="popupQtdPecas" type="number" min="1" value="${atual}" style="max-width:180px;"></div>
+    <div class="dimSmall" style="margin:10px 0 14px;">Pressione <b>Enter</b> para salvar o produto e imprimir na hora.</div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn secondary" style="flex:1;" onclick="closeModal()">Cancelar</button>
+      <button class="btn" style="flex:1;" onclick="confirmarQtdEImprimir()">🖨️ Salvar e Imprimir</button>
+    </div>
+  `);
+  const input = document.getElementById('popupQtdPecas');
+  input.focus();
+  input.select();
+  input.addEventListener('keydown', function(e){
+    if(e.key==='Enter'){ e.preventDefault(); confirmarQtdEImprimir(); }
+    else if(e.key==='Escape'){ e.preventDefault(); closeModal(); }
+  });
+}
+function confirmarQtdEImprimir(){
+  const input = document.getElementById('popupQtdPecas');
+  const qtd = Math.max(1, parseInt(input.value,10) || 1);
+  document.getElementById('p_qtdEtiquetas').value = qtd;
+  closeModal();
+  saveNewProduct(true);
 }
 /* =========================================================
    PERGUNTAR SE QUER IMPRIMIR A ETIQUETA LOGO APÓS CADASTRAR
@@ -7813,7 +7861,27 @@ function deleteProduct(id){
     renderEstoqueLista();
   }, {textoBtn:'Excluir'});
 }
-/* ---------------- Lixeira flutuante do Estoque (arrastar para excluir) ----------------
+/* Exclui um produto direto pelo painel "Adicionados agora" — mesma lógica de
+   deleteProduct() (vai pra lixeira, recuperável por 6h), mas também tira o
+   item da lista de "Adicionados agora" na hora, sem esperar o timer de 30s. */
+function excluirRecemAdicionado(id){
+  if(!requirePerm(getPerms().isTotal)) return;
+  const p = DB.products.find(x=>x.id===id);
+  if(!p){ recentAdds = recentAdds.filter(x=>x.id!==id); renderRecentAdds(); return; }
+  confirmModal(`Excluir o produto <b>"${p.nome}"</b> do estoque? Ele fica na lixeira 🗑️ e pode ser recuperado nas próximas 6 horas — depois disso é apagado definitivamente do servidor.`, ()=>{
+    DB.products = DB.products.filter(x=>x.id!==id);
+    marcarExcluido('products', id);
+    if(!Array.isArray(DB.trashProducts)) DB.trashProducts = [];
+    DB.trashProducts.push({ id: uid('trash'), product: p, deletedAt: Date.now() });
+    if(p.foto) marcarFotoAlterada(chaveFotoProduto(p.id), null);
+    log('Produto excluído (via Adicionados agora): '+p.nome);
+    flashSaving();
+    atualizarBotaoLixeira();
+    renderEstoqueLista();
+    recentAdds = recentAdds.filter(x=>x.id!==id);
+    renderRecentAdds();
+  }, {textoBtn:'Excluir'});
+}
    Duas coisas independentes usam ponteiro (mouse OU dedo, via Pointer Events):
    1) Arrastar o PRÓPRIO ícone da lixeira pra qualquer canto da tela (posição
       salva neste aparelho, em localStorage).
@@ -9969,6 +10037,11 @@ document.getElementById('ajusteAlvo').addEventListener('change', function(){
 
 /* ---------------- Enter salva o produto no formulário "Cadastrar Produto" ---------------- */
 document.getElementById('estoqueTab-novo').addEventListener('keydown', function(e){
+  if(e.key==='Enter' && e.altKey){
+    e.preventDefault();
+    abrirPopupQtdEImprimir();
+    return;
+  }
   if(e.key==='Enter' && e.target.tagName==='INPUT' && !e.target.id.endsWith('_newVal')){
     e.preventDefault();
     saveNewProduct();
