@@ -5375,27 +5375,41 @@ function saveNewProduct(imprimirDireto){
   const listaBarcodes = [barcode];
   while(listaBarcodes.length < qtdEtiquetas){
     const candidato = genBarcode();
-    if(!listaBarcodes.includes(candidato)) listaBarcodes.push(candidato);
+    if(!listaBarcodes.includes(candidato) && !DB.products.some(x=>produtoTemBarcode(x, candidato))) listaBarcodes.push(candidato);
   }
-  const p = {
-    id: uid('prod'),
-    nome, categoria: document.getElementById('p_categoria').value.trim(),
-    tamanho: document.getElementById('p_tamanho').value.trim(),
-    cor: document.getElementById('p_cor').value.trim(),
-    custo, venda,
-    estoque: Math.max(Number(document.getElementById('p_estoque').value)||1, qtdEtiquetas),
-    estoqueMin: Number(document.getElementById('p_estoqueMin').value)||3,
-    barcode: listaBarcodes[0],
-    barcodes: listaBarcodes.slice(1),
-    foto: document.getElementById('p_imgPreview').dataset.data || '',
-    dataCadastro: todayISO(),
-    cadastradoPor: currentUser ? currentUser.nome : '-'
-  };
-  DB.products.push(p);
-  if(p.foto) marcarFotoAlterada(chaveFotoProduto(p.id), p.foto);
-  log('Produto cadastrado: '+nome);
+  const categoria = document.getElementById('p_categoria').value.trim();
+  const tamanho = document.getElementById('p_tamanho').value.trim();
+  const cor = document.getElementById('p_cor').value.trim();
+  const estoqueMin = Number(document.getElementById('p_estoqueMin').value)||3;
+  const foto = document.getElementById('p_imgPreview').dataset.data || '';
+  const dataCadastro = todayISO();
+  const cadastradoPor = currentUser ? currentUser.nome : '-';
+  /* Quando é mais de 1 peça, cada uma vira um PRODUTO/ITEM DE ESTOQUE
+     separado (estoque:1 cada), com seu próprio código de barras/etiqueta —
+     em vez de um único produto com "estoque:N" e códigos escondidos num
+     array. Assim cada peça aparece separadamente na lista de Estoque e
+     pode ser vendida/baixada individualmente pelo seu próprio código. */
+  const estoqueInicialUnico = Math.max(1, Number(document.getElementById('p_estoque').value)||1);
+  const produtosCriados = listaBarcodes.map(function(bc){
+    return {
+      id: uid('prod'),
+      nome, categoria, tamanho, cor,
+      custo, venda,
+      estoque: qtdEtiquetas > 1 ? 1 : estoqueInicialUnico,
+      estoqueMin,
+      barcode: bc,
+      foto,
+      dataCadastro,
+      cadastradoPor
+    };
+  });
+  produtosCriados.forEach(function(p){
+    DB.products.push(p);
+    if(p.foto) marcarFotoAlterada(chaveFotoProduto(p.id), p.foto);
+  });
+  log('Produto cadastrado: '+nome+(produtosCriados.length>1?' ('+produtosCriados.length+' peças, códigos separados)':''));
   renderEstoqueLista();
-  registrarAdicaoRecente(p);
+  produtosCriados.forEach(function(p){ registrarAdicaoRecente(p); });
   ['p_tamanho','p_cor','p_custo','p_venda','p_barcode','p_qtdEtiquetas'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('p_estoque').value = '1';
   document.getElementById('p_qtdEtiquetas').value = '1';
@@ -5403,11 +5417,13 @@ function saveNewProduct(imprimirDireto){
   document.getElementById('marginPreview').textContent='Margem: —';
   /* Permanece na aba "Cadastrar" (não vai mais para a lista de Estoque) e mostra
      uma notificação bem visível confirmando que o produto já foi salvo no estoque. */
-  mostrarPopupEstoqueSalvo(p.nome, p.estoque);
+  const totalEstoqueCriado = produtosCriados.reduce(function(soma,p){ return soma+p.estoque; }, 0);
+  mostrarPopupEstoqueSalvo(nome, totalEstoqueCriado);
+  const idsCriados = produtosCriados.map(function(p){ return p.id; });
   if(imprimirDireto){
-    imprimirEtiquetaAposCadastro(p.id, qtdEtiquetas);
+    imprimirEtiquetaAposCadastro(idsCriados);
   } else {
-    perguntarImprimirEtiquetaNovoProduto(p.id, qtdEtiquetas);
+    perguntarImprimirEtiquetaNovoProduto(idsCriados);
   }
 }
 /* =========================================================
@@ -5455,8 +5471,9 @@ function confirmarQtdEImprimir(){
    Enter imprime direto, sem escolher modelo nem passar por outra tela;
    "Não" fecha e não imprime nada.
 ========================================================= */
-function perguntarImprimirEtiquetaNovoProduto(productId, qtdEtiquetas){
-  const qtd = Math.max(1, Number(qtdEtiquetas)||1);
+function perguntarImprimirEtiquetaNovoProduto(productIds){
+  const ids = Array.isArray(productIds) ? productIds : [productIds];
+  const qtd = ids.length;
   showModal(`
     <button class="modalClose" onclick="closeModal()">×</button>
     <h3>Produto cadastrado!</h3>
@@ -5469,7 +5486,7 @@ function perguntarImprimirEtiquetaNovoProduto(productId, qtdEtiquetas){
   `);
   const btnSim = document.getElementById('btnSimImprimirEtiqueta');
   const btnNao = document.getElementById('btnNaoImprimirEtiqueta');
-  const confirmar = function(){ closeModal(); imprimirEtiquetaAposCadastro(productId, qtd); };
+  const confirmar = function(){ closeModal(); imprimirEtiquetaAposCadastro(ids); };
   const cancelar = function(){ closeModal(); };
   btnSim.onclick = confirmar;
   btnNao.onclick = cancelar;
@@ -5481,12 +5498,17 @@ function perguntarImprimirEtiquetaNovoProduto(productId, qtdEtiquetas){
   document.addEventListener('keydown', _confirmModalKeyHandler);
 }
 /* Imprime na hora, sem passar pela tela de escolher modelo: usa o modelo
-   preferido do produto (se tiver) ou o modelo Premium como padrão. */
-function imprimirEtiquetaAposCadastro(productId, quantidade){
-  const p = DB.products.find(x=>x.id===productId);
-  if(!p) return;
+   preferido do primeiro produto (se tiver) ou o modelo Premium como padrão.
+   Recebe uma LISTA de ids de produtos — um produto/item de estoque separado
+   para cada peça — e imprime uma etiqueta por produto, cada uma com o
+   código de barras que já é daquele produto (não gera código na hora). */
+function imprimirEtiquetaAposCadastro(productIds){
+  const ids = Array.isArray(productIds) ? productIds : [productIds];
+  const produtos = ids.map(function(id){ return DB.products.find(x=>x.id===id); }).filter(Boolean);
+  if(!produtos.length) return;
+  const pRef = produtos[0];
   const modelos = DB.settings.etiquetaModelos || [];
-  let modeloPref = p.etiquetaModelo;
+  let modeloPref = pRef.etiquetaModelo;
   if(modeloPref && modeloPref.indexOf('custom:')===0){
     const id = modeloPref.slice(7);
     if(!modelos.find(m=>m.id===id)) modeloPref = null;
@@ -5497,7 +5519,7 @@ function imprimirEtiquetaAposCadastro(productId, quantidade){
     modeloPref = 'custom:'+modelos[0].id;
   }
   if(!modeloPref) modeloPref = 'premium';
-  _etqState = {productId, modelo: modeloPref, quantidade: Math.max(1, Number(quantidade)||1)};
+  _etqState = {productId: pRef.id, productIds: produtos.map(function(p){ return p.id; }), modelo: modeloPref};
   imprimirEtiquetaFinal();
 }
 /* =========================================================
