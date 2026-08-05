@@ -1089,7 +1089,7 @@ img.thumb{width:34px;height:34px;object-fit:cover;border-radius:6px;background:#
 .imgUploadPreview{width:70px;height:70px;object-fit:cover;border-radius:8px;background:#000;margin-top:6px;}
 
 /* ---------- Grade de seleção de produtos (PDV) ---------- */
-#productGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));grid-auto-rows:min-content;align-content:start;gap:7px;overflow:auto;margin-bottom:10px;}
+#productGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:7px;overflow:auto;margin-bottom:10px;}
 .prodTile{
   background:var(--glass-bg-soft);border:1px solid var(--glass-border);border-radius:9px;
   padding:5px;text-align:center;transition:border-color .15s, background .15s;
@@ -2661,7 +2661,7 @@ function existeAlteracaoPendenteSalva(){
    PREENCHA o valor abaixo antes de publicar (URL do Web App, veja o
    guia COMO-CONFIGURAR-DRIVE.md):
 ====================================================================== */
-const APPSCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxVUr4Z7gi098q4t2x_InhXNN65yazljoOSeUJYrB_bwfrwNulJAewXlZOIAYKWQq-5/exec'; // ex: 'https://script.google.com/macros/s/AKfycb.../exec'
+const APPSCRIPT_URL = 'https://script.google.com/macros/library/d/124eWiaJRqALtyWW3FO-M9sLy_DsUshuDCv0_8bXcnyxKkbGioRK51Kkq/24'; // ex: 'https://script.google.com/macros/s/AKfycb.../exec'
 
 let ghToken = null;      // chave de acesso (mesmo nome interno de antes, só que agora não é token do GitHub)
 let deviceAccessToken = null; // autorização alternativa, vinculada a este dispositivo
