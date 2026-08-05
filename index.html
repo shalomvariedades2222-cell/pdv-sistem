@@ -940,16 +940,6 @@ th{
 }
 td{padding:8px;border-bottom:1px solid #2a221c;}
 tr:hover td{background:#251c17;}
-/* ---------- Livro de Vendas: agrupa visualmente os itens de UMA MESMA
-   compra (carrinho com vários produtos) dentro de uma "caixa" alaranjada
-   fraca, e mostra o total daquela compra na última linha do grupo. ---------- */
-.livroGrupoVenda td{background:rgba(255,106,26,.07);}
-.livroGrupoVenda:hover td{background:rgba(255,106,26,.13);}
-.livroGrupoVenda td:first-child{border-left:3px solid var(--orange);}
-.livroGrupoVendaInicio td{border-top:1px solid rgba(255,106,26,.4);}
-.livroGrupoVendaFim td{border-bottom:1px solid rgba(255,106,26,.4);background:rgba(255,106,26,.13);}
-.livroGrupoVendaFim:hover td{background:rgba(255,106,26,.18);}
-.livroGrupoVendaFim td:first-child{border-left:3px solid var(--orange);}
 
 .btn{
   background:var(--orange);border:none;color:#1a1110;font-weight:700;font-size:12.5px;
@@ -1717,6 +1707,8 @@ html.is-mobile .btn::before{ display:none; }
     <button class="navBtn" data-view="funcionarios" onclick="showView('funcionarios')"><span class="navIcon">🧑‍💼</span> Funcionários</button>
     <button class="navBtn" data-view="livrovendas" onclick="showView('livrovendas')"><span class="navIcon">📖</span> Livro de Vendas</button>
     <button class="navBtn" data-view="rendimento" onclick="showView('rendimento')"><span class="navIcon">💰</span> Rendimento Total</button>
+    <button class="navBtn" data-view="sorteio" onclick="showView('sorteio')"><span class="navIcon">🎟️</span> Sorteio</button>
+    <button class="navBtn" data-view="notificacao" onclick="showView('notificacao')"><span class="navIcon">🔔</span> Notificação</button>
     <button class="navBtn" data-view="config" onclick="showView('config')"><span class="navIcon">⚙️</span> Configurações</button>
     <button class="navBtn" data-view="testador" onclick="showView('testador')"><span class="navIcon">🌐</span> Testador</button>
     <div class="userBox">
@@ -1896,11 +1888,7 @@ html.is-mobile .btn::before{ display:none; }
               <input type="file" accept="image/*" onchange="previewProductImage(this)">
               <div><img id="p_imgPreview" class="imgUploadPreview" style="display:none;"></div>
             </div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;">
-              <button class="btn" data-perm="estoque" style="margin-top:10px;flex:1;" onclick="saveNewProduct()">Salvar Produto</button>
-              <button class="btn secondary" data-perm="estoque" type="button" style="margin-top:10px;flex:1;" onclick="abrirPopupQtdEImprimir()" title="Atalho: Alt+Enter">🖨️ Escolher Qtd. e Imprimir</button>
-            </div>
-            <div class="dimSmall" style="margin-top:4px;">Atalho <b>Alt+Enter</b>: abre a janela para escolher quantas peças, e ao pressionar Enter nela o produto já é salvo e imprime na hora.</div>
+            <button class="btn" data-perm="estoque" style="margin-top:10px;" onclick="saveNewProduct()">Salvar Produto</button>
           </div>
           <div class="panel recentAddsPanel" id="recentAddsCadastroWrap">
             <h3 style="margin-top:0;">🆕 Adicionados agora</h3>
@@ -2547,6 +2535,150 @@ html.is-mobile .btn::before{ display:none; }
           <p class="dimSmall" style="margin-top:14px;">Se a internet estiver ruim: evite mexer ou alterar dados agora. Se estiver atendendo um cliente comprando roupa, tire foto da etiqueta e envie pelo WhatsApp manualmente.</p>
         </div>
       </div>
+
+      <div class="view" id="view-sorteio">
+        <div class="panel" style="max-width:820px;">
+          <h3>🎟️ Sorteio — Etiqueta Premiada</h3>
+          <p class="dimSmall" style="margin-top:-6px;">O site (separado) da etiqueta premiada só libera um número de sorteio para peças vendidas a partir do valor mínimo abaixo. Deixe 0 para não exigir valor mínimo (qualquer venda concorre).</p>
+          <div style="display:flex;gap:14px;flex-wrap:wrap;">
+            <div class="field" style="max-width:260px;"><label>Valor mínimo por peça para concorrer</label><input id="cfg_sorteioValorMinimo" type="text" inputmode="decimal" placeholder="R$ 0,00" data-perm="admin" oninput="maskMoneyInput(this);saveSettingsLive();renderSorteio();"></div>
+            <div class="field" style="max-width:200px;"><label>Data do sorteio (opcional)</label><input id="cfg_dataSorteio" type="date" data-perm="admin" oninput="saveSettingsLive()"></div>
+          </div>
+        </div>
+
+        <div class="panel" style="max-width:820px;">
+          <h3>Todos os códigos elegíveis</h3>
+          <p class="dimSmall" style="margin-top:-6px;">Todas as peças já vendidas dentro do valor mínimo — inclusive as que ainda não foram escaneadas por nenhum cliente no site da etiqueta.</p>
+          <table id="sorteioElegiveisTable">
+            <thead><tr><th>Produto</th><th>Código de barras</th><th>Peças elegíveis (vendidas)</th><th>Já escaneadas</th><th>Faltam ser escaneadas</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <p class="dimSmall" id="sorteioElegiveisEmptyMsg" style="display:none;margin-top:10px;">Nenhuma venda dentro do valor mínimo configurado ainda.</p>
+          <div id="sorteioElegiveisExcluidosBox" style="display:none;margin-top:12px;"></div>
+        </div>
+
+        <div class="panel" style="max-width:820px;">
+          <h3>Números confirmados</h3>
+          <p class="dimSmall" style="margin-top:-6px;">Números que já foram efetivamente reivindicados por um cliente no site da etiqueta (ex: <code>8927292722-1</code>). Só entram nesta lista (e no sorteio abaixo) os códigos já escaneados — dá pra acompanhar quantas peças já vieram.</p>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0 14px;">
+            <input id="sorteioFilter" placeholder="Filtrar por número, código ou produto..." style="flex:1;min-width:220px;" oninput="renderSorteio()">
+            <button class="btn secondary small" onclick="renderSorteio()">🔄 Atualizar</button>
+            <span class="dimSmall" id="sorteioTotalCount"></span>
+          </div>
+          <table id="sorteioTable">
+            <thead><tr><th>Número</th><th>Produto</th><th>Código de barras</th><th>Registrado em</th><th>Dispositivo</th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <p class="dimSmall" id="sorteioEmptyMsg" style="display:none;margin-top:10px;">Nenhum número de sorteio registrado ainda.</p>
+        </div>
+
+        <div class="panel" style="max-width:820px;">
+          <h3>🏆 Escolher o vencedor</h3>
+          <p class="dimSmall" style="margin-top:-6px;">Escolha como o vencedor vai ser definido, sempre entre os números já escaneados/confirmados no site da etiqueta (lista acima).</p>
+          <div style="display:flex;gap:16px;flex-wrap:wrap;margin:10px 0 14px;">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+              <input type="radio" name="sorteioModoVencedor" id="sorteioModoVencedorAuto" value="automatico" data-perm="admin" onchange="mudarModoVencedor(this.value)">
+              🎲 Sortear aleatoriamente
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+              <input type="radio" name="sorteioModoVencedor" id="sorteioModoVencedorManual" value="manual" data-perm="admin" onchange="mudarModoVencedor(this.value)">
+              ✋ Escolher manualmente
+            </label>
+          </div>
+
+          <div id="sorteioModoAutomaticoBox" style="display:none;">
+            <button class="btn small" data-perm="admin" onclick="sortearVencedorAleatorio()">🎲 Sortear vencedor agora</button>
+          </div>
+
+          <div id="sorteioModoManualBox" style="display:none;">
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+              <div class="field" style="flex:1;min-width:240px;">
+                <label>Número confirmado</label>
+                <select id="sorteioVencedorSelect" data-perm="admin"><option value="">Selecione...</option></select>
+              </div>
+              <button class="btn small" data-perm="admin" onclick="definirVencedorManual()">✅ Definir como vencedor</button>
+            </div>
+          </div>
+
+          <div id="sorteioVencedorAtual" style="margin-top:16px;"></div>
+        </div>
+
+        <div class="panel" style="max-width:820px;">
+          <h3>🔔 Notificar clientes</h3>
+          <p class="dimSmall" style="margin-top:-6px;">Notificações agora ficam numa aba própria, com mais opções (mandar pra um cliente específico, agendar, avisar o vencedor automaticamente).</p>
+          <button class="btn small" onclick="showView('notificacao')">🔔 Ir para a aba Notificação</button>
+        </div>
+      </div>
+
+      <div class="view" id="view-notificacao">
+        <div class="panel" style="max-width:900px;">
+          <h3>🔔 Notificação — Site da Etiqueta Premiada</h3>
+          <p class="dimSmall" style="margin-top:-6px;">Manda avisos push pro celular de quem ativou notificação no site da etiqueta — chega mesmo com o navegador fechado.</p>
+
+          <div class="tabs" style="margin:14px 0;flex-wrap:wrap;">
+            <button class="tabBtn active" id="notifTabBtn-agora" onclick="mudarNotifTab('agora')">🚀 Enviar agora</button>
+            <button class="tabBtn" id="notifTabBtn-individual" onclick="mudarNotifTab('individual')">🎯 Cliente específico</button>
+            <button class="tabBtn" id="notifTabBtn-agendadas" onclick="mudarNotifTab('agendadas')">🕒 Agendadas</button>
+            <button class="tabBtn" id="notifTabBtn-sorteiotab" onclick="mudarNotifTab('sorteiotab')">🏆 Integração com sorteio</button>
+            <button class="tabBtn" id="notifTabBtn-historico" onclick="mudarNotifTab('historico')">📜 Histórico</button>
+          </div>
+
+          <div id="notifTab-agora">
+            <div class="field"><label>Título</label><input id="notifEtiquetaTitulo" type="text" maxlength="80" placeholder="Ex: Sorteio realizado! 🎉" data-perm="admin"></div>
+            <div class="field"><label>Mensagem</label><textarea id="notifEtiquetaMensagem" maxlength="300" rows="3" placeholder="Ex: O número vencedor já saiu! Confira se foi você." data-perm="admin"></textarea></div>
+            <button class="btn small" data-perm="admin" onclick="enviarNotificacaoEtiqueta()">🚀 Enviar pra todo mundo</button>
+            <p class="dimSmall" id="notifEtiquetaStatus" style="margin-top:8px;"></p>
+          </div>
+
+          <div id="notifTab-individual" style="display:none;">
+            <p class="dimSmall">Manda a notificação só pro celular de quem escaneou aquele número específico (a lista vem dos números confirmados na aba Sorteio).</p>
+            <div class="field"><label>Cliente / número confirmado</label><select id="notifIndividualSelect" data-perm="admin"><option value="">Selecione...</option></select></div>
+            <div class="field"><label>Título</label><input id="notifIndividualTitulo" type="text" maxlength="80" placeholder="Ex: Parabéns! 🎉" data-perm="admin"></div>
+            <div class="field"><label>Mensagem</label><textarea id="notifIndividualMensagem" maxlength="300" rows="3" placeholder="Ex: Você foi o sorteado! Passe na loja pra retirar seu prêmio." data-perm="admin"></textarea></div>
+            <button class="btn small" data-perm="admin" onclick="enviarNotificacaoIndividual()">🎯 Enviar só pra esse cliente</button>
+            <p class="dimSmall" id="notifIndividualStatus" style="margin-top:8px;"></p>
+          </div>
+
+          <div id="notifTab-agendadas" style="display:none;">
+            <p class="dimSmall">Programe uma notificação pra ser enviada sozinha numa data/hora futura (ex: lembrete do sorteio, aviso de promoção).</p>
+            <div class="field"><label>Título</label><input id="notifAgendadaTitulo" type="text" maxlength="80" data-perm="admin"></div>
+            <div class="field"><label>Mensagem</label><textarea id="notifAgendadaMensagem" maxlength="300" rows="3" data-perm="admin"></textarea></div>
+            <div class="field" style="max-width:260px;"><label>Data e hora do envio</label><input id="notifAgendadaQuando" type="datetime-local" data-perm="admin"></div>
+            <button class="btn small" data-perm="admin" onclick="agendarNotificacao()">🕒 Agendar</button>
+            <p class="dimSmall" id="notifAgendadaStatus" style="margin-top:8px;"></p>
+
+            <h3 style="margin-top:20px;">Programadas</h3>
+            <button class="btn secondary small" onclick="carregarAgendadas()">🔄 Atualizar</button>
+            <table id="notifAgendadasTable" style="margin-top:10px;">
+              <thead><tr><th>Título</th><th>Mensagem</th><th>Enviar em</th><th>Status</th><th></th></tr></thead>
+              <tbody></tbody>
+            </table>
+            <p class="dimSmall" id="notifAgendadasEmptyMsg" style="display:none;margin-top:10px;">Nenhuma mensagem agendada.</p>
+            <p class="dimSmall" style="margin-top:10px;">⚠️ Pra isso funcionar sozinho (sem precisar deixar o PDV aberto), é preciso rodar 1 vez a função <code>configurarGatilhoAgendadas_</code> no editor do Apps Script — veja o tutorial.</p>
+          </div>
+
+          <div id="notifTab-sorteiotab" style="display:none;">
+            <p class="dimSmall">Quando você define o vencedor do sorteio (aba Sorteio), o sistema pode avisar automaticamente só aquele cliente, sem precisar mandar nada na mão.</p>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:10px 0;">
+              <input type="checkbox" id="cfg_notifVencedorAuto" onchange="saveSettingsLive()" style="width:auto;margin:0;" data-perm="admin">
+              Avisar automaticamente o vencedor quando for definido
+            </label>
+            <div class="field"><label>Título da mensagem</label><input id="cfg_notifVencedorTitulo" type="text" maxlength="80" placeholder="Ex: Parabéns, você ganhou! 🎉" onchange="saveSettingsLive()" data-perm="admin"></div>
+            <div class="field"><label>Mensagem (use {numero} onde quiser que apareça o número sorteado)</label><textarea id="cfg_notifVencedorMensagem" maxlength="300" rows="3" placeholder="Ex: O número {numero} foi o sorteado — parabéns! Passe na loja pra retirar seu prêmio." onchange="saveSettingsLive()" data-perm="admin"></textarea></div>
+          </div>
+
+          <div id="notifTab-historico" style="display:none;">
+            <button class="btn secondary small" onclick="carregarHistoricoNotificacoesEtiqueta()">🔄 Atualizar histórico</button>
+            <table id="notifEtiquetaHistoricoTable" style="margin-top:10px;">
+              <thead><tr><th>Título</th><th>Mensagem</th><th>Destinatário</th><th>Tipo</th><th>Enviado em</th></tr></thead>
+              <tbody></tbody>
+            </table>
+            <p class="dimSmall" id="notifEtiquetaHistoricoEmptyMsg" style="display:none;margin-top:10px;">Nenhuma notificação enviada ainda.</p>
+          </div>
+        </div>
+
+      </div>
+
     </div>
   </div>
 </div>
@@ -2611,7 +2743,8 @@ let DB = {
   productNames: [],    // catálogo de nomes de peças {id, nome}
   trashProducts: [],   // lixeira: cópias completas de produtos excluídos {id, product, deletedAt} — recuperáveis por 6h, ver limparLixeiraExpirada()
   deleted: {},         // "lápides" de exclusão: deleted[campo][id] = timestamp — ver garantirEstruturaDeletados()
-  settings: { nomeLoja:'Shalom Variedades', contato:'', logo:'', impressora:'', papel:'80mm', etiquetaQr:'', etiquetaMostrarQr:true }
+  sorteio: [],          // números de sorteio confirmados pelo site (separado) da etiqueta premiada {id, barcode, numeroCompleto, produtoNome, deviceId, dataScan}
+  settings: { nomeLoja:'Shalom Variedades', contato:'', logo:'', impressora:'', papel:'80mm', etiquetaQr:'', etiquetaMostrarQr:true, sorteioValorMinimo:0,dataSorteio:'', sorteioModoVencedor:'manual', sorteioVencedorNumero:'', sorteioVencedorBarcode:'', sorteioVencedorProduto:'', sorteioVencedorEscolhidoEm:'' }
 };
 
 let currentUser = null;
@@ -2661,7 +2794,7 @@ function existeAlteracaoPendenteSalva(){
    PREENCHA o valor abaixo antes de publicar (URL do Web App, veja o
    guia COMO-CONFIGURAR-DRIVE.md):
 ====================================================================== */
-const APPSCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxVUr4Z7gi098q4t2x_InhXNN65yazljoOSeUJYrB_bwfrwNulJAewXlZOIAYKWQq-5/exec'; // ex: 'https://script.google.com/macros/s/AKfycb.../exec'
+const APPSCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyOFgAnrKrNqKDEA43If31qPvn5IhMCXWKOHG3PNG-1wQTRa53qa-e552bcMTr7c1lk/exec'; // ex: 'https://script.google.com/macros/s/AKfycb.../exec'
 
 let ghToken = null;      // chave de acesso (mesmo nome interno de antes, só que agora não é token do GitHub)
 let deviceAccessToken = null; // autorização alternativa, vinculada a este dispositivo
@@ -2673,28 +2806,20 @@ const ACCESS_REQUEST_STORAGE = 'slmsys_access_request_v1';
 const ACCESS_DEVICE_TOKEN_STORAGE = 'slmsys_device_access_token_v1';
 const ACCESS_REQUEST_RECEIVE_STORAGE = 'slmsys_receive_access_requests_v1';
 const KEY_MAX_ATTEMPTS = 3, KEY_LOCK_MS = 5 * 60 * 1000;
-const TIMEOUT_CONEXAO_MS = 12000;
-// Envolve o fetch com um limite de tempo (AbortController): sem isso, numa conexão
-// ruim (comum no wifi/dados móveis da loja) o fetch podia ficar pendurado
-// indefinidamente — sem responder e sem dar erro — deixando a tela presa em
-// "Salvando arquivo no servidor..." pra sempre e travando a sincronização
-// automática (que só roda de novo depois que o envio anterior termina).
-// Passado esse tempo sem resposta, o pedido é cancelado e cai no catch normal
-// de "falha de conexão", que já sabe lidar com isso (mostra erro e tenta de novo).
-async function fetchComTimeout(url, options={}){
-  const controller = new AbortController();
-  const timeoutId = setTimeout(()=>controller.abort(), TIMEOUT_CONEXAO_MS);
-  try{
-    return await fetch(url, Object.assign({}, options, {signal:controller.signal}));
+async function fetchComFallback(url, options={}, timeoutMs){
+  const controller = timeoutMs ? new AbortController() : null;
+  const timeoutId = controller ? setTimeout(()=>controller.abort(), timeoutMs) : null;
+  try {
+    return await fetch(url, controller ? Object.assign({}, options, {signal: controller.signal}) : options);
   } finally {
-    clearTimeout(timeoutId);
+    if(timeoutId) clearTimeout(timeoutId);
   }
 }
 async function cloudPost(payload, options={}){
-  return fetchComTimeout(APPSCRIPT_URL, Object.assign({method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)}, options));
+  return fetchComFallback(APPSCRIPT_URL, Object.assign({method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)}, options));
 }
-async function cloudGet(params){
-  return fetchComTimeout(APPSCRIPT_URL + '?' + new URLSearchParams(params).toString(), {cache:'no-store'});
+async function cloudGet(params, timeoutMs){
+  return fetchComFallback(APPSCRIPT_URL + '?' + new URLSearchParams(params).toString(), {cache:'no-store'}, timeoutMs);
 }
 async function lerRespostaJson(res){
   const text = await res.text();
@@ -2979,7 +3104,8 @@ function ativarModoTeste(){
     categoryGroups: [grupoTeste],
     categories: categoriasTeste,
     productNames: nomesTeste,
-    settings: { nomeLoja:'Shalom Variedades (MODO TESTE)', contato:'', logo:'', impressora:'', papel:'80mm', etiquetaQr:'', etiquetaMostrarQr:true }
+    sorteio: [],
+    settings: { nomeLoja:'Shalom Variedades (MODO TESTE)', contato:'', logo:'', impressora:'', papel:'80mm', etiquetaQr:'', etiquetaMostrarQr:true, sorteioValorMinimo:0,dataSorteio:'', sorteioModoVencedor:'manual', sorteioVencedorNumero:'', sorteioVencedorBarcode:'', sorteioVencedorProduto:'', sorteioVencedorEscolhidoEm:'' }
   };
 }
 
@@ -2996,16 +3122,18 @@ let _ultimaFalhaFoiDeRede = false;
 // esperando por minutos — e é por isso que o app parecia "não abrir" no
 // PC: ele ficava preso na tela "Conectando ao servidor" pra sempre, sem
 // nunca cair no modo offline. Com o timeout, se não vier resposta a
-// tempo, tratamos como falha de rede normalmente. (TIMEOUT_CONEXAO_MS e o
-// helper fetchComTimeout ficam definidos mais acima, perto do APPSCRIPT_URL,
-// e agora são usados por todo fetch que fala com o servidor — não só este.)
+// tempo, tratamos como falha de rede normalmente.
+const TIMEOUT_CONEXAO_MS = 12000;
 async function loadFromGitHub(){
   const msg = document.getElementById('cloudGateMsg');
   _ultimaFalhaFoiDeRede = false;
   try{
     const credParam = ghToken ? 'key='+encodeURIComponent(ghToken) : 'deviceToken='+encodeURIComponent(deviceAccessToken||'');
-    const url = APPSCRIPT_URL+'?'+credParam+'&_='+Date.now();
-    const res = await fetchComTimeout(url, {cache:'no-store'});
+    const res = await fetchComFallback(
+      APPSCRIPT_URL+'?'+credParam+'&_='+Date.now(),
+      {cache:'no-store'},
+      TIMEOUT_CONEXAO_MS
+    );
     if(!res.ok){ msg.textContent = 'Erro ao conectar (' + res.status + ').'; return false; }
     const json = await res.json();
     if(json.ok === false){
@@ -3254,8 +3382,11 @@ let _fotosEmEnvio = {};
 async function carregarFotosDoServidor(){
   if(!hasCloudCredential()) return;
   try{
-    const url=APPSCRIPT_URL+'?'+(ghToken?'key='+encodeURIComponent(ghToken):'deviceToken='+encodeURIComponent(deviceAccessToken))+'&fotos=1&_='+Date.now();
-    const res = await fetchComTimeout(url, {cache:'no-store'});
+    const credParam = (ghToken?'key='+encodeURIComponent(ghToken):'deviceToken='+encodeURIComponent(deviceAccessToken))+'&fotos=1&_='+Date.now();
+    const res = await fetchComFallback(
+      APPSCRIPT_URL+'?'+credParam,
+      {cache:'no-store'}
+    );
     if(res.ok){
       const json = await res.json();
       if(json.ok){
@@ -3282,11 +3413,9 @@ function marcarFotoAlterada(chave, valor){
 }
 
 let _fotosSaveTimer = null;
-let _fotosBackoffMs = 150; // volta a esse valor a cada sucesso; dobra a cada falha seguida (até um teto), pra não martelar o servidor sem parar quando ele está fora do ar ou sem cota
-function agendarSalvarFotos(depoisDeFalha){
+function agendarSalvarFotos(){
   clearTimeout(_fotosSaveTimer);
-  if(!depoisDeFalha) _fotosBackoffMs = 150; // é uma alteração nova do usuário, não uma retentativa: volta ao ritmo normal
-  _fotosSaveTimer = setTimeout(salvarFotosNoServidor, _fotosBackoffMs);
+  _fotosSaveTimer = setTimeout(salvarFotosNoServidor, 150);
 }
 
 async function salvarFotosNoServidor(){
@@ -3295,24 +3424,18 @@ async function salvarFotosNoServidor(){
   _fotosPendentes = {};
   Object.assign(_fotosEmEnvio, paraEnviar); // marca como "em envio" ANTES do fetch, pra proteger contra sincronizações concorrentes
   try{
-    const res = await fetchComTimeout(APPSCRIPT_URL, {
-      method:'POST',
-      headers: {'Content-Type':'text/plain;charset=utf-8'},
-      body: JSON.stringify(Object.assign({ tipo:'fotos', fotos:paraEnviar }, cloudCredentials()))
-    });
+    const res = await cloudPost(Object.assign({ tipo:'fotos', fotos:paraEnviar }, cloudCredentials()));
     const json = res.ok ? await res.json() : { ok:false };
     if(!json.ok){
-      // devolve pra fila e tenta de novo depois, com espera cada vez maior (sem perder o que já estava pendente)
+      // devolve pra fila e tenta de novo depois (sem perder o que já estava pendente)
       Object.assign(paraEnviar, _fotosPendentes);
       _fotosPendentes = paraEnviar;
-      _fotosBackoffMs = Math.min(_fotosBackoffMs * 2, 30000);
-      agendarSalvarFotos(true);
+      agendarSalvarFotos();
     }
   }catch(e){
     Object.assign(paraEnviar, _fotosPendentes);
     _fotosPendentes = paraEnviar;
-    _fotosBackoffMs = Math.min(_fotosBackoffMs * 2, 30000);
-    agendarSalvarFotos(true);
+    agendarSalvarFotos();
   }finally{
     // libera as chaves de "em envio" só depois do fetch terminar (sucesso ou falha)
     Object.keys(paraEnviar).forEach(chave=>{ delete _fotosEmEnvio[chave]; });
@@ -3358,11 +3481,7 @@ async function saveToGitHubNow(){
   if(!hasCloudCredential()){ setSaveStatus('Salvo neste aparelho', fmtAgora()); return false; }
   _salvandoAgora = true;
   try{
-    const res = await fetchComTimeout(APPSCRIPT_URL, {
-      method:'POST',
-      headers: {'Content-Type':'text/plain;charset=utf-8'}, // evita preflight CORS no Apps Script
-      body: JSON.stringify(Object.assign({version:driveVersion,data:prepararDadosSemFotos_(DB)},cloudCredentials()))
-    });
+    const res = await cloudPost(Object.assign({version:driveVersion,data:prepararDadosSemFotos_(DB)},cloudCredentials()));
     if(!res.ok){
       console.error('Falha ao salvar no Drive:', res.status);
       setSaveStatus('Falha ao salvar no servidor', fmtAgora());
@@ -3558,6 +3677,21 @@ let _ghSaveTimer = null;
 function autoSaveGitHub(){
   clearTimeout(_ghSaveTimer);
   _ghSaveTimer = setTimeout(()=>{
+    // Se já existe um envio em andamento (fetch ainda esperando resposta do
+    // servidor), NÃO dispara outro POST em cima dele. Isso acontecia sempre
+    // que o usuário mexia em algo de novo enquanto o salvamento anterior
+    // ainda estava "no ar" (rede lenta, Apps Script demorando etc.): os dois
+    // POSTs iam com a mesma versão (driveVersion só é atualizado depois que
+    // o primeiro responde), o servidor aceitava um e recusava o outro por
+    // conflito, e o app entrava num vaivém de "combinando com outro
+    // aparelho" — que na prática era o mesmo aparelho brigando com ele
+    // mesmo, e é o que fazia parecer que ele "fica tentando sincronizar" e
+    // às vezes a alteração não ia pro servidor. Em vez disso, espera este
+    // salvamento terminar e tenta de novo automaticamente.
+    if(_salvandoAgora){
+      autoSaveGitHub();
+      return;
+    }
     _ghSaveTimer = null; // libera a checagem automática (checkRemoteVersion) assim que o salvamento realmente começa
     saveToGitHubNow();
   }, 500); // qualquer alteração no sistema é enviada ao servidor 0,50s depois de parar de mexer
@@ -3593,22 +3727,15 @@ const SYNC_INTERVAL_OPCOES = [
   {ms:0,     label:'⚡ Instantâneo'}
 ];
 const SYNC_INTERVAL_PADRAO_MS = 2500;
-const SYNC_INTERVAL_STORAGE = 'slmsys_sync_interval_ms_v1';
-// Preferência de CADA APARELHO, não da loja: fica só no localStorage deste
-// dispositivo, nunca é enviada ao servidor. Antes ficava em DB.settings (salva
-// e sincronizada com todos os outros aparelhos, e cada troca disparava um
-// salvamento completo no servidor à toa) — mas a velocidade de checagem que faz
-// sentido pra um celular específico não tem por que valer pros outros aparelhos
-// da loja, então isso foi corrigido para não depender do servidor.
 function getIntervaloSincronizacaoMs(){
-  let n = NaN;
-  try{ n = Number(localStorage.getItem(SYNC_INTERVAL_STORAGE)); }catch(e){}
+  const n = Number(DB.settings && DB.settings.syncIntervalMs);
   return Number.isFinite(n) && n>=0 ? n : SYNC_INTERVAL_PADRAO_MS;
 }
 function setIntervaloSincronizacaoMs(ms){
-  try{ localStorage.setItem(SYNC_INTERVAL_STORAGE, String(ms)); }catch(e){}
+  DB.settings.syncIntervalMs = ms;
   renderIntervaloSincronizacaoBotoes();
   reiniciarLoopSincronizacao();
+  flashSaving(); // essa escolha vale pra loja inteira, então é salva e enviada ao servidor como as demais configurações
 }
 function renderIntervaloSincronizacaoBotoes(){
   const wrap = document.getElementById('syncIntervalWrap');
@@ -3639,8 +3766,11 @@ async function checkRemoteVersion(){
   if(modalAberto) return;
   _syncPolling = true;
   try{
-    const url=APPSCRIPT_URL+'?'+(ghToken?'key='+encodeURIComponent(ghToken):'deviceToken='+encodeURIComponent(deviceAccessToken))+'&onlyVersion=1&_='+Date.now();
-    const res = await fetchComTimeout(url, {cache:'no-store'});
+    const credParam = ghToken?'key='+encodeURIComponent(ghToken):'deviceToken='+encodeURIComponent(deviceAccessToken);
+    const res = await fetchComFallback(
+      APPSCRIPT_URL+'?'+credParam+'&onlyVersion=1&_='+Date.now(),
+      {cache:'no-store'}
+    );
     if(res.ok){
       const json = await res.json();
       // só chega aqui quando o servidor tem uma versão diferente da nossa — ou seja,
@@ -3660,23 +3790,32 @@ async function checkRemoteVersion(){
           _avisoSyncAtivo = true;
           mostrarSincronizandoOutroAparelho(); // avisa (com animação) que já sabemos que tem novidade e estamos baixando
         }
-        const ok = await loadFromGitHub();
-        if(ok){
-          if(currentUser) renderAll(); else renderLoginAvatars();
-          if(podeAvisar){
-            const el = document.getElementById('saveStatus');
-            el.classList.add('syncPulse');
-            setTimeout(()=>el.classList.remove('syncPulse'), 500);
-            setSaveStatus('Atualizado com dados de outro aparelho', fmtAgora());
-            // Marca o relógio SÓ AGORA, depois que o carregamento terminou — antes essa marca
-            // era feita com o horário de ANTES do fetch, então em conexão lenta (ou quando o
-            // outro aparelho salva dados e foto em requisições separadas e próximas) o tempo
-            // gasto baixando já "comia" boa parte da janela de 2,5s, e um segundo aviso quase
-            // imediato passava pela checagem achando que já tinha esperado o suficiente.
-            _ultimoAvisoSyncTs = Date.now();
+        // try/finally: antes, se loadFromGitHub() ou o render que vem depois
+        // lançasse um erro no meio do caminho, a linha que zera _avisoSyncAtivo
+        // nunca era executada e essa trava ficava presa em "true" pra sempre —
+        // dali em diante o app parava de mostrar (e, em alguns pontos que
+        // dependem dela) de tentar avisar sobre novas sincronizações, dando a
+        // impressão de que ele "ficou preso tentando sincronizar".
+        try{
+          const ok = await loadFromGitHub();
+          if(ok){
+            if(currentUser) renderAll(); else renderLoginAvatars();
+            if(podeAvisar){
+              const el = document.getElementById('saveStatus');
+              el.classList.add('syncPulse');
+              setTimeout(()=>el.classList.remove('syncPulse'), 500);
+              setSaveStatus('Atualizado com dados de outro aparelho', fmtAgora());
+              // Marca o relógio SÓ AGORA, depois que o carregamento terminou — antes essa marca
+              // era feita com o horário de ANTES do fetch, então em conexão lenta (ou quando o
+              // outro aparelho salva dados e foto em requisições separadas e próximas) o tempo
+              // gasto baixando já "comia" boa parte da janela de 2,5s, e um segundo aviso quase
+              // imediato passava pela checagem achando que já tinha esperado o suficiente.
+              _ultimoAvisoSyncTs = Date.now();
+            }
           }
+        } finally {
+          if(podeAvisar) _avisoSyncAtivo = false; // libera a trava mesmo se o carregamento/render falhar, senão o aviso fica bloqueado pra sempre
         }
-        if(podeAvisar) _avisoSyncAtivo = false; // libera a trava mesmo se o carregamento falhar, senão o aviso fica bloqueado pra sempre
       }
     }
   }catch(e){ /* falha silenciosa: tenta de novo no próximo ciclo */ }
@@ -3746,8 +3885,11 @@ async function checkAccessRequests(){
   if(!getPerms().isTotal || !hasCloudCredential() || !recebePedidosNesteDispositivo() || _accessRequestsPolling) return;
   _accessRequestsPolling=true;
   try{
-    const url=APPSCRIPT_URL+'?'+(ghToken?'key='+encodeURIComponent(ghToken):'deviceToken='+encodeURIComponent(deviceAccessToken))+'&onlyAccessRequests=1&_='+Date.now();
-    const res=await fetchComTimeout(url,{cache:'no-store'});
+    const credParam = ghToken?'key='+encodeURIComponent(ghToken):'deviceToken='+encodeURIComponent(deviceAccessToken);
+    const res = await fetchComFallback(
+      APPSCRIPT_URL+'?'+credParam+'&onlyAccessRequests=1&_='+Date.now(),
+      {cache:'no-store'}
+    );
     if(!res.ok) return;
     const json=await res.json();
     if(!json.ok || !Array.isArray(json.accessRequests)) return;
@@ -3974,6 +4116,7 @@ function ensureCatalogDefaults(){
   if(typeof DB.settings.receberPedidosAcesso==='undefined') DB.settings.receberPedidosAcesso = false;
   DB.sales.forEach(s=>{ if(typeof s.cancelled==='undefined') s.cancelled=false; });
   ensureEmployeeDefaults();
+  if(typeof DB.settings.syncIntervalMs==='undefined' || DB.settings.syncIntervalMs===null) DB.settings.syncIntervalMs = SYNC_INTERVAL_PADRAO_MS;
   if(typeof DB.settings.metaCrescimentoPct==='undefined') DB.settings.metaCrescimentoPct = 0;
   if(typeof DB.settings.estoqueLiberacaoMinutos==='undefined' || !DB.settings.estoqueLiberacaoMinutos) DB.settings.estoqueLiberacaoMinutos = 60;
   if(typeof DB.settings.etiquetaMostrarBarras==='undefined') DB.settings.etiquetaMostrarBarras = true;
@@ -3982,6 +4125,11 @@ function ensureCatalogDefaults(){
   if(!DB.settings.etiquetaTamanho) DB.settings.etiquetaTamanho = 'medio';
   if(!DB.settings.etiquetaCor) DB.settings.etiquetaCor = '#000000';
   if(typeof DB.settings.etiquetaModoCustom==='undefined') DB.settings.etiquetaModoCustom = false;
+  if(DB.settings.sorteioModoVencedor!=='automatico' && DB.settings.sorteioModoVencedor!=='manual') DB.settings.sorteioModoVencedor = 'manual';
+  if(typeof DB.settings.sorteioVencedorNumero==='undefined') DB.settings.sorteioVencedorNumero = '';
+  if(typeof DB.settings.sorteioVencedorBarcode==='undefined') DB.settings.sorteioVencedorBarcode = '';
+  if(typeof DB.settings.sorteioVencedorProduto==='undefined') DB.settings.sorteioVencedorProduto = '';
+  if(typeof DB.settings.sorteioVencedorEscolhidoEm==='undefined') DB.settings.sorteioVencedorEscolhidoEm = '';
   if(!Array.isArray(DB.settings.etiquetaLayout)) DB.settings.etiquetaLayout = [];
   if(!DB.settings.etiquetaOrientacao) DB.settings.etiquetaOrientacao = 'horizontal'; // 'horizontal' (50x30mm) ou 'vertical' (30x50mm) — só vale pro editor personalizado
   if(!Array.isArray(DB.settings.etiquetaModelos)) DB.settings.etiquetaModelos = [];
@@ -3996,6 +4144,61 @@ function ensureCatalogDefaults(){
     });
   }
   applyBrandLogo();
+  recalcularEstoqueDosProdutos_();
+}
+/* ------------------------------------------------------------
+   ESTOQUE — RECÁLCULO A PARTIR DO HISTÓRICO (autocorreção do "estoque
+   menor do que deveria")
+   O campo "estoque" de cada produto é ajustado direto (+=, -=) em vários
+   lugares (venda, cancelamento de venda, entrada, saída, ajuste rápido,
+   conferência por etiqueta). Isso funciona certinho NUM SÓ APARELHO, mas
+   quando dois aparelhos mexem no MESMO produto antes de sincronizar, o
+   merge (mergeDB_) precisa escolher um "vencedor" pro produto inteiro —
+   e o valor de estoque do lado que perde fica pra trás, mesmo que aquele
+   lado tivesse acabado de repor mercadoria ou cancelar uma venda (que
+   devolve peça ao estoque). Essa reposição/devolução "some" do número
+   final, e o estoque mostrado fica menor do que devia.
+   Para corrigir isso de vez, o estoque de cada produto passa a ser
+   RECALCULADO (não só ajustado) toda vez que os dados chegam do servidor
+   ou são mesclados entre aparelhos, direto a partir do que realmente
+   aconteceu:
+     estoque = estoqueInicial (ponto de partida, fixo)
+               + tudo que entrou (DB.incomingStock)
+               - tudo que saiu (DB.outgoingStock)
+               - peças vendidas em vendas NÃO canceladas (DB.sales)
+   Essas três listas são combinadas por ID no merge sem perder nada de
+   nenhum aparelho (cada entrada tem um id próprio) — então recalcular a
+   partir delas corrige sozinho qualquer estoque que tenha ficado
+   defasado por uma sincronização entre dois aparelhos, sem precisar
+   mexer em nenhum dos lugares que já ajustam o estoque na hora (eles
+   continuam dando o retorno visual imediato de sempre; este recálculo
+   só confirma/corrige o número toda vez que os dados são carregados).
+   Na primeira vez que um produto passa por aqui (ele ainda não tem
+   "estoqueInicial" salvo), o ponto de partida é descoberto "desfazendo"
+   os movimentos já registrados a partir do estoque atual — assim a
+   ativação desta correção não dá nenhum salto no número already exibido,
+   só passa a proteger dali pra frente.
+------------------------------------------------------------ */
+function recalcularEstoqueDosProdutos_(){
+  if(!Array.isArray(DB.products) || !DB.products.length) return;
+  const mov = {}; // productId -> {entradas, saidas, vendidas}
+  DB.products.forEach(function(p){ if(p && p.id!=null) mov[p.id] = {entradas:0, saidas:0, vendidas:0}; });
+  (DB.incomingStock||[]).forEach(function(m){ const a=mov[m.productId]; if(a) a.entradas += Number(m.qtd)||0; });
+  (DB.outgoingStock||[]).forEach(function(m){ const a=mov[m.productId]; if(a) a.saidas += Number(m.qtd)||0; });
+  (DB.sales||[]).forEach(function(venda){
+    if(venda.cancelled) return; // venda cancelada nunca desconta estoque
+    (venda.items||[]).forEach(function(it){ const a=mov[it.productId]; if(a) a.vendidas += Number(it.qty)||0; });
+  });
+  DB.products.forEach(function(p){
+    if(!p || p.id==null) return;
+    const m = mov[p.id] || {entradas:0, saidas:0, vendidas:0};
+    if(typeof p.estoqueInicial !== 'number' || isNaN(p.estoqueInicial)){
+      // primeira vez: descobre o ponto de partida desfazendo os movimentos já
+      // registrados a partir do estoque atual, pra não dar salto nenhum agora
+      p.estoqueInicial = (Number(p.estoque)||0) - m.entradas + m.saidas + m.vendidas;
+    }
+    p.estoque = Math.max(0, p.estoqueInicial + m.entradas - m.saidas - m.vendidas);
+  });
 }
 /* ---------------- Monitoramento: valores padrão para meta de vendas e ponto ---------------- */
 function ensureEmployeeDefaults(){
@@ -4461,7 +4664,7 @@ function renderAutoLoginBtn(){
 }
 function applyPermissions(){
   const perm = getPerms();
-  const staffOnlyViews = ['caixa','relatorios','funcionarios','config','livrovendas','rendimento'];
+  const staffOnlyViews = ['caixa','relatorios','funcionarios','config','livrovendas','rendimento','sorteio','notificacao'];
   document.querySelectorAll('.navBtn').forEach(b=>{
     const view = b.dataset.view;
     if(perm.level==='restrito' && view!=='vendas' && view!=='testador'){ b.style.display='none'; return; }
@@ -4517,9 +4720,9 @@ function applyPermissions(){
 }
 
 /* ---------------- Navigation ---------------- */
-const viewTitles = {vendas:'Vendas (PDV)', estoque:'Estoque', clientes:'Clientes / Fiado', caixa:'Caixa / Financeiro', relatorios:'Relatórios', funcionarios:'Funcionários', livrovendas:'Livro de Vendas e Receita', rendimento:'Rendimento Total', config:'Configurações', testador:'Testador de Internet'};
+const viewTitles = {vendas:'Vendas (PDV)', estoque:'Estoque', clientes:'Clientes / Fiado', caixa:'Caixa / Financeiro', relatorios:'Relatórios', funcionarios:'Funcionários', livrovendas:'Livro de Vendas e Receita', rendimento:'Rendimento Total', config:'Configurações', testador:'Testador de Internet', sorteio:'Sorteio — Etiqueta Premiada', notificacao:'Notificação — Etiqueta Premiada'};
 function showView(name){
-  const staffOnlyViews = ['caixa','relatorios','funcionarios','config','livrovendas','rendimento'];
+  const staffOnlyViews = ['caixa','relatorios','funcionarios','config','livrovendas','rendimento','sorteio','notificacao'];
   if(currentUser && !getPerms().isTotal && staffOnlyViews.includes(name)){
     name = 'vendas';
   }
@@ -4554,6 +4757,8 @@ function showView(name){
   if(name==='rendimento') renderRendimento();
   if(name==='config') renderConfig();
   if(name==='testador') avaliarConexao();
+  if(name==='sorteio'){ renderSorteio(); }
+  if(name==='notificacao'){ renderNotificacaoView(); }
 }
 
 /* =========================================================
@@ -5303,7 +5508,7 @@ function estaNaAreaCadastro(){
   return !!(viewEstoque && viewEstoque.classList.contains('active') && estoqueTab==='novo');
 }
 function registrarAdicaoRecente(p){
-  const item = { id:p.id, nome:p.nome, barcode:p.barcode||'', ts:Date.now() };
+  const item = { id:p.id, nome:p.nome, ts:Date.now() };
   recentAdds.unshift(item);
   renderRecentAdds();
   setTimeout(function(){ expirarAdicaoRecente(item.id); }, RECENT_ADD_MS);
@@ -5354,23 +5559,20 @@ function renderRecentAdds(){
     el.innerHTML = recentAdds.length
       ? recentAdds.map(function(item){
           const nomeSeguro = (item.nome||'').replace(/</g,'&lt;');
-          const codigoSeguro = (item.barcode||'').replace(/</g,'&lt;');
           return `
           <div class="recentAddItem">
             <div class="recentAddInfo">
               <span class="recentAddBadge">✔ Adicionado agora</span>
               <div class="recentAddName" title="${nomeSeguro}">${nomeSeguro}</div>
-              ${codigoSeguro ? `<div class="dimSmall">Código: <b style="color:var(--text);">${codigoSeguro}</b></div>` : ''}
               <div class="dimSmall" id="recentAddTime-${containerId}-${item.id}">${formatElapsedHMS(Date.now()-item.ts)} atrás</div>
             </div>
             <button type="button" class="btn secondary small" onclick="imprimirEtiquetaAposCadastro('${item.id}')">Tentar imprimir novamente</button>
-            <button type="button" class="btn danger small" onclick="excluirRecemAdicionado('${item.id}')">🗑️ Excluir</button>
           </div>`;
         }).join('')
       : '<div class="recentAddsEmpty">Nenhum produto cadastrado nos últimos 30 segundos.</div>';
   });
 }
-function saveNewProduct(imprimirDireto){
+function saveNewProduct(){
   if(modoTeste){ alert('No modo teste o cadastro de produtos fica bloqueado. Os itens de teste já vêm pré-configurados.'); return; }
   if(!requirePerm(getPerms().canEditStock)) return;
   const nome = document.getElementById('p_nome').value.trim();
@@ -5387,41 +5589,27 @@ function saveNewProduct(imprimirDireto){
   const listaBarcodes = [barcode];
   while(listaBarcodes.length < qtdEtiquetas){
     const candidato = genBarcode();
-    if(!listaBarcodes.includes(candidato) && !DB.products.some(x=>produtoTemBarcode(x, candidato))) listaBarcodes.push(candidato);
+    if(!listaBarcodes.includes(candidato)) listaBarcodes.push(candidato);
   }
-  const categoria = document.getElementById('p_categoria').value.trim();
-  const tamanho = document.getElementById('p_tamanho').value.trim();
-  const cor = document.getElementById('p_cor').value.trim();
-  const estoqueMin = Number(document.getElementById('p_estoqueMin').value)||3;
-  const foto = document.getElementById('p_imgPreview').dataset.data || '';
-  const dataCadastro = todayISO();
-  const cadastradoPor = currentUser ? currentUser.nome : '-';
-  /* Quando é mais de 1 peça, cada uma vira um PRODUTO/ITEM DE ESTOQUE
-     separado (estoque:1 cada), com seu próprio código de barras/etiqueta —
-     em vez de um único produto com "estoque:N" e códigos escondidos num
-     array. Assim cada peça aparece separadamente na lista de Estoque e
-     pode ser vendida/baixada individualmente pelo seu próprio código. */
-  const estoqueInicialUnico = Math.max(1, Number(document.getElementById('p_estoque').value)||1);
-  const produtosCriados = listaBarcodes.map(function(bc){
-    return {
-      id: uid('prod'),
-      nome, categoria, tamanho, cor,
-      custo, venda,
-      estoque: qtdEtiquetas > 1 ? 1 : estoqueInicialUnico,
-      estoqueMin,
-      barcode: bc,
-      foto,
-      dataCadastro,
-      cadastradoPor
-    };
-  });
-  produtosCriados.forEach(function(p){
-    DB.products.push(p);
-    if(p.foto) marcarFotoAlterada(chaveFotoProduto(p.id), p.foto);
-  });
-  log('Produto cadastrado: '+nome+(produtosCriados.length>1?' ('+produtosCriados.length+' peças, códigos separados)':''));
+  const p = {
+    id: uid('prod'),
+    nome, categoria: document.getElementById('p_categoria').value.trim(),
+    tamanho: document.getElementById('p_tamanho').value.trim(),
+    cor: document.getElementById('p_cor').value.trim(),
+    custo, venda,
+    estoque: Math.max(Number(document.getElementById('p_estoque').value)||1, qtdEtiquetas),
+    estoqueMin: Number(document.getElementById('p_estoqueMin').value)||3,
+    barcode: listaBarcodes[0],
+    barcodes: listaBarcodes.slice(1),
+    foto: document.getElementById('p_imgPreview').dataset.data || '',
+    dataCadastro: todayISO(),
+    cadastradoPor: currentUser ? currentUser.nome : '-'
+  };
+  DB.products.push(p);
+  if(p.foto) marcarFotoAlterada(chaveFotoProduto(p.id), p.foto);
+  log('Produto cadastrado: '+nome);
   renderEstoqueLista();
-  produtosCriados.forEach(function(p){ registrarAdicaoRecente(p); });
+  registrarAdicaoRecente(p);
   ['p_tamanho','p_cor','p_custo','p_venda','p_barcode','p_qtdEtiquetas'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('p_estoque').value = '1';
   document.getElementById('p_qtdEtiquetas').value = '1';
@@ -5429,53 +5617,8 @@ function saveNewProduct(imprimirDireto){
   document.getElementById('marginPreview').textContent='Margem: —';
   /* Permanece na aba "Cadastrar" (não vai mais para a lista de Estoque) e mostra
      uma notificação bem visível confirmando que o produto já foi salvo no estoque. */
-  const totalEstoqueCriado = produtosCriados.reduce(function(soma,p){ return soma+p.estoque; }, 0);
-  mostrarPopupEstoqueSalvo(nome, totalEstoqueCriado);
-  const idsCriados = produtosCriados.map(function(p){ return p.id; });
-  if(imprimirDireto){
-    imprimirEtiquetaAposCadastro(idsCriados);
-  } else {
-    perguntarImprimirEtiquetaNovoProduto(idsCriados);
-  }
-}
-/* =========================================================
-   POPUP "ESCOLHER QUANTIDADE E IMPRIMIR" (atalho Alt+Enter)
-   Abre uma janela para digitar quantas peças (etiquetas com
-   códigos diferentes) o produto vai ter. Ao pressionar Enter
-   dentro dessa janela, o produto já é salvo e a impressão das
-   etiquetas sai na hora, sem perguntar de novo.
-========================================================= */
-function abrirPopupQtdEImprimir(){
-  if(modoTeste){ alert('No modo teste o cadastro de produtos fica bloqueado. Os itens de teste já vêm pré-configurados.'); return; }
-  if(!requirePerm(getPerms().canEditStock)) return;
-  const nome = document.getElementById('p_nome').value.trim();
-  if(!nome){ alert('Informe o nome do produto.'); return; }
-  const atual = Math.max(1, parseInt(document.getElementById('p_qtdEtiquetas').value,10) || 1);
-  showModal(`
-    <button class="modalClose" onclick="closeModal()">×</button>
-    <h3>Quantas peças?</h3>
-    <div style="margin:2px 0 14px;color:var(--text);line-height:1.5;">Informe a quantidade de peças. Cada uma sai com um código de etiqueta diferente.</div>
-    <div class="field"><label>Quantidade de peças</label><input id="popupQtdPecas" type="number" min="1" value="${atual}" style="max-width:180px;"></div>
-    <div class="dimSmall" style="margin:10px 0 14px;">Pressione <b>Enter</b> para salvar o produto e imprimir na hora.</div>
-    <div style="display:flex;gap:8px;">
-      <button class="btn secondary" style="flex:1;" onclick="closeModal()">Cancelar</button>
-      <button class="btn" style="flex:1;" onclick="confirmarQtdEImprimir()">🖨️ Salvar e Imprimir</button>
-    </div>
-  `);
-  const input = document.getElementById('popupQtdPecas');
-  input.focus();
-  input.select();
-  input.addEventListener('keydown', function(e){
-    if(e.key==='Enter'){ e.preventDefault(); confirmarQtdEImprimir(); }
-    else if(e.key==='Escape'){ e.preventDefault(); closeModal(); }
-  });
-}
-function confirmarQtdEImprimir(){
-  const input = document.getElementById('popupQtdPecas');
-  const qtd = Math.max(1, parseInt(input.value,10) || 1);
-  document.getElementById('p_qtdEtiquetas').value = qtd;
-  closeModal();
-  saveNewProduct(true);
+  mostrarPopupEstoqueSalvo(p.nome, p.estoque);
+  perguntarImprimirEtiquetaNovoProduto(p.id, qtdEtiquetas);
 }
 /* =========================================================
    PERGUNTAR SE QUER IMPRIMIR A ETIQUETA LOGO APÓS CADASTRAR
@@ -5483,9 +5626,8 @@ function confirmarQtdEImprimir(){
    Enter imprime direto, sem escolher modelo nem passar por outra tela;
    "Não" fecha e não imprime nada.
 ========================================================= */
-function perguntarImprimirEtiquetaNovoProduto(productIds){
-  const ids = Array.isArray(productIds) ? productIds : [productIds];
-  const qtd = ids.length;
+function perguntarImprimirEtiquetaNovoProduto(productId, qtdEtiquetas){
+  const qtd = Math.max(1, Number(qtdEtiquetas)||1);
   showModal(`
     <button class="modalClose" onclick="closeModal()">×</button>
     <h3>Produto cadastrado!</h3>
@@ -5498,7 +5640,7 @@ function perguntarImprimirEtiquetaNovoProduto(productIds){
   `);
   const btnSim = document.getElementById('btnSimImprimirEtiqueta');
   const btnNao = document.getElementById('btnNaoImprimirEtiqueta');
-  const confirmar = function(){ closeModal(); imprimirEtiquetaAposCadastro(ids); };
+  const confirmar = function(){ closeModal(); imprimirEtiquetaAposCadastro(productId, qtd); };
   const cancelar = function(){ closeModal(); };
   btnSim.onclick = confirmar;
   btnNao.onclick = cancelar;
@@ -5510,17 +5652,12 @@ function perguntarImprimirEtiquetaNovoProduto(productIds){
   document.addEventListener('keydown', _confirmModalKeyHandler);
 }
 /* Imprime na hora, sem passar pela tela de escolher modelo: usa o modelo
-   preferido do primeiro produto (se tiver) ou o modelo Premium como padrão.
-   Recebe uma LISTA de ids de produtos — um produto/item de estoque separado
-   para cada peça — e imprime uma etiqueta por produto, cada uma com o
-   código de barras que já é daquele produto (não gera código na hora). */
-function imprimirEtiquetaAposCadastro(productIds){
-  const ids = Array.isArray(productIds) ? productIds : [productIds];
-  const produtos = ids.map(function(id){ return DB.products.find(x=>x.id===id); }).filter(Boolean);
-  if(!produtos.length) return;
-  const pRef = produtos[0];
+   preferido do produto (se tiver) ou o modelo Premium como padrão. */
+function imprimirEtiquetaAposCadastro(productId, quantidade){
+  const p = DB.products.find(x=>x.id===productId);
+  if(!p) return;
   const modelos = DB.settings.etiquetaModelos || [];
-  let modeloPref = pRef.etiquetaModelo;
+  let modeloPref = p.etiquetaModelo;
   if(modeloPref && modeloPref.indexOf('custom:')===0){
     const id = modeloPref.slice(7);
     if(!modelos.find(m=>m.id===id)) modeloPref = null;
@@ -5531,7 +5668,7 @@ function imprimirEtiquetaAposCadastro(productIds){
     modeloPref = 'custom:'+modelos[0].id;
   }
   if(!modeloPref) modeloPref = 'premium';
-  _etqState = {productId: pRef.id, productIds: produtos.map(function(p){ return p.id; }), modelo: modeloPref};
+  _etqState = {productId, modelo: modeloPref, quantidade: Math.max(1, Number(quantidade)||1)};
   imprimirEtiquetaFinal();
 }
 /* =========================================================
@@ -6735,45 +6872,27 @@ function dimsDoModeloEscolhido_(){
   return {w:50,h:30};
 }
 function imprimirEtiquetaFinal(){
+  const p = DB.products.find(x=>x.id===_etqState.productId);
+  if(!p) return;
+  salvarModeloSeMarcado();
   const area = document.getElementById('printArea');
   if(!area) return;
-  // Quando vem de um cadastro de VÁRIAS peças (ex.: popup "Escolher Qtd. e
-  // Imprimir"), _etqState.productIds traz um produto/item de estoque separado
-  // pra cada peça, cada um já com o seu próprio código de barras. Nesse caso
-  // imprime UMA etiqueta por produto da lista, em vez de imprimir só a etiqueta
-  // do primeiro (que era o bug: sempre saía 1 etiqueta só, mesmo cadastrando
-  // várias peças de uma vez).
-  const produtosMultiplos = (_etqState.productIds && _etqState.productIds.length)
-    ? _etqState.productIds.map(function(id){ return DB.products.find(x=>x.id===id); }).filter(Boolean)
-    : null;
-  const p = DB.products.find(x=>x.id===_etqState.productId);
-  if(!p && !(produtosMultiplos && produtosMultiplos.length)) return;
-  if(p) salvarModeloSeMarcado();
   area.innerHTML = '';
-  if(produtosMultiplos && produtosMultiplos.length){
-    produtosMultiplos.forEach(function(prod, index){
-      const item = document.createElement('div');
-      item.className = 'etqPrintItem';
-      renderEtiquetaInto(item, prod, _etqState.modelo, 'print_' + index, prod.barcode);
-      area.appendChild(item);
-    });
-  } else {
-    const qtd = Math.max(1, Number(_etqState.quantidade)||1);
-    const codigos = [];
-    const barcodesJaSalvos = getProdutoBarcodes(p);
-    barcodesJaSalvos.forEach(function(code){ if(code && !codigos.includes(code)) codigos.push(code); });
-    if(!codigos.includes(p.barcode||'')) codigos.unshift(p.barcode||'');
-    while(codigos.length < qtd){
-      const novo = genBarcode();
-      if(!codigos.includes(novo)) codigos.push(novo);
-    }
-    codigos.slice(0, qtd).forEach(function(codigo, index){
-      const item = document.createElement('div');
-      item.className = 'etqPrintItem';
-      renderEtiquetaInto(item, p, _etqState.modelo, 'print_' + index, codigo);
-      area.appendChild(item);
-    });
+  const qtd = Math.max(1, Number(_etqState.quantidade)||1);
+  const codigos = [];
+  const barcodesJaSalvos = getProdutoBarcodes(p);
+  barcodesJaSalvos.forEach(function(code){ if(code && !codigos.includes(code)) codigos.push(code); });
+  if(!codigos.includes(p.barcode||'')) codigos.unshift(p.barcode||'');
+  while(codigos.length < qtd){
+    const novo = genBarcode();
+    if(!codigos.includes(novo)) codigos.push(novo);
   }
+  codigos.slice(0, qtd).forEach(function(codigo, index){
+    const item = document.createElement('div');
+    item.className = 'etqPrintItem';
+    renderEtiquetaInto(item, p, _etqState.modelo, 'print_' + index, codigo);
+    area.appendChild(item);
+  });
   atualizarTamanhoPaginaImpressao_(dimsDoModeloEscolhido_());
   area.style.display='block';
   closeModal();
@@ -7913,27 +8032,6 @@ function deleteProduct(id){
     renderEstoqueLista();
   }, {textoBtn:'Excluir'});
 }
-/* Exclui um produto direto pelo painel "Adicionados agora" — mesma lógica de
-   deleteProduct() (vai pra lixeira, recuperável por 6h), mas também tira o
-   item da lista de "Adicionados agora" na hora, sem esperar o timer de 30s. */
-function excluirRecemAdicionado(id){
-  if(!requirePerm(getPerms().isTotal)) return;
-  const p = DB.products.find(x=>x.id===id);
-  if(!p){ recentAdds = recentAdds.filter(x=>x.id!==id); renderRecentAdds(); return; }
-  confirmModal(`Excluir o produto <b>"${p.nome}"</b> do estoque? Ele fica na lixeira 🗑️ e pode ser recuperado nas próximas 6 horas — depois disso é apagado definitivamente do servidor.`, ()=>{
-    DB.products = DB.products.filter(x=>x.id!==id);
-    marcarExcluido('products', id);
-    if(!Array.isArray(DB.trashProducts)) DB.trashProducts = [];
-    DB.trashProducts.push({ id: uid('trash'), product: p, deletedAt: Date.now() });
-    if(p.foto) marcarFotoAlterada(chaveFotoProduto(p.id), null);
-    log('Produto excluído (via Adicionados agora): '+p.nome);
-    flashSaving();
-    atualizarBotaoLixeira();
-    renderEstoqueLista();
-    recentAdds = recentAdds.filter(x=>x.id!==id);
-    renderRecentAdds();
-  }, {textoBtn:'Excluir'});
-}
 /* ---------------- Lixeira flutuante do Estoque (arrastar para excluir) ----------------
    Duas coisas independentes usam ponteiro (mouse OU dedo, via Pointer Events):
    1) Arrastar o PRÓPRIO ícone da lixeira pra qualquer canto da tela (posição
@@ -8439,101 +8537,6 @@ function confirmCancelSale(saleId){
   closeModal();
   renderAll();
   alert('Venda cancelada. Estoque, fiado e relatórios já foram atualizados.');
-}
-/* ---------- Cancelamento de UMA ÚNICA PEÇA dentro de uma compra com
-   vários produtos (grupo do Livro de Vendas). Estorna só o estoque
-   daquela peça, reduz o total/fiado/pontos proporcionalmente e mantém
-   as outras peças da mesma compra intactas. ---------- */
-function openCancelItemModal(saleId, itemIndex){
-  const sale = DB.sales.find(s=>s.id===saleId);
-  if(!sale || sale.cancelled) return;
-  const it = sale.items[itemIndex];
-  if(!it || it.cancelled) return;
-  const itemTotal = it.price*it.qty;
-  showModal(`
-    <button class="modalClose" onclick="closeModal()">×</button>
-    <h3>Cancelar Peça</h3>
-    <div class="payRow"><span>Compra</span><span>#${sale.id.slice(-5)}</span></div>
-    <div class="payRow"><span>Peça</span><span>${it.name} (x${it.qty})</span></div>
-    <div class="payRow"><span>Valor da peça</span><span>${fmtMoney(itemTotal)}</span></div>
-    <p class="dimSmall">Ao cancelar apenas esta peça: o estoque dela é estornado, o valor é retirado do total da compra (as demais peças continuam vendidas normalmente), e o fiado/pontos vinculados são ajustados. Essa ação não pode ser desfeita.</p>
-    <div class="field"><label>Senha do administrador</label>
-      <input id="cancelItemPass" type="password" placeholder="Senha do admin" onkeydown="if(event.key==='Enter'){event.preventDefault();confirmCancelItem('${saleId}',${itemIndex})}">
-    </div>
-    <div id="cancelItemErr" class="dimSmall" style="color:var(--red);"></div>
-    <div style="display:flex;gap:8px;margin-top:8px;">
-      <button class="btn danger" style="flex:1;" onclick="confirmCancelItem('${saleId}',${itemIndex})">Confirmar Cancelamento da Peça</button>
-      <button class="btn secondary" onclick="closeModal()">Voltar</button>
-    </div>
-  `);
-  setTimeout(()=>{ const inp=document.getElementById('cancelItemPass'); if(inp) inp.focus(); }, 50);
-}
-function confirmCancelItem(saleId, itemIndex){
-  const pass = document.getElementById('cancelItemPass').value;
-  const admin = DB.employees.find(e=>e.perfil==='total' && e.senha===pass);
-  if(!admin){
-    const err = document.getElementById('cancelItemErr');
-    if(err) err.textContent = 'Senha de administrador incorreta.';
-    return;
-  }
-  const sale = DB.sales.find(s=>s.id===saleId);
-  if(!sale || sale.cancelled){ closeModal(); return; }
-  const it = sale.items[itemIndex];
-  if(!it || it.cancelled){ closeModal(); return; }
-
-  const itemGross = it.price*it.qty;
-  const itemDisc = itemDiscountAmount(it);
-  const itemNet = Math.max(0, itemGross - itemDisc);
-
-  // estorna o estoque só dessa peça
-  const p = DB.products.find(x=>x.id===it.productId);
-  if(p) p.estoque += it.qty;
-
-  // reduz o total da compra (as demais peças continuam valendo)
-  sale.subtotal = Math.max(0, (sale.subtotal||0) - itemGross);
-  sale.itemDiscounts = Math.max(0, (sale.itemDiscounts||0) - itemDisc);
-  sale.total = Math.max(0, sale.total - itemNet);
-
-  // ajusta fiado e pontos vinculados a essa compra, proporcionalmente à peça cancelada
-  if(sale.customerId){
-    const cust = DB.customers.find(c=>c.id===sale.customerId);
-    if(cust){
-      if(sale.debt>0){
-        const abate = Math.min(itemNet, sale.debt);
-        sale.debt = Math.max(0, sale.debt - abate);
-        const d = cust.debts.find(x=>x.saleId===sale.id);
-        if(d){
-          d.value = Math.max(0, d.value - abate);
-          if(d.value - d.paid <= 0.001) cust.debts = cust.debts.filter(x=>x.id!==d.id);
-        }
-      }
-      cust.pontos = Math.max(0, (cust.pontos||0) - Math.floor(itemNet/10));
-    }
-  }
-
-  // ajusta o lançamento no livro caixa referente a essa compra
-  const ledgerEntry = DB.ledger.find(l=>l.saleId===sale.id);
-  if(ledgerEntry){
-    ledgerEntry.valor = Math.max(0, ledgerEntry.valor - itemNet);
-    if(ledgerEntry.valor <= 0.001) DB.ledger = DB.ledger.filter(l=>l!==ledgerEntry);
-  }
-
-  it.cancelled = true;
-  it.cancelledAt = todayISO();
-  it.cancelledBy = admin.nome;
-
-  // se essa era a última peça ativa da compra, a compra inteira fica cancelada
-  const aindaAtivas = sale.items.some(x=>!x.cancelled);
-  if(!aindaAtivas){
-    sale.cancelled = true;
-    sale.cancelledAt = todayISO();
-    sale.cancelledBy = admin.nome;
-  }
-
-  log(`Peça cancelada na compra #${sale.id.slice(-5)}: ${it.name} x${it.qty} (${fmtMoney(itemNet)}) — autorizado por ${admin.nome}.`);
-  closeModal();
-  renderAll();
-  alert('Peça cancelada. Estoque, fiado e relatórios já foram atualizados.');
 }
 function renderFiadoOverview(){
   const withDebt = DB.customers.filter(c=>customerDebtTotal(c)>0.001);
@@ -9129,49 +9132,18 @@ function renderLivroVendas(){
   let receita=0, custo=0, qtdPecas=0;
   const rows = [];
   sales.forEach(s=>{
-    // itens realmente ativos dessa venda (uma peça pode ter sido cancelada
-    // individualmente mesmo que a venda como um todo continue ativa)
-    const itensAtivos = s.items.filter(it=>!it.cancelled);
-    const ehGrupo = s.items.length > 1; // carrinho com mais de um produto = "compra" a destacar
-    s.items.forEach((it,idx)=>{
+    s.items.forEach(it=>{
       const p = DB.products.find(x=>x.id===it.productId);
       const custoUn = p ? (p.custo||0) : 0;
-      const itemCancelado = !!it.cancelled;
-      if(!s.cancelled && !itemCancelado){
+      if(!s.cancelled){
         receita += it.price*it.qty;
         custo += custoUn*it.qty;
         qtdPecas += it.qty;
       }
-      let statusHtml;
-      if(s.cancelled) statusHtml = '<span class="badge pending">Cancelada</span>';
-      else if(itemCancelado) statusHtml = '<span class="badge pending">Peça cancelada</span>';
-      else statusHtml = '<span class="badge ok">Ativa</span>';
-
-      let actionHtml = '';
-      if(!s.cancelled && !itemCancelado){
-        // se a venda tem mais de uma peça ainda ativa, dá pra cancelar só essa
-        // peça; senão (é a última peça ativa), cancela a venda inteira
-        if(itensAtivos.length > 1){
-          actionHtml = `<button class="btn small danger" onclick="openCancelItemModal('${s.id}',${idx})">Cancelar peça</button>`;
-        } else {
-          actionHtml = `<button class="btn small danger" onclick="openCancelSaleModal('${s.id}')">Cancelar venda</button>`;
-        }
-      }
-
-      const classes = [];
-      if(ehGrupo){
-        classes.push('livroGrupoVenda');
-        if(idx===0) classes.push('livroGrupoVendaInicio');
-      }
-      const classAttr = classes.length ? ` class="${classes.join(' ')}"` : '';
-
-      rows.push(`<tr${classAttr}><td>${fmtDateTime(s.date)}</td><td>${it.name}</td><td>${it.qty}</td><td>${fmtMoney(custoUn)}</td><td>${fmtMoney(it.price)}</td><td>${fmtMoney(it.price*it.qty)}</td><td>${s.sellerName||'-'}</td><td>${statusHtml}</td><td>${actionHtml}</td></tr>`);
+      const statusHtml = s.cancelled ? '<span class="badge pending">Cancelada</span>' : '<span class="badge ok">Ativa</span>';
+      const actionHtml = s.cancelled ? '' : `<button class="btn small danger" onclick="openCancelSaleModal('${s.id}')">Cancelar venda</button>`;
+      rows.push(`<tr><td>${fmtDateTime(s.date)}</td><td>${it.name}</td><td>${it.qty}</td><td>${fmtMoney(custoUn)}</td><td>${fmtMoney(it.price)}</td><td>${fmtMoney(it.price*it.qty)}</td><td>${s.sellerName||'-'}</td><td>${statusHtml}</td><td>${actionHtml}</td></tr>`);
     });
-    // linha de fechamento do grupo: destaca o valor bruto da compra inteira
-    if(ehGrupo){
-      const statusResumo = s.cancelled ? 'Venda cancelada' : (itensAtivos.length ? `${itensAtivos.length} peça(s) ativa(s)` : 'Todas as peças canceladas');
-      rows.push(`<tr class="livroGrupoVenda livroGrupoVendaFim"><td colspan="5" style="text-align:right;font-weight:700;">Total da compra #${s.id.slice(-5)} (valor bruto) — ${statusResumo}</td><td style="font-weight:700;">${fmtMoney(s.total)}</td><td colspan="3"></td></tr>`);
-    }
   });
   document.getElementById('livroReceita').textContent = fmtMoney(receita);
   document.getElementById('livroCusto').textContent = fmtMoney(custo);
@@ -9288,6 +9260,489 @@ function refreshDeviceAuthStatus(){
   }
 }
 
+/* =========================================================
+   SORTEIO — ETIQUETA PREMIADA (leitura da lista alimentada pelo
+   site separado da etiqueta premiada, via Code.gs > registrarSorteio)
+========================================================= */
+function renderSorteio(){
+  const tbody = document.querySelector('#sorteioTable tbody');
+  const emptyMsg = document.getElementById('sorteioEmptyMsg');
+  const totalCount = document.getElementById('sorteioTotalCount');
+  if(!tbody) return;
+  const esc = v => String(v||'-').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+  // campo de valor mínimo e data do sorteio (vivem só aqui na aba Sorteio)
+  const minInput = document.getElementById('cfg_sorteioValorMinimo');
+  if(minInput && document.activeElement !== minInput){
+    minInput.value = fmtMoneyInput(DB.settings.sorteioValorMinimo || 0);
+  }
+  const dataInput = document.getElementById('cfg_dataSorteio');
+  if(dataInput && document.activeElement !== dataInput){
+    dataInput.value = DB.settings.dataSorteio || '';
+  }
+  const minimo = Number(DB.settings.sorteioValorMinimo) || 0;
+
+  // ---- Tabela 1: todos os códigos elegíveis (vendidos dentro do valor mínimo) ----
+  const porBarcode = {}; // barcode -> { produtoNome, elegiveis }
+  (DB.sales||[]).forEach(venda=>{
+    if(venda.cancelled) return;
+    (venda.items||[]).forEach(it=>{
+      const prod = (DB.products||[]).find(p=>p.id===it.productId);
+      if(!prod || !prod.barcode) return;
+      const qty = Number(it.qty)||0;
+      if(qty<=0) return;
+      const linha = (Number(it.price)||0)*qty;
+      const desconto = itemDiscountAmount(it);
+      const unit = (linha - desconto)/qty;
+      if(unit < minimo) return;
+      if(!porBarcode[prod.barcode]) porBarcode[prod.barcode] = { produtoNome: prod.nome, elegiveis: 0 };
+      porBarcode[prod.barcode].elegiveis += qty;
+    });
+  });
+  const escaneadosPorBarcode = {};
+  (DB.sorteio||[]).forEach(r=>{ escaneadosPorBarcode[r.barcode] = (escaneadosPorBarcode[r.barcode]||0) + 1; });
+
+  const excluidos = (DB.settings.sorteioBarcodesExcluidos || []);
+  const elegTbody = document.querySelector('#sorteioElegiveisTable tbody');
+  const elegEmpty = document.getElementById('sorteioElegiveisEmptyMsg');
+  const excluidosBox = document.getElementById('sorteioElegiveisExcluidosBox');
+  const linhas = Object.keys(porBarcode).filter(barcode=> !excluidos.includes(barcode)).map(barcode=>{
+    const info = porBarcode[barcode];
+    const escaneadas = escaneadosPorBarcode[barcode] || 0;
+    const faltam = Math.max(0, info.elegiveis - escaneadas);
+    return { barcode, produtoNome: info.produtoNome, elegiveis: info.elegiveis, escaneadas, faltam };
+  }).sort((a,b)=> b.faltam - a.faltam);
+  if(elegTbody){
+    elegEmpty.style.display = linhas.length ? 'none' : '';
+    elegTbody.innerHTML = linhas.map(l => `
+      <tr>
+        <td>${esc(l.produtoNome)}</td>
+        <td>${esc(l.barcode)}</td>
+        <td>${l.elegiveis}</td>
+        <td>${l.escaneadas}</td>
+        <td><b>${l.faltam}</b></td>
+        <td><button class="btn danger small" data-perm="admin" onclick="excluirCodigoElegivelSorteio('${esc(l.barcode)}','${esc(l.produtoNome)}')" title="Excluir este código elegível da lista">🗑️ Excluir</button></td>
+      </tr>
+    `).join('');
+  }
+  if(excluidosBox){
+    if(excluidos.length){
+      excluidosBox.style.display = '';
+      excluidosBox.innerHTML = `
+        <details>
+          <summary class="dimSmall" style="cursor:pointer;">${excluidos.length} código(s) excluído(s) da lista de elegíveis (clique para ver / restaurar)</summary>
+          <p class="dimSmall" style="margin:8px 0 0;">Restaurar volta a permitir escaneamentos <b>novos</b> desse código. Números que já haviam sido confirmados antes da exclusão foram apagados e não voltam.</p>
+          <table style="margin-top:8px;">
+            <thead><tr><th>Código de barras</th><th></th></tr></thead>
+            <tbody>
+              ${excluidos.map(bc => `
+                <tr>
+                  <td>${esc(bc)}</td>
+                  <td><button class="btn secondary small" data-perm="admin" onclick="restaurarCodigoElegivelSorteio('${esc(bc)}')">↩️ Restaurar</button></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </details>
+      `;
+    }else{
+      excluidosBox.style.display = 'none';
+      excluidosBox.innerHTML = '';
+    }
+  }
+
+  // ---- Tabela 2: números já confirmados pelo site da etiqueta ----
+  const q = (document.getElementById('sorteioFilter').value||'').trim().toLowerCase();
+  let lista = (DB.sorteio||[]).slice().sort((a,b)=> new Date(b.dataScan) - new Date(a.dataScan));
+  if(q){
+    lista = lista.filter(r =>
+      String(r.numeroCompleto||'').toLowerCase().includes(q) ||
+      String(r.barcode||'').toLowerCase().includes(q) ||
+      String(r.produtoNome||'').toLowerCase().includes(q)
+    );
+  }
+  totalCount.textContent = lista.length + ' número(s)';
+  emptyMsg.style.display = lista.length ? 'none' : '';
+  tbody.innerHTML = lista.map(r => `
+    <tr>
+      <td><b>${esc(r.numeroCompleto)}</b></td>
+      <td>${esc(r.produtoNome)}</td>
+      <td>${esc(r.barcode)}</td>
+      <td>${r.dataScan ? new Date(r.dataScan).toLocaleString('pt-BR') : '-'}</td>
+      <td class="dimSmall">${esc((r.deviceId||'').slice(0,10))}${r.deviceId && r.deviceId.length>10 ? '…' : ''}</td>
+    </tr>
+  `).join('');
+
+  renderEscolhaVencedor(esc);
+}
+
+/* ---------------------------------------------------------
+   Excluir/restaurar um código de barras da lista de "códigos
+   elegíveis" do sorteio. Não apaga a venda nem o produto — só
+   tira aquele código de barras específico dessa lista (ex: peça
+   vendida por engano dentro do valor mínimo, ou código de teste).
+--------------------------------------------------------- */
+function excluirCodigoElegivelSorteio(barcode, produtoNome){
+  const confirmadosDoCodigo = (DB.sorteio||[]).filter(r => r.barcode === barcode);
+  const qtdConfirmados = confirmadosDoCodigo.length;
+  const avisoConfirmados = qtdConfirmados
+    ? `<br><br>⚠️ Esse código já tem <b>${qtdConfirmados} número(s) confirmado(s)</b> por cliente(s) no site da etiqueta — eles também serão apagados junto e isso <b>não pode ser desfeito</b>.`
+    : '';
+  confirmModal(
+    `Excluir o código <b>${barcode}</b>${produtoNome ? ' ('+produtoNome+')' : ''} da lista de códigos elegíveis do sorteio? A venda continua registrada normalmente, só o código sai desta lista e dos escaneamentos.${avisoConfirmados}`,
+    ()=>{
+      if(!DB.settings.sorteioBarcodesExcluidos) DB.settings.sorteioBarcodesExcluidos = [];
+      if(!DB.settings.sorteioBarcodesExcluidos.includes(barcode)){
+        DB.settings.sorteioBarcodesExcluidos.push(barcode);
+      }
+      // remove também os números já confirmados (escaneados) desse código de barras
+      const eraVencedor = DB.settings.sorteioVencedorBarcode === barcode;
+      DB.sorteio = (DB.sorteio||[]).filter(r => r.barcode !== barcode);
+      if(eraVencedor){
+        // o vencedor atual era um número desse código que acabou de ser removido
+        DB.settings.sorteioVencedorNumero = '';
+        DB.settings.sorteioVencedorBarcode = '';
+        DB.settings.sorteioVencedorProduto = '';
+        DB.settings.sorteioVencedorEscolhidoEm = '';
+      }
+      flashSaving();
+      renderSorteio();
+    },
+    { titulo: 'Excluir código elegível?', textoBtn: 'Excluir' }
+  );
+}
+
+function restaurarCodigoElegivelSorteio(barcode){
+  DB.settings.sorteioBarcodesExcluidos = (DB.settings.sorteioBarcodesExcluidos || []).filter(bc => bc !== barcode);
+  flashSaving();
+  renderSorteio();
+}
+
+/* ---------------------------------------------------------
+   Escolha do vencedor: sempre a partir dos números JÁ
+   CONFIRMADOS (DB.sorteio) — nunca dos elegíveis não escaneados,
+   pra sempre existir uma peça de fato reivindicada por trás do
+   número sorteado/escolhido.
+--------------------------------------------------------- */
+function renderEscolhaVencedor(esc){
+  const modo = (DB.settings.sorteioModoVencedor === 'automatico') ? 'automatico' : 'manual';
+  const radioAuto = document.getElementById('sorteioModoVencedorAuto');
+  const radioManual = document.getElementById('sorteioModoVencedorManual');
+  if(radioAuto) radioAuto.checked = (modo === 'automatico');
+  if(radioManual) radioManual.checked = (modo === 'manual');
+  const boxAuto = document.getElementById('sorteioModoAutomaticoBox');
+  const boxManual = document.getElementById('sorteioModoManualBox');
+  if(boxAuto) boxAuto.style.display = (modo === 'automatico') ? '' : 'none';
+  if(boxManual) boxManual.style.display = (modo === 'manual') ? '' : 'none';
+
+  const confirmados = (DB.sorteio||[]).slice().sort((a,b)=> new Date(b.dataScan) - new Date(a.dataScan));
+  const select = document.getElementById('sorteioVencedorSelect');
+  if(select && document.activeElement !== select){
+    const atual = select.value;
+    select.innerHTML = '<option value="">Selecione...</option>' + confirmados.map(r =>
+      `<option value="${esc(r.numeroCompleto)}">${esc(r.numeroCompleto)} — ${esc(r.produtoNome)}</option>`
+    ).join('');
+    if(confirmados.some(r=>r.numeroCompleto===atual)) select.value = atual;
+  }
+
+  const box = document.getElementById('sorteioVencedorAtual');
+  if(!box) return;
+  const numero = DB.settings.sorteioVencedorNumero;
+  if(!numero){
+    box.innerHTML = `<p class="dimSmall">Nenhum vencedor definido ainda.</p>`;
+    return;
+  }
+  const quando = DB.settings.sorteioVencedorEscolhidoEm ? new Date(DB.settings.sorteioVencedorEscolhidoEm).toLocaleString('pt-BR') : '-';
+  box.innerHTML = `
+    <div class="panel" style="background:var(--panel2);">
+      <div class="dimSmall">Vencedor atual (${modo==='automatico' ? 'sorteado' : 'escolhido manualmente'} em ${quando})</div>
+      <h3 style="margin:4px 0;">🏆 ${esc(numero)}</h3>
+      <div class="dimSmall">${esc(DB.settings.sorteioVencedorProduto)} — código ${esc(DB.settings.sorteioVencedorBarcode)}</div>
+      <button class="btn secondary small" style="margin-top:10px;" data-perm="admin" onclick="limparVencedor()">🗑️ Limpar vencedor</button>
+    </div>
+  `;
+}
+
+function mudarModoVencedor(modo){
+  DB.settings.sorteioModoVencedor = (modo === 'automatico') ? 'automatico' : 'manual';
+  flashSaving();
+  renderSorteio();
+}
+
+function definirVencedor_(registro){
+  DB.settings.sorteioVencedorNumero = registro.numeroCompleto;
+  DB.settings.sorteioVencedorBarcode = registro.barcode;
+  DB.settings.sorteioVencedorProduto = registro.produtoNome;
+  DB.settings.sorteioVencedorEscolhidoEm = new Date().toISOString();
+  flashSaving();
+  renderSorteio();
+  avisarVencedorAutomaticoSeAtivado_(registro);
+}
+
+// Integração Sorteio → Notificação: se a opção estiver ligada (aba Notificação),
+// avisa automaticamente só o cliente que ganhou, sem precisar mandar na mão.
+async function avisarVencedorAutomaticoSeAtivado_(registro){
+  if(!DB.settings.notifVencedorAuto || !registro || !registro.deviceId) return;
+  const titulo = (DB.settings.notifVencedorTitulo || 'Parabéns, você ganhou! 🎉').trim();
+  const mensagem = (DB.settings.notifVencedorMensagem || 'O número {numero} foi o sorteado — parabéns! Passe na loja pra retirar seu prêmio.')
+    .replace(/\{numero\}/g, registro.numeroCompleto);
+  try{
+    await cloudPost(Object.assign({
+      tipo:'enviarNotificacaoParaDispositivo',
+      destinatarioDeviceId: registro.deviceId,
+      destinatarioLabel: registro.numeroCompleto,
+      titulo, mensagem
+    }, cloudCredentials()));
+  }catch(e){ /* silencioso — o vencedor já foi salvo normalmente, só o aviso falhou */ }
+}
+
+function sortearVencedorAleatorio(){
+  const pool = (DB.sorteio||[]);
+  if(!pool.length){ alert('Ainda não há nenhum número confirmado pelo site da etiqueta para sortear.'); return; }
+  if(!confirm('Sortear agora um vencedor entre os ' + pool.length + ' número(s) já confirmado(s)? O vencedor atual (se houver) será substituído.')) return;
+  const escolhido = pool[Math.floor(Math.random() * pool.length)];
+  definirVencedor_(escolhido);
+}
+
+function definirVencedorManual(){
+  const select = document.getElementById('sorteioVencedorSelect');
+  const numero = select ? select.value : '';
+  if(!numero){ alert('Selecione um número da lista de confirmados.'); return; }
+  const registro = (DB.sorteio||[]).find(r => r.numeroCompleto === numero);
+  if(!registro){ alert('Número não encontrado na lista de confirmados.'); return; }
+  definirVencedor_(registro);
+}
+
+function limparVencedor(){
+  if(!confirm('Remover o vencedor atual? Você poderá sortear ou escolher outro depois.')) return;
+  DB.settings.sorteioVencedorNumero = '';
+  DB.settings.sorteioVencedorBarcode = '';
+  DB.settings.sorteioVencedorProduto = '';
+  DB.settings.sorteioVencedorEscolhidoEm = '';
+  flashSaving();
+  renderSorteio();
+}
+
+/* ---------------------------------------------------------
+   Notificações para o site da etiqueta premiada. Não fica em
+   DB (não é dado da loja em si) — vai direto pro servidor via
+   POST autenticado. Ver Code.gs (funções que começam com
+   notificar/enviar/agendar/listar + Etiqueta).
+--------------------------------------------------------- */
+let notifTabAtual = 'agora';
+function mudarNotifTab(tab){
+  notifTabAtual = tab;
+  ['agora','individual','agendadas','sorteiotab','historico'].forEach(function(t){
+    const pane = document.getElementById('notifTab-'+t);
+    const btn = document.getElementById('notifTabBtn-'+t);
+    if(pane) pane.style.display = (t===tab) ? '' : 'none';
+    if(btn) btn.classList.toggle('active', t===tab);
+  });
+  if(tab==='individual') renderNotifIndividualSelect();
+  if(tab==='agendadas') carregarAgendadas();
+  if(tab==='historico') carregarHistoricoNotificacoesEtiqueta();
+}
+function renderNotificacaoView(){
+  mudarNotifTab(notifTabAtual);
+  const auto = document.getElementById('cfg_notifVencedorAuto');
+  if(auto) auto.checked = !!DB.settings.notifVencedorAuto;
+  const tit = document.getElementById('cfg_notifVencedorTitulo');
+  if(tit) tit.value = DB.settings.notifVencedorTitulo || '';
+  const msg = document.getElementById('cfg_notifVencedorMensagem');
+  if(msg) msg.value = DB.settings.notifVencedorMensagem || '';
+  renderNotifIndividualSelect();
+}
+// Lista pra escolher "cliente específico" — usa os mesmos números já
+// confirmados no site da etiqueta (DB.sorteio), igual à escolha de vencedor.
+function renderNotifIndividualSelect(){
+  const select = document.getElementById('notifIndividualSelect');
+  if(!select || document.activeElement === select) return;
+  const confirmados = (DB.sorteio||[]).slice().sort((a,b)=> new Date(b.dataScan) - new Date(a.dataScan));
+  const atual = select.value;
+  select.innerHTML = '<option value="">Selecione...</option>' + confirmados.map(r =>
+    `<option value="${r.deviceId}">${r.numeroCompleto} — ${r.produtoNome}</option>`
+  ).join('');
+  if(confirmados.some(r=>r.deviceId===atual)) select.value = atual;
+}
+
+async function enviarNotificacaoEtiqueta(){
+  const tituloEl = document.getElementById('notifEtiquetaTitulo');
+  const mensagemEl = document.getElementById('notifEtiquetaMensagem');
+  const statusEl = document.getElementById('notifEtiquetaStatus');
+  const titulo = (tituloEl.value||'').trim();
+  const mensagem = (mensagemEl.value||'').trim();
+  if(!titulo || !mensagem){
+    if(statusEl){ statusEl.textContent = 'Preencha título e mensagem antes de enviar.'; statusEl.style.color = 'var(--red)'; }
+    return;
+  }
+  if(!hasCloudCredential()){
+    if(statusEl){ statusEl.textContent = 'Faça login no PDV com a chave correta antes de enviar a notificação.'; statusEl.style.color = 'var(--red)'; }
+    return;
+  }
+  if(statusEl){ statusEl.textContent = 'Enviando...'; statusEl.style.color = 'var(--text-dim)'; }
+  try{
+    const res = await cloudPost(Object.assign({tipo:'enviarNotificacaoEtiqueta', titulo, mensagem}, cloudCredentials()));
+    const { json, text } = await lerRespostaJson(res);
+    const erroDetalhado = (json && json.error) || (text && text.trim().slice(0, 220)) || 'Não foi possível enviar a notificação.';
+    if(!res.ok || !json || !json.ok){
+      if(statusEl){ statusEl.textContent = erroDetalhado; statusEl.style.color = 'var(--red)'; }
+      log('❌ Falha ao enviar notificação "'+titulo+'" pra todo mundo: '+erroDetalhado);
+      carregarHistoricoNotificacoesEtiqueta();
+      return;
+    }
+    if(statusEl){
+      if(json.aviso){
+        statusEl.textContent = json.aviso;
+        statusEl.style.color = 'var(--yellow, orange)';
+      } else if(typeof json.enviados === 'number'){
+        statusEl.textContent = 'Notificação enviada com sucesso pra ' + json.enviados + ' aparelho(s)!';
+        statusEl.style.color = 'var(--green)';
+      } else {
+        statusEl.textContent = 'Notificação enviada pra todo mundo que ativou!';
+        statusEl.style.color = 'var(--green)';
+      }
+    }
+    log((json.aviso ? '⚠️ ' : '📣 ') + 'Notificação "'+titulo+'" enviada pra todo mundo' + (typeof json.enviados==='number' ? ' ('+json.enviados+' aparelho(s))' : '') + (json.aviso ? ' — '+json.aviso : ''));
+    carregarHistoricoNotificacoesEtiqueta();
+    tituloEl.value = '';
+    mensagemEl.value = '';
+  }catch(e){
+    const detalhe = e && e.message ? e.message : 'Sem conexão para enviar a notificação agora.';
+    if(statusEl){ statusEl.textContent = detalhe; statusEl.style.color = 'var(--red)'; }
+    log('❌ Falha ao enviar notificação "'+titulo+'" pra todo mundo: '+detalhe);
+  }
+}
+
+// Manda só pra um cliente/número específico (usa o token de push só daquele aparelho)
+async function enviarNotificacaoIndividual(){
+  const select = document.getElementById('notifIndividualSelect');
+  const tituloEl = document.getElementById('notifIndividualTitulo');
+  const mensagemEl = document.getElementById('notifIndividualMensagem');
+  const statusEl = document.getElementById('notifIndividualStatus');
+  const deviceId = select ? select.value : '';
+  const titulo = (tituloEl.value||'').trim();
+  const mensagem = (mensagemEl.value||'').trim();
+  if(!deviceId){ if(statusEl){ statusEl.textContent = 'Selecione o cliente/número.'; statusEl.style.color = 'var(--red)'; } return; }
+  if(!titulo || !mensagem){ if(statusEl){ statusEl.textContent = 'Preencha título e mensagem.'; statusEl.style.color = 'var(--red)'; } return; }
+  if(!hasCloudCredential()){
+    if(statusEl){ statusEl.textContent = 'Faça login no PDV com a chave correta antes de enviar a notificação.'; statusEl.style.color = 'var(--red)'; }
+    return;
+  }
+  const label = select.options[select.selectedIndex] ? select.options[select.selectedIndex].textContent : deviceId;
+  if(statusEl){ statusEl.textContent = 'Enviando...'; statusEl.style.color = 'var(--text-dim)'; }
+  try{
+    const res = await cloudPost(Object.assign({tipo:'enviarNotificacaoParaDispositivo', destinatarioDeviceId: deviceId, destinatarioLabel: label, titulo, mensagem}, cloudCredentials()));
+    const { json, text } = await lerRespostaJson(res);
+    const erroDetalhado = (json && json.error) || (text && text.trim().slice(0, 220)) || 'Não foi possível enviar.';
+    if(!res.ok || !json || !json.ok){
+      if(statusEl){ statusEl.textContent = erroDetalhado; statusEl.style.color = 'var(--red)'; }
+      log('❌ Falha ao enviar notificação individual pra '+label+': '+erroDetalhado);
+      carregarHistoricoNotificacoesEtiqueta();
+      return;
+    }
+    if(statusEl){ statusEl.textContent = json.aviso || 'Notificação enviada pra esse cliente!'; statusEl.style.color = json.aviso ? 'var(--yellow)' : 'var(--green)'; }
+    log((json.aviso ? '⚠️ ' : '🎯 ') + 'Notificação "'+titulo+'" enviada pra '+label + (json.aviso ? ' — '+json.aviso : ''));
+    carregarHistoricoNotificacoesEtiqueta();
+    tituloEl.value = '';
+    mensagemEl.value = '';
+  }catch(e){
+    const detalhe = e && e.message ? e.message : 'Sem conexão para enviar a notificação agora.';
+    if(statusEl){ statusEl.textContent = detalhe; statusEl.style.color = 'var(--red)'; }
+    log('❌ Falha ao enviar notificação individual pra '+label+': '+detalhe);
+  }
+}
+
+// Agenda uma notificação pra ser mandada sozinha numa data/hora futura
+async function agendarNotificacao(){
+  const tituloEl = document.getElementById('notifAgendadaTitulo');
+  const mensagemEl = document.getElementById('notifAgendadaMensagem');
+  const quandoEl = document.getElementById('notifAgendadaQuando');
+  const statusEl = document.getElementById('notifAgendadaStatus');
+  const titulo = (tituloEl.value||'').trim();
+  const mensagem = (mensagemEl.value||'').trim();
+  const enviarEm = quandoEl.value;
+  if(!titulo || !mensagem || !enviarEm){
+    if(statusEl){ statusEl.textContent = 'Preencha título, mensagem e a data/hora do envio.'; statusEl.style.color = 'var(--red)'; }
+    return;
+  }
+  if(!hasCloudCredential()){
+    if(statusEl){ statusEl.textContent = 'Faça login no PDV com a chave correta antes de agendar a notificação.'; statusEl.style.color = 'var(--red)'; }
+    return;
+  }
+  if(new Date(enviarEm).getTime() <= Date.now()){
+    if(statusEl){ statusEl.textContent = 'Escolha uma data/hora no futuro.'; statusEl.style.color = 'var(--red)'; }
+    return;
+  }
+  if(statusEl){ statusEl.textContent = 'Agendando...'; statusEl.style.color = 'var(--text-dim)'; }
+  try{
+    const res = await cloudPost(Object.assign({tipo:'agendarNotificacaoEtiqueta', titulo, mensagem, enviarEm}, cloudCredentials()));
+    const { json, text } = await lerRespostaJson(res);
+    const erroDetalhado = (json && json.error) || (text && text.trim().slice(0, 220)) || 'Não foi possível agendar.';
+    if(!res.ok || !json || !json.ok){
+      if(statusEl){ statusEl.textContent = erroDetalhado; statusEl.style.color = 'var(--red)'; }
+      return;
+    }
+    if(statusEl){ statusEl.textContent = 'Mensagem agendada!'; statusEl.style.color = 'var(--green)'; }
+    tituloEl.value = ''; mensagemEl.value = ''; quandoEl.value = '';
+    carregarAgendadas();
+  }catch(e){
+    const detalhe = e && e.message ? e.message : 'Sem conexão para agendar agora.';
+    if(statusEl){ statusEl.textContent = detalhe; statusEl.style.color = 'var(--red)'; }
+  }
+}
+async function carregarAgendadas(){
+  const tbody = document.querySelector('#notifAgendadasTable tbody');
+  const emptyMsg = document.getElementById('notifAgendadasEmptyMsg');
+  if(!tbody) return;
+  const esc = v => String(v||'-').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  try{
+    const res = await cloudPost(Object.assign({tipo:'listarAgendadasEtiqueta'}, cloudCredentials()));
+    const json = await res.json();
+    if(!res.ok || !json.ok || !Array.isArray(json.agendadas)) return;
+    const lista = json.agendadas;
+    emptyMsg.style.display = lista.length ? 'none' : '';
+    tbody.innerHTML = lista.map(m => `
+      <tr>
+        <td><b>${esc(m.titulo)}</b></td>
+        <td>${esc(m.mensagem)}</td>
+        <td>${m.enviarEm ? new Date(m.enviarEm).toLocaleString('pt-BR') : '-'}</td>
+        <td>${m.enviada ? '✅ Enviada' : '🕒 Aguardando'}</td>
+        <td>${m.enviada ? '' : `<button class="btn secondary small" onclick="cancelarAgendada('${m.id}')">🗑️ Cancelar</button>`}</td>
+      </tr>
+    `).join('');
+  }catch(e){ /* silencioso */ }
+}
+async function cancelarAgendada(id){
+  if(!confirm('Cancelar essa mensagem agendada?')) return;
+  try{
+    await cloudPost(Object.assign({tipo:'cancelarAgendadaEtiqueta', id}, cloudCredentials()));
+    carregarAgendadas();
+  }catch(e){ alert('Sem conexão para cancelar agora.'); }
+}
+
+async function carregarHistoricoNotificacoesEtiqueta(){
+  const tbody = document.querySelector('#notifEtiquetaHistoricoTable tbody');
+  const emptyMsg = document.getElementById('notifEtiquetaHistoricoEmptyMsg');
+  if(!tbody) return;
+  const esc = v => String(v||'-').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const rotuloTipo = { broadcast:'📣 Todo mundo', individual:'🎯 Específico', agendada:'🕒 Agendada' };
+  try{
+    const res = await cloudPost(Object.assign({tipo:'listarEnviosNotificacaoEtiqueta'}, cloudCredentials()));
+    const json = await res.json();
+    if(!res.ok || !json.ok || !Array.isArray(json.envios)){ return; }
+    const lista = json.envios;
+    emptyMsg.style.display = lista.length ? 'none' : '';
+    tbody.innerHTML = lista.map(n => `
+      <tr>
+        <td><b>${esc(n.titulo)}</b></td>
+        <td>${esc(n.mensagem)}</td>
+        <td>${esc(n.destinatario==='todos' ? 'Todo mundo' : n.destinatario)}</td>
+        <td>${rotuloTipo[n.tipo] || esc(n.tipo)}</td>
+        <td>${n.criadoEm ? new Date(n.criadoEm).toLocaleString('pt-BR') : '-'}</td>
+      </tr>
+    `).join('');
+  }catch(e){ /* silencioso — só é um histórico auxiliar */ }
+}
 function renderConfig(){
   renderIntervaloSincronizacaoBotoes();
   renderCacheInfo();
@@ -9521,6 +9976,10 @@ function saveSettingsLive(){
   DB.settings.contato = document.getElementById('cfg_contato').value;
   DB.settings.impressora = document.getElementById('cfg_impressora').value;
   DB.settings.papel = document.getElementById('cfg_papel').value;
+  const cfgSorteioMin = document.getElementById('cfg_sorteioValorMinimo');
+  if(cfgSorteioMin) DB.settings.sorteioValorMinimo = moneyVal('cfg_sorteioValorMinimo');
+  const cfgDataSorteio = document.getElementById('cfg_dataSorteio');
+  if(cfgDataSorteio) DB.settings.dataSorteio = cfgDataSorteio.value;
   DB.settings.etiquetaQr = document.getElementById('cfg_etiquetaQr').value;
   DB.settings.etiquetaMostrarQr = document.getElementById('cfg_etiquetaMostrarQr').checked;
   DB.settings.etiquetaMostrarBarras = document.getElementById('cfg_etiquetaMostrarBarras').checked;
@@ -9533,6 +9992,12 @@ function saveSettingsLive(){
   if(notifCheckbox){
     setDeviceAcceptNotifEnabled(notifCheckbox.checked);
   }
+  const notifVencedorAuto = document.getElementById('cfg_notifVencedorAuto');
+  if(notifVencedorAuto) DB.settings.notifVencedorAuto = notifVencedorAuto.checked;
+  const notifVencedorTitulo = document.getElementById('cfg_notifVencedorTitulo');
+  if(notifVencedorTitulo) DB.settings.notifVencedorTitulo = notifVencedorTitulo.value;
+  const notifVencedorMensagem = document.getElementById('cfg_notifVencedorMensagem');
+  if(notifVencedorMensagem) DB.settings.notifVencedorMensagem = notifVencedorMensagem.value;
   document.getElementById('storeNameLabel').textContent = DB.settings.nomeLoja || 'Shalom Variedades';
   flashSaving();
 }
@@ -9661,7 +10126,10 @@ function importBackupFile(file){
   reader.onload = e=>{
     try{
       const data = JSON.parse(e.target.result);
-      DB = Object.assign({products:[],customers:[],sales:[],employees:[{id:'u1',nome:'Administrador',usuario:'admin',senha:'admin',perfil:'total',comissao:0}],cashSessions:[],cashCurrentOpenId:null,ledger:[],contas:[],incomingStock:[],outgoingStock:[],kits:[],logs:[],stockRequests:[],accessRequests:[],categoryGroups:[],categories:[],productNames:[],settings:{nomeLoja:'Shalom Variedades',contato:'',logo:'',impressora:'',papel:'80mm',etiquetaQr:'',etiquetaMostrarQr:true}}, data);
+      DB = Object.assign({products:[],customers:[],sales:[],employees:[{id:'u1',nome:'Administrador',usuario:'admin',senha:'admin',perfil:'total',comissao:0}],cashSessions:[],cashCurrentOpenId:null,ledger:[],contas:[],incomingStock:[],outgoingStock:[],kits:[],logs:[],stockRequests:[],accessRequests:[],categoryGroups:[],categories:[],productNames:[],sorteio:[],settings:{nomeLoja:'Shalom Variedades',contato:'',logo:'',impressora:'',papel:'80mm',etiquetaQr:'',etiquetaMostrarQr:true,sorteioValorMinimo:0,dataSorteio:''}}, data);
+      if(!Array.isArray(DB.sorteio)) DB.sorteio = [];
+      if(typeof DB.settings.sorteioValorMinimo==='undefined') DB.settings.sorteioValorMinimo = 0;
+      if(typeof DB.settings.dataSorteio==='undefined') DB.settings.dataSorteio = '';
       normalizePerfis();
       fixDuplicateBarcodes();
       ensureCatalogDefaults();
@@ -10216,11 +10684,6 @@ document.getElementById('ajusteAlvo').addEventListener('change', function(){
 
 /* ---------------- Enter salva o produto no formulário "Cadastrar Produto" ---------------- */
 document.getElementById('estoqueTab-novo').addEventListener('keydown', function(e){
-  if(e.key==='Enter' && e.altKey){
-    e.preventDefault();
-    abrirPopupQtdEImprimir();
-    return;
-  }
   if(e.key==='Enter' && e.target.tagName==='INPUT' && !e.target.id.endsWith('_newVal')){
     e.preventDefault();
     saveNewProduct();
