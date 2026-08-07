@@ -986,66 +986,94 @@ tr:hover td{background:#251c17;}
   transition:transform .18s cubic-bezier(.2,.8,.3,1), box-shadow .18s ease, background .18s ease;
 }
 .contasFiadoPill:hover{background:var(--orange-deep);transform:translateY(-2px);box-shadow:0 8px 18px rgba(255,106,26,.4);}
-.contasFiadoPill:active{transform:translateY(0) scale(.94);}
+.contasFiadoPill:active{transform:translateY(0) scale(.9);}
 .contasFiadoPill.open{border-radius:16px 16px 4px 4px;}
-.contasFiadoPillIcon{font-size:13px;line-height:1;}
+.contasFiadoPill.hasDebt .contasFiadoPillIcon{animation:contasFiadoIconBounce 2.4s ease-in-out infinite;}
+@keyframes contasFiadoIconBounce{
+  0%,60%,100%{transform:translateY(0) rotate(0deg);}
+  70%{transform:translateY(-3px) rotate(-8deg);}
+  80%{transform:translateY(0) rotate(6deg);}
+  90%{transform:translateY(-1px) rotate(0deg);}
+}
+.contasFiadoPillIcon{font-size:13px;line-height:1;display:inline-block;}
 .contasFiadoDot{
   width:8px;height:8px;border-radius:50%;background:var(--red);display:none;
   box-shadow:0 0 0 rgba(224,80,63,.6);
 }
 .contasFiadoDot.show{display:inline-block;animation:contasFiadoDotPulse 1.8s ease-in-out infinite;}
 @keyframes contasFiadoDotPulse{
-  0%{box-shadow:0 0 0 0 rgba(224,80,63,.55);}
-  70%{box-shadow:0 0 0 7px rgba(224,80,63,0);}
-  100%{box-shadow:0 0 0 0 rgba(224,80,63,0);}
+  0%{box-shadow:0 0 0 0 rgba(224,80,63,.55);transform:scale(1);}
+  70%{box-shadow:0 0 0 7px rgba(224,80,63,0);transform:scale(1.15);}
+  100%{box-shadow:0 0 0 0 rgba(224,80,63,0);transform:scale(1);}
 }
 .contasFiadoDropdown{
   display:none;position:absolute;top:calc(100% - 1px);left:0;min-width:240px;max-width:320px;z-index:60;
   background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:4px 14px 14px 14px;
   padding:8px;backdrop-filter:blur(var(--glass-blur)) saturate(150%);-webkit-backdrop-filter:blur(var(--glass-blur)) saturate(150%);
   box-shadow:0 14px 30px rgba(0,0,0,.35);max-height:340px;overflow:auto;
+  transform-origin:top left;
 }
-.contasFiadoDropdown.show{display:block;animation:contasFiadoDropdownIn .22s cubic-bezier(.2,.8,.3,1) both;}
+.contasFiadoDropdown.show{display:block;animation:contasFiadoDropdownIn .28s cubic-bezier(.2,.85,.32,1.15) both;}
 @keyframes contasFiadoDropdownIn{
-  from{opacity:0;transform:translateY(-6px) scale(.97);}
-  to{opacity:1;transform:translateY(0) scale(1);}
+  0%{opacity:0;transform:translateY(-8px) scale(.92);}
+  60%{opacity:1;}
+  100%{opacity:1;transform:translateY(0) scale(1);}
 }
-.contasFiadoEmpty{padding:10px 8px;font-size:12px;color:var(--text-dim);text-align:center;}
-.contasFiadoRow{border-radius:10px;overflow:hidden;margin-bottom:3px;}
+.contasFiadoEmpty{padding:14px 8px;font-size:12px;color:var(--text-dim);text-align:center;animation:contasFiadoDetailIn .25s ease both;}
+.contasFiadoRow{border-radius:10px;overflow:hidden;margin-bottom:3px;opacity:0;animation:contasFiadoRowIn .3s cubic-bezier(.2,.8,.3,1) both;}
+.contasFiadoRow:nth-child(1){animation-delay:.02s;}
+.contasFiadoRow:nth-child(2){animation-delay:.06s;}
+.contasFiadoRow:nth-child(3){animation-delay:.1s;}
+.contasFiadoRow:nth-child(4){animation-delay:.14s;}
+.contasFiadoRow:nth-child(5){animation-delay:.18s;}
+.contasFiadoRow:nth-child(n+6){animation-delay:.2s;}
 .contasFiadoRow:last-child{margin-bottom:0;}
+@keyframes contasFiadoRowIn{from{opacity:0;transform:translateX(-8px);}to{opacity:1;transform:translateX(0);}}
 .contasFiadoName{
   display:flex;align-items:center;gap:8px;padding:9px 10px;cursor:pointer;font-size:12.5px;font-weight:600;
   border-radius:10px;transition:background .15s ease;
 }
 .contasFiadoName:hover{background:rgba(255,106,26,.1);}
+.contasFiadoName:hover .contasFiadoNameIcon{transform:scale(1.1) rotate(-6deg);}
 .contasFiadoRow.open .contasFiadoName{background:rgba(255,106,26,.14);}
 .contasFiadoNameIcon{
   width:22px;height:22px;border-radius:50%;background:var(--orange-dim);color:#ffd9bd;
   display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0;
+  transition:transform .22s cubic-bezier(.34,1.56,.64,1),background .2s ease;
 }
+.contasFiadoRow.open .contasFiadoNameIcon{background:var(--orange);color:#1a1110;transform:scale(1.08);}
 .contasFiadoName span.nomeTxt{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.contasFiadoChevron{color:var(--text-dim);font-size:10px;transition:transform .2s ease;}
+.contasFiadoChevron{color:var(--text-dim);font-size:10px;display:inline-block;transition:transform .28s cubic-bezier(.34,1.56,.64,1),color .2s ease;}
 .contasFiadoRow.open .contasFiadoChevron{transform:rotate(180deg);color:var(--orange);}
 .contasFiadoDetail{
-  padding:4px 10px 10px 40px;animation:contasFiadoDetailIn .2s ease both;
+  padding:4px 10px 10px 40px;animation:contasFiadoDetailIn .26s cubic-bezier(.2,.8,.3,1) both;
+  transform-origin:top;
 }
-@keyframes contasFiadoDetailIn{from{opacity:0;transform:translateY(-4px);}to{opacity:1;transform:translateY(0);}}
+@keyframes contasFiadoDetailIn{
+  0%{opacity:0;transform:translateY(-6px) scaleY(.8);}
+  100%{opacity:1;transform:translateY(0) scaleY(1);}
+}
 .contasFiadoValueRow{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text-dim);margin-bottom:8px;}
 .contasFiadoValue{
   font-weight:800;color:var(--text);letter-spacing:.5px;min-width:64px;display:inline-block;
-  transition:filter .18s ease, opacity .18s ease;
+}
+.contasFiadoValue.pop{animation:contasFiadoValuePop .32s cubic-bezier(.3,1.6,.4,1) both;}
+@keyframes contasFiadoValuePop{
+  0%{transform:scale(.7);opacity:.4;filter:blur(2px);}
+  60%{transform:scale(1.12);opacity:1;filter:blur(0);}
+  100%{transform:scale(1);}
 }
 .eyeBtn{
   background:none;border:none;padding:3px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;
-  border-radius:50%;transition:background .15s ease,transform .15s cubic-bezier(.2,.8,.3,1);
+  border-radius:50%;transition:background .15s ease,transform .15s cubic-bezier(.34,1.56,.64,1);
 }
-.eyeBtn:hover{background:rgba(255,106,26,.14);transform:scale(1.08);}
-.eyeBtn:active{transform:scale(.88);}
-.eyeIcon{width:17px;height:17px;stroke:var(--text-dim);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:stroke .2s ease;}
+.eyeBtn:hover{background:rgba(255,106,26,.14);transform:scale(1.14);}
+.eyeBtn:active{transform:scale(.82) rotate(-6deg);}
+.eyeIcon{width:17px;height:17px;stroke:var(--text-dim);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:stroke .2s ease;overflow:visible;}
 .eyeBtn.revealed .eyeIcon{stroke:var(--orange);}
-.eyeBtn .eyeLid{transform-origin:center;transition:transform .28s cubic-bezier(.34,1.56,.64,1);}
-.eyeBtn.revealed .eyeLid{transform:scaleY(.15);}
-.eyeBtn .eyePupil{transition:opacity .18s ease, transform .28s cubic-bezier(.34,1.56,.64,1);transform-origin:center;}
+.eyeBtn .eyeLid{transform-box:fill-box;transform-origin:center;transition:transform .32s cubic-bezier(.34,1.56,.64,1);}
+.eyeBtn.revealed .eyeLid{transform:scaleY(.12);}
+.eyeBtn .eyePupil{transform-box:fill-box;transform-origin:center;transition:opacity .2s ease, transform .32s cubic-bezier(.34,1.56,.64,1);}
 .eyeBtn.revealed .eyePupil{transform:scale(0);opacity:0;}
 .contasFiadoReceberBtn{width:100%;}
 
@@ -4793,7 +4821,7 @@ function renderContasFiadoBox(){
     const inicial = (c.nome||'?').trim().charAt(0).toUpperCase();
     return `
     <div class="contasFiadoRow ${isOpen?'open':''}">
-      <div class="contasFiadoName" onclick="toggleContasFiadoDetail('${c.id}')">
+      <div class="contasFiadoName" onclick="event.stopPropagation();toggleContasFiadoDetail('${c.id}')">
         <span class="contasFiadoNameIcon">${inicial}</span>
         <span class="nomeTxt">${c.nome}</span>
         <span class="contasFiadoChevron">▾</span>
