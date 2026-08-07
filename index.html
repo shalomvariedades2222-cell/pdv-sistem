@@ -1779,6 +1779,16 @@ html.is-mobile .btn::before{ display:none; }
               <input id="searchBox" placeholder="Escaneie o código de barras ou digite o nome... (F2)" autofocus oninput="renderSearch()" onkeydown="pdvSearchKey(event)">
               <div class="searchBarcodeHint">Dica: escaneie a etiqueta ou digite e pressione Enter para adicionar. F4 finaliza a venda.</div>
               <div id="searchResults"></div>
+              <div class="panel" id="contasFiadoBox" style="margin-bottom:12px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="toggleContasFiadoBox()">
+                  <h3 style="margin:0;">💳 Pagar Contas (Clientes devendo)</h3>
+                  <div style="display:flex;align-items:center;gap:10px;">
+                    <span class="dimSmall">Total: <b id="contasFiadoTotalLbl" style="color:var(--red);">R$ 0,00</b></span>
+                    <span id="contasFiadoToggleIcon">▾</span>
+                  </div>
+                </div>
+                <div id="contasFiadoBody" style="margin-top:10px;display:none;"></div>
+              </div>
               <div class="gridSectionLbl" id="productGridLbl">Todos os produtos (clique para adicionar)</div>
               <div id="productGrid"></div>
             </div>
@@ -4668,7 +4678,65 @@ function renderSearch(){
       <div>${fmtMoney(p.venda)} <span class="dimSmall">(estoque: ${p.estoque})</span></div>
     </div>`).join('') || '<div class="dimSmall">Nenhum produto encontrado.</div>';
 }
+/* ---------------- Bloco "Pagar Contas" (clientes devendo/fiado) na tela de Vendas ----------------
+   Fica retrátil, junto da grade de produtos, pra quem está no caixa poder receber
+   um pagamento de fiado sem precisar sair da tela de Vendas e ir em Clientes/Fiado. */
+let contasFiadoExpanded = false;
+function toggleContasFiadoBox(){
+  contasFiadoExpanded = !contasFiadoExpanded;
+  renderContasFiadoBox();
+}
+function renderContasFiadoBox(){
+  const box = document.getElementById('contasFiadoBox');
+  if(!box) return;
+  const body = document.getElementById('contasFiadoBody');
+  const totalLbl = document.getElementById('contasFiadoTotalLbl');
+  const iconEl = document.getElementById('contasFiadoToggleIcon');
+  const withDebt = DB.customers.filter(c=>customerDebtTotal(c)>0.001).sort((a,b)=>customerDebtTotal(b)-customerDebtTotal(a));
+  const total = withDebt.reduce((s,c)=>s+customerDebtTotal(c),0);
+  if(totalLbl) totalLbl.textContent = fmtMoney(total);
+  if(iconEl) iconEl.textContent = contasFiadoExpanded ? '▴' : '▾';
+  if(!body) return;
+  body.style.display = contasFiadoExpanded ? '' : 'none';
+  if(!contasFiadoExpanded) return;
+  body.innerHTML = withDebt.length ? withDebt.map(c=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);">
+      <div>
+        <div>${c.nome}</div>
+        <div class="dimSmall">${c.telefone||'-'}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <b style="color:var(--red);">${fmtMoney(customerDebtTotal(c))}</b>
+        <button type="button" class="btn small" onclick="receberPagamentoRapido('${c.id}')">Receber</button>
+      </div>
+    </div>`).join('') : '<div class="dimSmall">Nenhum cliente devendo no momento. 🎉</div>';
+}
+function receberPagamentoRapido(customerId){
+  if(!requirePerm(getPerms().canEditClientes)) return;
+  const c = DB.customers.find(x=>x.id===customerId);
+  if(!c) return;
+  const remaining = customerDebtTotal(c);
+  if(remaining<=0.001) return;
+  const val = Number(prompt(`Valor a receber de ${c.nome} (restante: ${fmtMoney(remaining)}):`, remaining.toFixed(2)));
+  if(!val || val<=0) return;
+  const totalPago = Math.min(val, remaining);
+  let restante = totalPago;
+  c.debts.filter(d=>d.value-d.paid>0.001).sort((a,b)=>new Date(a.date)-new Date(b.date)).forEach(d=>{
+    if(restante<=0.001) return;
+    const emAberto = d.value - d.paid;
+    const aplicar = Math.min(restante, emAberto);
+    d.paid += aplicar;
+    restante -= aplicar;
+  });
+  DB.ledger.push({date:todayISO(), desc:`Pagamento fiado - ${c.nome}`, tipo:'entrada', valor: totalPago});
+  log(`Pagamento de fiado registrado (tela de Vendas): ${c.nome} - ${fmtMoney(totalPago)}`);
+  toast(`Pagamento de ${fmtMoney(totalPago)} recebido de ${c.nome}.`, 'ok');
+  renderContasFiadoBox();
+  renderClientesLista();
+  if(document.getElementById('fiadoOverviewBody')) renderFiadoOverview();
+}
 function renderProductGrid(){
+  renderContasFiadoBox();
   const grid = document.getElementById('productGrid');
   const lbl = document.getElementById('productGridLbl');
   if(!grid) return;
