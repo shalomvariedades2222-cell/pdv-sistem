@@ -3300,7 +3300,18 @@ async function loadFromGitHub(){
     return true;
   }catch(e){
     console.error('Falha ao carregar dados do Drive:', e);
-    msg.textContent = 'Sem conexão. Verifique a internet e tente de novo.';
+    // A mensagem genérica "Sem conexão" escondia 3 causas bem diferentes.
+    // Agora distinguimos: sem internet de verdade / demorou demais pra
+    // responder (timeout) / erro de rede-CORS falando com o Apps Script
+    // (ex: implantação errada, URL errada, ou script fora do ar) — isso
+    // ajuda MUITO a diagnosticar sem precisar abrir o console.
+    if(!navigator.onLine){
+      msg.textContent = 'Sem internet neste aparelho. Verifique o Wi-Fi/dados e tente de novo.';
+    } else if(e && e.name === 'AbortError'){
+      msg.textContent = 'O servidor demorou demais pra responder (mais de ' + (TIMEOUT_CONEXAO_MS/1000) + 's). Tente de novo — se persistir, o Apps Script pode estar fora do ar.';
+    } else {
+      msg.textContent = 'Não foi possível falar com o servidor (erro de rede). Verifique se a URL do Apps Script está correta e implantada com acesso liberado.';
+    }
     _ultimaFalhaFoiDeRede = true;
     return false;
   }
