@@ -9774,7 +9774,6 @@ function renderAnimTogglesUI(){
       <div id="animPanelErr" class="dimSmall" style="color:var(--red);margin-bottom:8px;"></div>
       <button type="button" class="btn small" onclick="desbloquearAnimPanel()">🔓 Desbloquear</button>
     `;
-    setTimeout(()=>{ const inp=document.getElementById('animPanelPass'); if(inp) inp.focus(); }, 50);
     return;
   }
   const cfg = ensureAnimConfig();
