@@ -1197,6 +1197,10 @@ label{font-size:11.5px;color:var(--text-dim);display:block;margin-bottom:4px;}
   backdrop-filter:blur(16px) saturate(120%);-webkit-backdrop-filter:blur(16px) saturate(120%);
 }
 .modalBg.active{display:flex;}
+/* Ativado só para modais que podem ficar mais altos que a tela (ex.: QR do Pix em
+   telas baixas) — permite rolar a tela toda em vez de cortar o conteúdo sem
+   nenhuma forma de ver o restante. Não afeta os demais modais do sistema. */
+.modalBg.modalBgScrollable{align-items:flex-start;overflow-y:auto;padding:26px 0;}
 .modalBox{
   background:var(--glass-bg-strong);border:1px solid var(--glass-border-strong);border-radius:18px;
   padding:22px;width:460px;max-width:90vw;max-height:85vh;overflow:auto;position:relative;
@@ -1216,7 +1220,7 @@ label{font-size:11.5px;color:var(--text-dim);display:block;margin-bottom:4px;}
    desce balançando de um cabide e vira, mostrando o QR Code do outro lado. */
 .pixQrModalBox{
   --paper:#fff8ec;--paper-dim:#f4e8d2;--ink:#241934;--pink:#ff4f9a;
-  width:min(640px, 94vw);max-width:94vw;text-align:center;
+  width:min(700px, 95vw);max-width:95vw;text-align:center;
   background:var(--paper);color:var(--ink);
   border:4px solid var(--ink);border-radius:26px;
   box-shadow:8px 9px 0 var(--ink), 0 25px 60px rgba(0,0,0,.5);
@@ -1246,19 +1250,19 @@ label{font-size:11.5px;color:var(--text-dim);display:block;margin-bottom:4px;}
 .pixQrModalBox #pixQrConcluirBtn:hover{transform:translate(-1px,-2px);box-shadow:5px 6px 0 var(--ink);}
 .pixQrModalBox #pixQrConcluirBtn:active{transform:translate(2px,3px);box-shadow:1px 1px 0 var(--ink);}
 
-.pixQrStage{position:relative;display:flex;align-items:center;justify-content:center;height:420px;perspective:1000px;overflow:visible;}
+.pixQrStage{position:relative;display:flex;align-items:center;justify-content:center;height:460px;perspective:1000px;overflow:visible;}
 
 .pixQrFrame{
-  position:relative;padding:14px;border-radius:22px;background:#fff;
+  position:relative;padding:16px;border-radius:26px;background:#fff;
   border:4px solid var(--ink);z-index:5;
-  box-shadow:5px 5px 0 var(--orange), 0 14px 30px rgba(36,25,52,.25);
+  box-shadow:6px 6px 0 var(--orange), 0 16px 34px rgba(36,25,52,.25);
 }
-.pixQrFrame canvas{display:block;border-radius:12px;width:280px;height:280px;}
+.pixQrFrame canvas{display:block;border-radius:14px;width:320px;height:320px;}
 html.anim-off-glow .pixQrFrame{animation:none !important;}
 
 /* estouro tipo quadrinho (atrás do QR ao revelar) */
 .pixQrBurst{
-  position:absolute;top:50%;left:50%;width:330px;height:330px;z-index:3;pointer-events:none;
+  position:absolute;top:50%;left:50%;width:390px;height:390px;z-index:3;pointer-events:none;
   border-radius:50%;opacity:0;
   background:repeating-conic-gradient(var(--yellow) 0deg 11deg, transparent 11deg 22deg);
 }
@@ -1280,12 +1284,12 @@ html.anim-off-glow .pixQrFrame{animation:none !important;}
 ================================================================== */
 .pixQrHangerScene{display:none;position:absolute;inset:0;align-items:flex-start;justify-content:center;padding-top:6px;}
 .pixQrStage.m2 .pixQrHangerScene{display:flex;}
-.pixQrRail{width:250px;height:4px;background:linear-gradient(90deg,transparent,var(--ink) 25%,var(--ink) 75%,transparent);opacity:0;border-radius:4px;}
+.pixQrRail{width:330px;height:4px;background:linear-gradient(90deg,transparent,var(--ink) 25%,var(--ink) 75%,transparent);opacity:0;border-radius:4px;}
 .pixQrRig{position:absolute;top:18px;left:50%;translate:-50% 0;transform-origin:top center;}
 .pixQrHook{width:18px;height:18px;border:4px solid var(--ink);border-bottom:none;border-radius:18px 18px 0 0;margin:0 auto;background:var(--paper-dim);}
-.pixQrFlipStage{width:240px;height:266px;margin-top:2px;position:relative;transform-style:preserve-3d;}
+.pixQrFlipStage{width:360px;height:360px;margin-top:4px;position:relative;transform-style:preserve-3d;}
 .pixQrShirtFace,.pixQrFaceWrap{position:absolute;inset:0;backface-visibility:hidden;display:flex;align-items:center;justify-content:center;}
-.pixQrShirtFace svg{width:200px;height:227px;filter:drop-shadow(4px 6px 0 rgba(36,25,52,.16));}
+.pixQrShirtFace svg{width:300px;height:340px;filter:drop-shadow(4px 6px 0 rgba(36,25,52,.16));}
 .pixQrFaceWrap{transform:rotateY(180deg);}
 
 @keyframes pixQrRigDrop{0%{transform:translateY(-90px);opacity:0;}70%{opacity:1;}100%{transform:translateY(0);opacity:1;}}
@@ -5593,13 +5597,14 @@ function openPixQrModal(valor, onConcluir){
     <button type="button" class="pixQrCopiaBtn" id="pixQrCopiaBtn" onclick="copiarPixCodigo()">📋 Copiar código Pix</button>
     <button class="btn" id="pixQrConcluirBtn" style="width:100%;margin-top:16px;">✓ Concluir</button>
   `, {wide:false, extraClass:'pixQrModalBox'});
+  document.getElementById('modalBg').classList.add('modalBgScrollable');
   const payload = gerarPixPayload(valor, 'VENDA'+Date.now().toString().slice(-8));
   window._pixQrPayload = payload;
 
   setTimeout(()=>{
     document.querySelectorAll('#pixQrStage .pixQrCanvasEl').forEach(canvas=>{
       if(payload && typeof QRious!=='undefined'){
-        new QRious({element:canvas, value:payload, size:280, level:'M'});
+        new QRious({element:canvas, value:payload, size:320, level:'M'});
       }
     });
     const btn = document.getElementById('pixQrConcluirBtn');
@@ -10495,6 +10500,7 @@ function showModal(html, opts){
 let _ultimaModalExtraClass = null;
 function closeModal(){
   document.getElementById('modalBg').classList.remove('active');
+  document.getElementById('modalBg').classList.remove('modalBgScrollable');
   const box = document.getElementById('modalBox');
   box.classList.remove('etqEditorModalBox');
   if(_ultimaModalExtraClass){ box.classList.remove(_ultimaModalExtraClass); _ultimaModalExtraClass = null; }
