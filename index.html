@@ -1216,11 +1216,12 @@ label{font-size:11.5px;color:var(--text-dim);display:block;margin-bottom:4px;}
    desce balançando de um cabide e vira, mostrando o QR Code do outro lado. */
 .pixQrModalBox{
   --paper:#fff8ec;--paper-dim:#f4e8d2;--ink:#241934;--pink:#ff4f9a;
-  width:520px;text-align:center;
+  width:min(640px, 94vw);max-width:94vw;text-align:center;
   background:var(--paper);color:var(--ink);
   border:4px solid var(--ink);border-radius:26px;
   box-shadow:8px 9px 0 var(--ink), 0 25px 60px rgba(0,0,0,.5);
   backdrop-filter:none;-webkit-backdrop-filter:none;
+  overflow:visible;max-height:none;padding:24px 20px;
 }
 .pixQrModalBox::before{display:none;}
 .pixQrModalBox h3{color:var(--ink);font-weight:800;}
