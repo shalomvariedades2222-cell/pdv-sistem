@@ -1014,6 +1014,30 @@ label{font-size:11.5px;color:var(--text-dim);display:block;margin-bottom:4px;}
 .modalBox h3{margin-top:0;color:var(--orange);}
 .modalClose{float:right;background:none;border:none;color:var(--text-dim);font-size:18px;}
 
+/* ---------------- QR Code do Pix (tela de Vendas) ---------------- */
+.pixQrModalBox{width:420px;text-align:center;}
+.pixQrWrap{display:flex;flex-direction:column;align-items:center;gap:16px;margin-top:6px;}
+.pixQrValor{font-size:30px;font-weight:800;color:var(--orange);letter-spacing:.3px;}
+.pixQrFrame{
+  position:relative;padding:16px;border-radius:26px;background:#fff;
+  border:3px solid var(--orange);
+  box-shadow:0 0 0 1px rgba(255,255,255,.08) inset, 0 0 22px 4px rgba(255,106,26,.55), 0 0 55px 12px rgba(255,106,26,.25);
+  animation:pixQrPulse 2.2s ease-in-out infinite;
+}
+.pixQrFrame canvas{display:block;border-radius:14px;width:250px;height:250px;}
+@keyframes pixQrPulse{
+  0%,100%{box-shadow:0 0 0 1px rgba(255,255,255,.08) inset, 0 0 22px 4px rgba(255,106,26,.55), 0 0 55px 12px rgba(255,106,26,.25);}
+  50%{box-shadow:0 0 0 1px rgba(255,255,255,.08) inset, 0 0 34px 10px rgba(255,106,26,.9), 0 0 90px 20px rgba(255,106,26,.5);}
+}
+html.anim-off-glow .pixQrFrame{animation:none !important;}
+.pixQrChaveInfo{font-size:12px;color:var(--text-dim);text-align:center;line-height:1.5;}
+.pixQrCopiaBtn{background:none;border:1px dashed var(--line);color:var(--text-dim);border-radius:10px;padding:6px 10px;font-size:12px;cursor:pointer;}
+.pixQrCopiaBtn:hover{border-color:var(--orange);color:var(--orange);}
+
+/* ---------------- Popup de cliente fiado (após pagamento parcial via Pix/etc.) ---------------- */
+.fiadoPopBtnRow{display:flex;gap:8px;margin-top:14px;}
+.fiadoPopBtnRow .btn{flex:1;}
+
 .pickerWrap{position:relative;}
 .pickerDropdown{
   position:absolute; top:100%; left:0; right:0; margin-top:4px;
@@ -2382,6 +2406,21 @@ html.is-mobile .btn::before{ display:none; }
             <div><img id="cfg_logoPreview" class="imgUploadPreview" style="display:none;"></div>
           </div>
           <div class="field" style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px;">
+            <label>🔑 Chave Pix (recebimento)</label>
+            <div class="dimSmall" style="margin-bottom:6px;">Usada para gerar automaticamente o QR Code de pagamento na tela de Vendas sempre que houver um valor no campo "Pix". Pode ser CPF/CNPJ, e-mail, telefone ou chave aleatória.</div>
+            <input id="cfg_pixChave" data-perm="admin" placeholder="Ex: 00000000000 ou email@exemplo.com" oninput="saveSettingsLive()">
+            <div style="display:flex;gap:8px;margin-top:8px;">
+              <div class="field" style="flex:1;margin:0;">
+                <label>Nome do recebedor (como aparece no Pix)</label>
+                <input id="cfg_pixNome" data-perm="admin" placeholder="Ex: Nome da Loja" maxlength="25" oninput="saveSettingsLive()">
+              </div>
+              <div class="field" style="flex:1;margin:0;">
+                <label>Cidade</label>
+                <input id="cfg_pixCidade" data-perm="admin" placeholder="Ex: SAO PAULO" maxlength="15" oninput="saveSettingsLive()">
+              </div>
+            </div>
+          </div>
+          <div class="field" style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px;">
             <label>Tela Cheia do App</label>
             <div class="dimSmall" style="margin-bottom:6px;">O app sempre abre e permanece em tela cheia (F11) automaticamente, instalado ou não. Se alguém tentar sair da tela cheia (Esc, F11, etc.), o app volta sozinho pra tela cheia assim que detecta a saída. A única forma de deixar em modo janela normal é usando o botão abaixo, aqui em Configurações.</div>
             <button type="button" class="btn secondary small" id="btnTelaCheiaToggle" onclick="toggleTelaCheiaForcada()">🖥️ Colocar Tela Normal (sair da tela cheia)</button>
@@ -2619,7 +2658,7 @@ let DB = {
   productNames: [],    // catálogo de nomes de peças {id, nome}
   trashProducts: [],   // lixeira: cópias completas de produtos excluídos {id, product, deletedAt} — recuperáveis por 6h, ver limparLixeiraExpirada()
   deleted: {},         // "lápides" de exclusão: deleted[campo][id] = timestamp — ver garantirEstruturaDeletados()
-  settings: { nomeLoja:'Shalom Variedades', contato:'', logo:'', impressora:'', papel:'80mm', etiquetaQr:'', etiquetaMostrarQr:true }
+  settings: { nomeLoja:'Shalom Variedades', contato:'', logo:'', impressora:'', papel:'80mm', etiquetaQr:'', etiquetaMostrarQr:true, pixChave:'', pixNome:'', pixCidade:'' }
 };
 
 let currentUser = null;
@@ -2987,7 +3026,7 @@ function ativarModoTeste(){
     categoryGroups: [grupoTeste],
     categories: categoriasTeste,
     productNames: nomesTeste,
-    settings: { nomeLoja:'Shalom Variedades (MODO TESTE)', contato:'', logo:'', impressora:'', papel:'80mm', etiquetaQr:'', etiquetaMostrarQr:true }
+    settings: { nomeLoja:'Shalom Variedades (MODO TESTE)', contato:'', logo:'', impressora:'', papel:'80mm', etiquetaQr:'', etiquetaMostrarQr:true, pixChave:'', pixNome:'', pixCidade:'' }
   };
 }
 
@@ -4005,6 +4044,9 @@ function ensureCatalogDefaults(){
   if(!Array.isArray(DB.accessRequestLimits)) DB.accessRequestLimits = [];
   if(!DB.settings) DB.settings = {};
   if(typeof DB.settings.receberPedidosAcesso==='undefined') DB.settings.receberPedidosAcesso = false;
+  if(typeof DB.settings.pixChave==='undefined') DB.settings.pixChave = '';
+  if(typeof DB.settings.pixNome==='undefined') DB.settings.pixNome = '';
+  if(typeof DB.settings.pixCidade==='undefined') DB.settings.pixCidade = '';
   DB.sales.forEach(s=>{ if(typeof s.cancelled==='undefined') s.cancelled=false; });
   ensureEmployeeDefaults();
   if(typeof DB.settings.metaCrescimentoPct==='undefined') DB.settings.metaCrescimentoPct = 0;
@@ -4936,7 +4978,7 @@ function selectFiadoCustomer(id){
 }
 function openQuickCustomerModal(){
   showModal(`
-    <button class="modalClose" onclick="closeModal()">×</button>
+    <button class="modalClose" onclick="closeQuickCustomerModal()">×</button>
     <h3>Novo Cliente</h3>
     <div class="field"><label>Nome</label><input id="qc_nome"></div>
     <div class="field"><label>Telefone</label><input id="qc_telefone"></div>
@@ -4946,6 +4988,15 @@ function openQuickCustomerModal(){
     </div>
     <button class="btn" onclick="quickSaveCustomer()">Salvar</button>
   `);
+}
+function closeQuickCustomerModal(){
+  // Cancelar (×): se veio do popup de "Venda Fiado", volta pra lá em vez de
+  // deixar a venda "solta" sem popup nenhum na tela.
+  closeModal();
+  if(window._quickCustomerFromFiadoPop){
+    window._quickCustomerFromFiadoPop = false;
+    openFiadoCustomerPopup(window._fiadoPopOnProsseguir);
+  }
 }
 function quickSaveCustomer(){
   if(!requirePerm(getPerms().canSell)) return;
@@ -4959,6 +5010,13 @@ function quickSaveCustomer(){
   closeModal();
   document.getElementById('fiadoCustomerSelect').value = c.id;
   document.getElementById('fiadoCustomerSearch').value = c.nome;
+  // Se o cadastro foi aberto de dentro do popup de "Venda Fiado" (botão
+  // "+ Cadastrar cliente" ao lado de "Prosseguir"), volta pro popup já com
+  // o cliente recém-criado selecionado, em vez de deixar a tela "solta".
+  if(window._quickCustomerFromFiadoPop){
+    window._quickCustomerFromFiadoPop = false;
+    openFiadoCustomerPopup(window._fiadoPopOnProsseguir);
+  }
 }
 function openQuickProductModal(){
   if(!requirePerm(getPerms().canEditStock)) return;
@@ -5000,6 +5058,186 @@ function quickSaveProduct(){
   renderSearch();
   addToCart(p.id);
 }
+/* ---------------- Pix: geração do payload (BR Code / EMV) para o QR Code ----------------
+   Monta o "Pix Copia e Cola" com a chave cadastrada em Configurações, no formato padrão
+   usado pelos bancos, incluindo o checksum CRC16 exigido no final do código. */
+function crc16Pix(str){
+  let crc = 0xFFFF;
+  for(let i=0;i<str.length;i++){
+    crc ^= (str.charCodeAt(i) << 8);
+    for(let b=0;b<8;b++){
+      crc = (crc & 0x8000) ? ((crc << 1) ^ 0x1021) & 0xFFFF : (crc << 1) & 0xFFFF;
+    }
+  }
+  return crc.toString(16).toUpperCase().padStart(4,'0');
+}
+function pixTLV(id, value){
+  return id + String(value.length).padStart(2,'0') + value;
+}
+function normalizePixTexto(s){
+  return (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9 ]/g,'').toUpperCase().trim();
+}
+function gerarPixPayload(valor, txid){
+  const chave = (DB.settings.pixChave||'').trim();
+  if(!chave) return null;
+  const nome = (normalizePixTexto(DB.settings.pixNome || DB.settings.nomeLoja) || 'LOJA').slice(0,25);
+  const cidade = (normalizePixTexto(DB.settings.pixCidade) || 'BRASIL').slice(0,15);
+  const txidLimpo = (String(txid||'').replace(/[^a-zA-Z0-9]/g,'').slice(0,25)) || '***';
+  const mai = pixTLV('26', pixTLV('00','br.gov.bcb.pix') + pixTLV('01', chave));
+  const amount = Math.max(0, Number(valor)||0).toFixed(2);
+  let payload =
+    pixTLV('00','01') +
+    mai +
+    pixTLV('52','0000') +
+    pixTLV('53','986') +
+    pixTLV('54', amount) +
+    pixTLV('58','BR') +
+    pixTLV('59', nome) +
+    pixTLV('60', cidade) +
+    pixTLV('62', pixTLV('05', txidLimpo)) +
+    '6304';
+  return payload + crc16Pix(payload);
+}
+
+/* ---------------- Modal do QR Code do Pix (tela de Vendas) ----------------
+   Some com o valor combinado (nem sempre é o total da venda: se o produto custa
+   50 e só 30 foi colocado no campo Pix, o QR sai com 30). Enter ou o botão
+   "Concluir" avançam pro próximo passo da venda. */
+function openPixQrModal(valor, onConcluir){
+  showModal(`
+    <button class="modalClose" onclick="closeModal()">×</button>
+    <h3 style="text-align:center;">Pagamento via Pix</h3>
+    <div class="pixQrWrap">
+      <div class="pixQrValor">${fmtMoney(valor)}</div>
+      <div class="pixQrFrame"><canvas id="pixQrCanvas"></canvas></div>
+      <div class="pixQrChaveInfo">Peça para o cliente escanear o QR Code acima com o app do banco.<br>O valor de ${fmtMoney(valor)} já vem preenchido automaticamente.</div>
+      <button type="button" class="pixQrCopiaBtn" id="pixQrCopiaBtn" onclick="copiarPixCodigo()">📋 Copiar código Pix</button>
+    </div>
+    <button class="btn" id="pixQrConcluirBtn" style="width:100%;margin-top:16px;">✓ Concluir</button>
+  `, {wide:false});
+  const payload = gerarPixPayload(valor, 'VENDA'+Date.now().toString().slice(-8));
+  window._pixQrPayload = payload;
+  setTimeout(()=>{
+    const canvas = document.getElementById('pixQrCanvas');
+    if(canvas && payload && typeof QRious!=='undefined'){
+      new QRious({element:canvas, value:payload, size:250, level:'M'});
+    }
+    const btn = document.getElementById('pixQrConcluirBtn');
+    if(btn) btn.focus();
+  }, 30);
+  const concluir = ()=>{ closeModal(); onConcluir(); };
+  document.getElementById('pixQrConcluirBtn').onclick = concluir;
+  _confirmModalKeyHandler = function(e){
+    if(e.key==='Enter'){ e.preventDefault(); concluir(); }
+    else if(e.key==='Escape'){ e.preventDefault(); closeModal(); }
+  };
+  document.addEventListener('keydown', _confirmModalKeyHandler);
+}
+function copiarPixCodigo(){
+  const payload = window._pixQrPayload;
+  if(!payload) return;
+  const btn = document.getElementById('pixQrCopiaBtn');
+  const marcarCopiado = ()=>{ if(btn){ const orig=btn.textContent; btn.textContent='✓ Copiado!'; setTimeout(()=>btn.textContent=orig, 1500); } };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(payload).then(marcarCopiado).catch(()=>{});
+  }
+}
+
+/* ---------------- Popup de cliente (Venda Fiado) ----------------
+   Aparece depois do pagamento (ex.: após o Pix), quando ainda sobra saldo devedor.
+   O botão "Cadastrar cliente" fica ao lado de "Prosseguir", e o Enter só avança
+   quando já existe um nome de cliente digitado/selecionado no campo. */
+function openFiadoCustomerPopup(onProsseguir){
+  const total = cartTotal();
+  const paid = ['dinheiro','pix','cartao'].reduce((s,k)=> s + moneyVal('pay_'+k),0);
+  const debt = Math.max(0, total - paid);
+  const currentId = document.getElementById('fiadoCustomerSelect').value;
+  const currentName = currentId ? document.getElementById('fiadoCustomerSearch').value : '';
+  showModal(`
+    <button class="modalClose" onclick="closeModal()">×</button>
+    <h3>Venda Fiado</h3>
+    <div class="dimSmall" style="margin-bottom:10px;">Ainda falta <b>${fmtMoney(debt)}</b>. Selecione o cliente que ficará devendo, ou cadastre um novo.</div>
+    <label>Cliente</label>
+    <div class="field pickerWrap" style="margin:0;">
+      <input id="fiadoPopCustomerSearch" placeholder="Digite o nome do cliente..." autocomplete="off" value="${currentName?currentName.replace(/"/g,'&quot;'):''}" onclick="openFiadoPopCustomerPicker()" oninput="filterFiadoPopCustomerPicker()">
+      <input type="hidden" id="fiadoPopCustomerSelect" value="${currentId||''}">
+      <div class="pickerDropdown" id="fiadoPopCustomerSearch_dd"></div>
+    </div>
+    <p class="dimSmall" id="fiadoPopHint" style="margin-top:10px;">Digite ou selecione um cliente e pressione Enter para prosseguir.</p>
+    <div class="fiadoPopBtnRow">
+      <button class="btn secondary" onclick="openQuickCustomerModalFromFiadoPop()">+ Cadastrar cliente</button>
+      <button class="btn" id="fiadoPopProsseguirBtn" onclick="fiadoPopProsseguir()">Prosseguir</button>
+    </div>
+  `);
+  window._fiadoPopOnProsseguir = onProsseguir;
+  setTimeout(()=>{ const inp=document.getElementById('fiadoPopCustomerSearch'); if(inp) inp.focus(); }, 50);
+  _confirmModalKeyHandler = function(e){
+    if(e.key==='Enter'){ e.preventDefault(); fiadoPopProsseguir(); }
+    else if(e.key==='Escape'){ e.preventDefault(); closeModal(); }
+  };
+  document.addEventListener('keydown', _confirmModalKeyHandler);
+}
+function openFiadoPopCustomerPicker(){
+  closeAllPickers('fiadoPopCustomerSearch_dd');
+  renderFiadoPopCustomerDropdown();
+  const dd = document.getElementById('fiadoPopCustomerSearch_dd');
+  if(dd) dd.classList.add('active');
+}
+function filterFiadoPopCustomerPicker(){
+  document.getElementById('fiadoPopCustomerSelect').value = '';
+  renderFiadoPopCustomerDropdown();
+  const dd = document.getElementById('fiadoPopCustomerSearch_dd');
+  if(dd) dd.classList.add('active');
+}
+function renderFiadoPopCustomerDropdown(){
+  const dd = document.getElementById('fiadoPopCustomerSearch_dd');
+  const inp = document.getElementById('fiadoPopCustomerSearch');
+  if(!dd || !inp) return;
+  const filter = (inp.value||'').trim().toLowerCase();
+  const matches = DB.customers.filter(c=> c.nome.toLowerCase().includes(filter));
+  dd.innerHTML = matches.map(c=>`
+    <div class="pickerOption" onclick="event.stopPropagation();selectFiadoPopCustomer('${c.id}')">
+      ${c.nome}${c.telefone?` <span class="dimSmall">(${c.telefone})</span>`:''}
+    </div>`).join('') || '<div class="pickerEmpty">Nenhum cliente encontrado.</div>';
+}
+function selectFiadoPopCustomer(id){
+  const c = DB.customers.find(x=>x.id===id);
+  if(!c) return;
+  document.getElementById('fiadoPopCustomerSelect').value = c.id;
+  document.getElementById('fiadoPopCustomerSearch').value = c.nome;
+  const dd = document.getElementById('fiadoPopCustomerSearch_dd');
+  if(dd) dd.classList.remove('active');
+}
+function openQuickCustomerModalFromFiadoPop(){
+  window._quickCustomerFromFiadoPop = true;
+  openQuickCustomerModal();
+}
+function fiadoPopProsseguir(){
+  const nomeDigitado = (document.getElementById('fiadoPopCustomerSearch').value||'').trim();
+  if(!nomeDigitado){
+    const hint = document.getElementById('fiadoPopHint');
+    if(hint){ hint.textContent = 'Digite ou selecione o nome do cliente para continuar.'; hint.style.color = 'var(--orange)'; }
+    return;
+  }
+  let customerId = document.getElementById('fiadoPopCustomerSelect').value;
+  if(!customerId){
+    // tenta casar por nome exato antes de exigir cadastro
+    const match = DB.customers.find(c=>c.nome.toLowerCase()===nomeDigitado.toLowerCase());
+    if(match) customerId = match.id;
+  }
+  if(!customerId){
+    const hint = document.getElementById('fiadoPopHint');
+    if(hint){ hint.textContent = 'Selecione um cliente da lista ou clique em "Cadastrar cliente".'; hint.style.color = 'var(--orange)'; }
+    return;
+  }
+  document.getElementById('fiadoCustomerSelect').value = customerId;
+  const c = DB.customers.find(x=>x.id===customerId);
+  document.getElementById('fiadoCustomerSearch').value = c ? c.nome : nomeDigitado;
+  const cb = window._fiadoPopOnProsseguir;
+  closeModal();
+  if(cb) cb();
+}
+
 function finalizeSale(){
   if(!requirePerm(getPerms().canSell)) return;
   if(cart.length===0){ alert('Carrinho vazio.'); return; }
@@ -5008,14 +5246,30 @@ function finalizeSale(){
     else { alert('O caixa ainda não foi aberto hoje. Peça para um responsável abrir o caixa antes de vender.'); }
     return;
   }
+  saleFlowPixStep();
+}
+function saleFlowPixStep(){
+  const pixVal = moneyVal('pay_pix');
+  if(pixVal > 0.001 && DB.settings.pixChave){
+    openPixQrModal(pixVal, saleFlowFiadoStep);
+  } else {
+    if(pixVal > 0.001) toast('Cadastre a chave Pix em Configurações para gerar o QR Code automaticamente.', 'warn');
+    saleFlowFiadoStep();
+  }
+}
+function saleFlowFiadoStep(){
   const total = cartTotal();
   const paid = ['dinheiro','pix','cartao'].reduce((s,k)=> s + moneyVal('pay_'+k),0);
   const diff = paid - total;
   if(diff < -0.001){
-    const customerId = document.getElementById('fiadoCustomerSelect').value;
-    if(!customerId){ alert('Selecione ou cadastre um cliente para a Venda Fiado.'); return; }
+    openFiadoCustomerPopup(()=>{
+      const total2 = cartTotal();
+      const paid2 = ['dinheiro','pix','cartao'].reduce((s,k)=> s + moneyVal('pay_'+k),0);
+      openPayConfirmModal(total2, paid2, paid2-total2);
+    });
+  } else {
+    openPayConfirmModal(total, paid, diff);
   }
-  openPayConfirmModal(total, paid, diff);
 }
 /* ---------------- Popup de confirmação de pagamento (exige 2x Enter/clique) ---------------- */
 function openPayConfirmModal(total, paid, diff){
@@ -9332,6 +9586,9 @@ function renderConfig(){
   refreshDeviceAuthStatus();
   document.getElementById('cfg_nome').value = DB.settings.nomeLoja;
   document.getElementById('cfg_contato').value = DB.settings.contato;
+  document.getElementById('cfg_pixChave').value = DB.settings.pixChave || '';
+  document.getElementById('cfg_pixNome').value = DB.settings.pixNome || '';
+  document.getElementById('cfg_pixCidade').value = DB.settings.pixCidade || '';
   document.getElementById('cfg_impressora').value = DB.settings.impressora;
   document.getElementById('cfg_papel').value = DB.settings.papel;
   document.getElementById('cfg_etiquetaQr').value = DB.settings.etiquetaQr || '';
@@ -9553,6 +9810,9 @@ function desbloquearAnimPanel(){
 function saveSettingsLive(){
   DB.settings.nomeLoja = document.getElementById('cfg_nome').value;
   DB.settings.contato = document.getElementById('cfg_contato').value;
+  DB.settings.pixChave = document.getElementById('cfg_pixChave').value.trim();
+  DB.settings.pixNome = document.getElementById('cfg_pixNome').value.trim();
+  DB.settings.pixCidade = document.getElementById('cfg_pixCidade').value.trim();
   DB.settings.impressora = document.getElementById('cfg_impressora').value;
   DB.settings.papel = document.getElementById('cfg_papel').value;
   DB.settings.etiquetaQr = document.getElementById('cfg_etiquetaQr').value;
@@ -9695,7 +9955,7 @@ function importBackupFile(file){
   reader.onload = e=>{
     try{
       const data = JSON.parse(e.target.result);
-      DB = Object.assign({products:[],customers:[],sales:[],employees:[{id:'u1',nome:'Administrador',usuario:'admin',senha:'admin',perfil:'total',comissao:0}],cashSessions:[],cashCurrentOpenId:null,ledger:[],contas:[],incomingStock:[],outgoingStock:[],kits:[],logs:[],stockRequests:[],accessRequests:[],categoryGroups:[],categories:[],productNames:[],settings:{nomeLoja:'Shalom Variedades',contato:'',logo:'',impressora:'',papel:'80mm',etiquetaQr:'',etiquetaMostrarQr:true}}, data);
+      DB = Object.assign({products:[],customers:[],sales:[],employees:[{id:'u1',nome:'Administrador',usuario:'admin',senha:'admin',perfil:'total',comissao:0}],cashSessions:[],cashCurrentOpenId:null,ledger:[],contas:[],incomingStock:[],outgoingStock:[],kits:[],logs:[],stockRequests:[],accessRequests:[],categoryGroups:[],categories:[],productNames:[],settings:{nomeLoja:'Shalom Variedades',contato:'',logo:'',impressora:'',papel:'80mm',etiquetaQr:'',etiquetaMostrarQr:true,pixChave:'',pixNome:'',pixCidade:''}}, data);
       normalizePerfis();
       fixDuplicateBarcodes();
       ensureCatalogDefaults();
