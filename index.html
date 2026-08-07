@@ -1220,7 +1220,7 @@ label{font-size:11.5px;color:var(--text-dim);display:block;margin-bottom:4px;}
    desce balançando de um cabide e vira, mostrando o QR Code do outro lado. */
 .pixQrModalBox{
   --paper:#fff8ec;--paper-dim:#f4e8d2;--ink:#241934;--pink:#ff4f9a;
-  width:min(760px, 96vw);max-width:96vw;text-align:center;
+  width:min(820px, 97vw);max-width:97vw;text-align:center;
   background:var(--paper);color:var(--ink);
   border:4px solid var(--ink);border-radius:26px;
   box-shadow:8px 9px 0 var(--ink), 0 25px 60px rgba(0,0,0,.5);
@@ -1250,19 +1250,19 @@ label{font-size:11.5px;color:var(--text-dim);display:block;margin-bottom:4px;}
 .pixQrModalBox #pixQrConcluirBtn:hover{transform:translate(-1px,-2px);box-shadow:5px 6px 0 var(--ink);}
 .pixQrModalBox #pixQrConcluirBtn:active{transform:translate(2px,3px);box-shadow:1px 1px 0 var(--ink);}
 
-.pixQrStage{position:relative;display:flex;align-items:center;justify-content:center;height:540px;perspective:1000px;overflow:visible;}
+.pixQrStage{position:relative;display:flex;align-items:center;justify-content:center;height:680px;perspective:1000px;overflow:visible;}
 
 .pixQrFrame{
-  position:relative;padding:16px;border-radius:26px;background:#fff;
+  position:relative;padding:18px;border-radius:30px;background:linear-gradient(160deg, var(--orange), var(--orange-deep));
   border:4px solid var(--ink);z-index:5;
-  box-shadow:6px 6px 0 var(--orange), 0 16px 34px rgba(36,25,52,.25);
+  box-shadow:6px 6px 0 var(--ink), 0 18px 40px rgba(36,25,52,.3);
 }
-.pixQrFrame canvas{display:block;border-radius:14px;width:420px;height:420px;}
+.pixQrFrame canvas{display:block;border-radius:16px;width:560px;height:560px;}
 html.anim-off-glow .pixQrFrame{animation:none !important;}
 
 /* estouro tipo quadrinho (atrás do QR ao revelar) */
 .pixQrBurst{
-  position:absolute;top:50%;left:50%;width:500px;height:500px;z-index:3;pointer-events:none;
+  position:absolute;top:50%;left:50%;width:660px;height:660px;z-index:3;pointer-events:none;
   border-radius:50%;opacity:0;
   background:repeating-conic-gradient(var(--yellow) 0deg 11deg, transparent 11deg 22deg);
 }
@@ -1273,21 +1273,15 @@ html.anim-off-glow .pixQrFrame{animation:none !important;}
 }
 .pixQrBurst.pop{animation:pixQrBurstPop .65s cubic-bezier(.2,.75,.3,1) both;}
 
-/* confete */
-.pixQrConfetti{position:absolute;inset:0;pointer-events:none;overflow:visible;z-index:14;}
-.pixQrConfetti span{position:absolute;width:8px;height:12px;top:50%;left:50%;opacity:0;border-radius:3px;box-shadow:0 0 0 1px rgba(36,25,52,.25);}
-@keyframes pixQrConfettiBurst{0%{opacity:1;transform:translate(0,0) scale(1) rotate(0deg);}80%{opacity:1;}100%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(.7) rotate(var(--rot));}}
-.pixQrConfetti span{animation:pixQrConfettiBurst .75s cubic-bezier(.2,.7,.3,1) both;}
-
 /* ==================================================================
    CABIDE: A CAMISA VIRA O QR
 ================================================================== */
 .pixQrHangerScene{display:none;position:absolute;inset:0;align-items:flex-start;justify-content:center;padding-top:6px;}
 .pixQrStage.m2 .pixQrHangerScene{display:flex;}
-.pixQrRail{width:400px;height:4px;background:linear-gradient(90deg,transparent,var(--ink) 25%,var(--ink) 75%,transparent);opacity:0;border-radius:4px;}
+.pixQrRail{width:520px;height:4px;background:linear-gradient(90deg,transparent,var(--ink) 25%,var(--ink) 75%,transparent);opacity:0;border-radius:4px;}
 .pixQrRig{position:absolute;top:18px;left:50%;translate:-50% 0;transform-origin:top center;}
 .pixQrHook{width:18px;height:18px;border:4px solid var(--ink);border-bottom:none;border-radius:18px 18px 0 0;margin:0 auto;background:var(--paper-dim);}
-.pixQrFlipStage{width:460px;height:460px;margin-top:4px;position:relative;transform-style:preserve-3d;}
+.pixQrFlipStage{width:600px;height:600px;margin-top:4px;position:relative;transform-style:preserve-3d;}
 .pixQrShirtFace,.pixQrFaceWrap{position:absolute;inset:0;backface-visibility:hidden;display:flex;align-items:center;justify-content:center;}
 .pixQrShirtFace svg{width:190px;height:216px;filter:drop-shadow(4px 6px 0 rgba(36,25,52,.16));}
 .pixQrFaceWrap{transform:rotateY(180deg);}
@@ -5538,24 +5532,6 @@ function gerarPixPayload(valor, txid){
 
    O QR é sempre revelado com a animação do cabide: a camisa desce balançando
    e vira, mostrando o QR Code do outro lado. */
-function montarConfetePixQr(){
-  const box = document.getElementById('pixQrConfetti');
-  if(!box) return;
-  const cores = ['#ff7a3d','#ffd23f','#33d68a','#ef540f','#ff4f9a'];
-  box.innerHTML = '';
-  for(let i=0;i<24;i++){
-    const s = document.createElement('span');
-    const ang = Math.random()*Math.PI*2;
-    const dist = 130 + Math.random()*80;
-    s.style.setProperty('--dx', (Math.cos(ang)*dist)+'px');
-    s.style.setProperty('--dy', (Math.sin(ang)*dist)+'px');
-    s.style.setProperty('--rot', (Math.random()*720-360)+'deg');
-    s.style.background = cores[i%cores.length];
-    s.style.borderRadius = (i%3===0) ? '50%' : '3px';
-    s.style.animationDelay = (Math.random()*.15)+'s';
-    box.appendChild(s);
-  }
-}
 function montarBurstPixQr(){
   const b = document.getElementById('pixQrBurst');
   if(!b) return;
@@ -5563,7 +5539,7 @@ function montarBurstPixQr(){
   void b.offsetWidth;
   b.classList.add('pop');
 }
-function celebrarPixQr(){ montarConfetePixQr(); montarBurstPixQr(); }
+function celebrarPixQr(){ montarBurstPixQr(); }
 function openPixQrModal(valor, onConcluir){
   showModal(`
     <button class="modalClose" onclick="closeModal()">×</button>
@@ -5590,7 +5566,6 @@ function openPixQrModal(valor, onConcluir){
         </div>
       </div>
 
-      <div class="pixQrConfetti" id="pixQrConfetti"></div>
     </div>
 
     <div class="pixQrChaveInfo">Peça para o cliente escanear o QR Code acima com o app do banco.<br>O valor de ${fmtMoney(valor)} já vem preenchido automaticamente.</div>
@@ -5604,7 +5579,7 @@ function openPixQrModal(valor, onConcluir){
   setTimeout(()=>{
     document.querySelectorAll('#pixQrStage .pixQrCanvasEl').forEach(canvas=>{
       if(payload && typeof QRious!=='undefined'){
-        new QRious({element:canvas, value:payload, size:420, level:'M'});
+        new QRious({element:canvas, value:payload, size:560, level:'M'});
       }
     });
     const btn = document.getElementById('pixQrConcluirBtn');
