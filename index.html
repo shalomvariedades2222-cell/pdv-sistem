@@ -2221,9 +2221,10 @@ html.is-mobile .btn::before{ display:none; }
       <!-- ============ FUNCIONÁRIOS ============ -->
       <div class="view" id="view-funcionarios">
         <div class="tabs">
-          <button class="tabBtn active" onclick="setFuncTab('monitoramento')">Monitoramento</button>
+          <button class="tabBtn active" onclick="setFuncTab('cadastro')">Cadastro</button>
+          <button class="tabBtn" onclick="setFuncTab('monitoramento')">Monitoramento</button>
         </div>
-        <div id="funcTab-cadastro" style="display:none;">
+        <div id="funcTab-cadastro">
         <div class="panel" style="max-width:520px;">
           <h3>Novo Funcionário</h3>
           <div class="formGrid">
@@ -2254,6 +2255,13 @@ html.is-mobile .btn::before{ display:none; }
             <b>Pode mudar algumas coisas:</b> vende e edita Clientes/Fiado; o resto fica travado. <b>Acesso total:</b> sem restrições.
           </div>
           <button class="btn" data-perm="admin" onclick="saveEmployee()">Salvar Funcionário</button>
+        </div>
+        <div class="panel">
+          <h3>Funcionários Cadastrados</h3>
+          <table>
+            <thead><tr><th></th><th>Nome</th><th>Usuário</th><th>Perfil</th><th>Comissão</th><th>Ações</th></tr></thead>
+            <tbody id="employeesTableBody"></tbody>
+          </table>
         </div>
         </div>
 
@@ -8960,10 +8968,11 @@ function saveEditedEmployee(id){
 ========================================================= */
 let funcTab = 'cadastro';
 function setFuncTab(tab){
-  funcTab = tab || 'monitoramento';
+  funcTab = tab || 'cadastro';
   document.getElementById('funcTab-cadastro').style.display = (tab==='cadastro') ? '' : 'none';
   document.getElementById('funcTab-monitoramento').style.display = (tab==='monitoramento') ? '' : 'none';
-  document.querySelectorAll('#view-funcionarios .tabBtn').forEach((b,i)=> b.classList.toggle('active', (i===0 && funcTab==='monitoramento')));
+  document.querySelectorAll('#view-funcionarios .tabBtn').forEach(b=> b.classList.toggle('active', b.getAttribute('onclick')===`setFuncTab('${funcTab}')`));
+  if(funcTab==='cadastro') renderEmployees();
   if(funcTab==='monitoramento'){ populateMonEmpSelect(); renderMonitoramento(); }
 }
 function populateMonEmpSelect(){
