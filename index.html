@@ -3498,6 +3498,18 @@ async function backupCompletoNuvem(){
 let _despejandoAposReconexao = false;
 async function despejarAlteracoesPendentesAoReconectar(){
   if(!hasCloudCredential() || modoTeste || _despejandoAposReconexao) return;
+  // Se já existe um salvamento normal agendado pra rodar em instantes (debounce de
+  // autoSaveGitHub, 0,5s depois de qualquer edição) ou em andamento agora, não faz
+  // sentido disparar por cima dele todo esse fluxo pesado de "reconexão" (buscar,
+  // combinar, reenviar até 3x, mostrar aviso) — o salvamento normal já vai confirmar
+  // a mudança sozinho, rapidinho e sem alarde. Sem essa checagem, qualquer troca de
+  // aba/app (abrir a câmera pra escanear, checar notificação, tela apagar/acender)
+  // feita durante esse meio segundo de debounce — bem comum numa loja com movimento —
+  // fazia o aviso "Despejando arquivos para o servidor..." aparecer o tempo todo,
+  // mesmo com a internet perfeitamente normal, e ainda arriscava dois envios
+  // concorrentes disputando a mesma versão no servidor (uma causa de falha de
+  // salvamento que não tinha nada a ver com internet de verdade).
+  if(_ghSaveTimer || _salvandoAgora) return;
   _despejandoAposReconexao = true;
   setSaveStatus('Despejando arquivos para o servidor...', fmtAgora());
   // Guarda o que está neste aparelho ANTES de qualquer busca ao servidor
