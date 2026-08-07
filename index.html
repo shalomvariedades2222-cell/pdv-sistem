@@ -1212,12 +1212,11 @@ label{font-size:11.5px;color:var(--text-dim);display:block;margin-bottom:4px;}
 .modalClose{float:right;background:none;border:none;color:var(--text-dim);font-size:18px;}
 
 /* ---------------- QR Code do Pix (tela de Vendas) ----------------
-   Estilo "cartoon": a cada Pix gerado, uma de 4 animações diferentes revela
-   o QR Code (sacola, cabide, etiqueta de preço ou provador). A ordem de
-   qual animação aparece é fixa e cíclica — ver PIX_QR_STYLE_ORDER no JS. */
+   Estilo "cartoon": o Pix é revelado com a animação do cabide — a camisa
+   desce balançando de um cabide e vira, mostrando o QR Code do outro lado. */
 .pixQrModalBox{
   --paper:#fff8ec;--paper-dim:#f4e8d2;--ink:#241934;--pink:#ff4f9a;
-  width:420px;text-align:center;
+  width:520px;text-align:center;
   background:var(--paper);color:var(--ink);
   border:4px solid var(--ink);border-radius:26px;
   box-shadow:8px 9px 0 var(--ink), 0 25px 60px rgba(0,0,0,.5);
@@ -1246,19 +1245,19 @@ label{font-size:11.5px;color:var(--text-dim);display:block;margin-bottom:4px;}
 .pixQrModalBox #pixQrConcluirBtn:hover{transform:translate(-1px,-2px);box-shadow:5px 6px 0 var(--ink);}
 .pixQrModalBox #pixQrConcluirBtn:active{transform:translate(2px,3px);box-shadow:1px 1px 0 var(--ink);}
 
-.pixQrStage{position:relative;display:flex;align-items:center;justify-content:center;height:320px;perspective:1000px;overflow:visible;}
+.pixQrStage{position:relative;display:flex;align-items:center;justify-content:center;height:420px;perspective:1000px;overflow:visible;}
 
 .pixQrFrame{
   position:relative;padding:14px;border-radius:22px;background:#fff;
   border:4px solid var(--ink);z-index:5;
   box-shadow:5px 5px 0 var(--orange), 0 14px 30px rgba(36,25,52,.25);
 }
-.pixQrFrame canvas{display:block;border-radius:12px;width:210px;height:210px;}
+.pixQrFrame canvas{display:block;border-radius:12px;width:280px;height:280px;}
 html.anim-off-glow .pixQrFrame{animation:none !important;}
 
 /* estouro tipo quadrinho (atrás do QR ao revelar) */
 .pixQrBurst{
-  position:absolute;top:50%;left:50%;width:250px;height:250px;z-index:3;pointer-events:none;
+  position:absolute;top:50%;left:50%;width:330px;height:330px;z-index:3;pointer-events:none;
   border-radius:50%;opacity:0;
   background:repeating-conic-gradient(var(--yellow) 0deg 11deg, transparent 11deg 22deg);
 }
@@ -1276,67 +1275,16 @@ html.anim-off-glow .pixQrFrame{animation:none !important;}
 .pixQrConfetti span{animation:pixQrConfettiBurst .75s cubic-bezier(.2,.7,.3,1) both;}
 
 /* ==================================================================
-   CONCEITO 1 — SACOLA DE COMPRAS
-================================================================== */
-.pixQrBagScene{display:none;position:absolute;inset:0;align-items:flex-end;justify-content:center;}
-.pixQrStage.m1 .pixQrBagScene{display:flex;}
-.pixQrStage.m1 #pixQrMainFrame{opacity:0;}
-.pixQrBagWrap{position:relative;display:flex;flex-direction:column;align-items:center;}
-.pixQrBagHandles{position:absolute;top:-30px;left:50%;translate:-50% 0;width:120px;height:40px;z-index:3;}
-.pixQrBagHandles svg{width:100%;height:100%;}
-.pixQrBagBody{
-  width:220px;height:170px;border-radius:6px 6px 18px 18px;
-  background:linear-gradient(160deg,var(--orange),var(--orange-deep));
-  border:4px solid var(--ink);position:relative;overflow:hidden;
-  box-shadow:6px 8px 0 rgba(36,25,52,.2);
-}
-.pixQrBagBody::before{content:'';position:absolute;left:16%;top:0;bottom:0;width:6%;background:rgba(255,255,255,.22);}
-.pixQrBagBody::after{content:'';position:absolute;right:16%;top:0;bottom:0;width:6%;background:rgba(255,255,255,.22);}
-.pixQrBagFlapL,.pixQrBagFlapR{position:absolute;top:0;width:52%;height:100%;background:inherit;z-index:2;border:4px solid var(--ink);}
-.pixQrBagFlapL{left:-4px;border-radius:6px 0 0 18px;transform-origin:left center;}
-.pixQrBagFlapR{right:-4px;border-radius:0 6px 18px 0;transform-origin:right center;}
-.pixQrTissue{position:absolute;bottom:60%;width:16px;height:60px;border-radius:8px 8px 0 0;opacity:0;border:2px solid var(--ink);}
-.pixQrTissue.t1{left:32%;background:var(--yellow);}
-.pixQrTissue.t2{left:47%;background:var(--pink);}
-.pixQrTissue.t3{left:60%;background:var(--orange-deep);}
-
-@keyframes pixQrBagDrop{
-  0%{transform:translateY(-90px) scale(.55,.7);opacity:0;}
-  50%{transform:translateY(10px) scale(1.08,.9);opacity:1;}
-  68%{transform:translateY(-10px) scale(.95,1.06);}
-  84%{transform:translateY(3px) scale(1.02,.98);}
-  100%{transform:translateY(0) scale(1,1);}
-}
-.pixQrStage.m1 .pixQrBagWrap{animation:pixQrBagDrop .48s cubic-bezier(.32,1.3,.4,1) both;}
-@keyframes pixQrFlapOpenL{0%{transform:rotateY(0deg) rotate(0);}60%{transform:rotateY(125deg) rotate(-4deg);}100%{transform:rotateY(112deg) rotate(0);}}
-@keyframes pixQrFlapOpenR{0%{transform:rotateY(0deg) rotate(0);}60%{transform:rotateY(-125deg) rotate(4deg);}100%{transform:rotateY(-112deg) rotate(0);}}
-.pixQrStage.m1 .pixQrBagFlapL{animation:pixQrFlapOpenL .34s ease-out .44s both;}
-.pixQrStage.m1 .pixQrBagFlapR{animation:pixQrFlapOpenR .34s ease-out .44s both;}
-@keyframes pixQrTissuePop{0%{transform:translateY(6px) scale(.4) rotate(0);opacity:0;}55%{transform:translateY(-34px) scale(1.12) rotate(-6deg);opacity:1;}80%{transform:translateY(-18px) scale(.96) rotate(4deg);}100%{transform:translateY(-22px) scale(1) rotate(-2deg);opacity:1;}}
-.pixQrStage.m1 .pixQrTissue{animation:pixQrTissuePop .4s cubic-bezier(.3,1.4,.4,1) .72s both;}
-.pixQrStage.m1 .pixQrTissue.t2{animation-delay:.78s;}
-.pixQrStage.m1 .pixQrTissue.t3{animation-delay:.82s;}
-@keyframes pixQrFromBag{
-  0%{transform:translateY(50px) scale(.25) rotate(-10deg);opacity:0;}
-  55%{transform:translateY(-98px) scale(1.15) rotate(5deg);opacity:1;}
-  75%{transform:translateY(-70px) scale(.92) rotate(-3deg);}
-  90%{transform:translateY(-82px) scale(1.03) rotate(1deg);}
-  100%{transform:translateY(-78px) scale(1) rotate(0);}
-}
-.pixQrStage.m1 #pixQrMainFrame{animation:pixQrFromBag .5s cubic-bezier(.3,1.35,.4,1) .9s both;opacity:1;position:relative;z-index:4;}
-
-/* ==================================================================
-   CONCEITO 2 — CABIDE: A CAMISA VIRA O QR
+   CABIDE: A CAMISA VIRA O QR
 ================================================================== */
 .pixQrHangerScene{display:none;position:absolute;inset:0;align-items:flex-start;justify-content:center;padding-top:6px;}
 .pixQrStage.m2 .pixQrHangerScene{display:flex;}
-.pixQrStage.m2 #pixQrMainFrame{opacity:0;}
-.pixQrRail{width:190px;height:4px;background:linear-gradient(90deg,transparent,var(--ink) 25%,var(--ink) 75%,transparent);opacity:0;border-radius:4px;}
+.pixQrRail{width:250px;height:4px;background:linear-gradient(90deg,transparent,var(--ink) 25%,var(--ink) 75%,transparent);opacity:0;border-radius:4px;}
 .pixQrRig{position:absolute;top:18px;left:50%;translate:-50% 0;transform-origin:top center;}
 .pixQrHook{width:18px;height:18px;border:4px solid var(--ink);border-bottom:none;border-radius:18px 18px 0 0;margin:0 auto;background:var(--paper-dim);}
-.pixQrFlipStage{width:180px;height:200px;margin-top:2px;position:relative;transform-style:preserve-3d;}
+.pixQrFlipStage{width:240px;height:266px;margin-top:2px;position:relative;transform-style:preserve-3d;}
 .pixQrShirtFace,.pixQrFaceWrap{position:absolute;inset:0;backface-visibility:hidden;display:flex;align-items:center;justify-content:center;}
-.pixQrShirtFace svg{width:150px;height:170px;filter:drop-shadow(4px 6px 0 rgba(36,25,52,.16));}
+.pixQrShirtFace svg{width:200px;height:227px;filter:drop-shadow(4px 6px 0 rgba(36,25,52,.16));}
 .pixQrFaceWrap{transform:rotateY(180deg);}
 
 @keyframes pixQrRigDrop{0%{transform:translateY(-90px);opacity:0;}70%{opacity:1;}100%{transform:translateY(0);opacity:1;}}
@@ -1350,52 +1298,6 @@ html.anim-off-glow .pixQrFrame{animation:none !important;}
 .pixQrStage.m2 .pixQrFlipStage{animation:pixQrFlipStageAnim .48s cubic-bezier(.5,0,.2,1) 1.25s both;}
 @keyframes pixQrSettle{0%{transform:scale(.85) rotate(-4deg);}55%{transform:scale(1.08) rotate(2deg);}100%{transform:scale(1) rotate(0);}}
 .pixQrStage.m2 .pixQrFaceWrap .pixQrFrame{opacity:1;animation:pixQrSettle .32s cubic-bezier(.3,1.3,.5,1) 1.7s both;}
-
-/* ==================================================================
-   CONCEITO 3 — ETIQUETA DE PREÇO
-================================================================== */
-.pixQrTagScene{display:none;position:absolute;inset:0;align-items:flex-start;justify-content:center;padding-top:10px;}
-.pixQrStage.m3 .pixQrTagScene{display:flex;}
-.pixQrStage.m3 #pixQrMainFrame{opacity:0;}
-.pixQrTagString{width:3px;height:28px;background:var(--ink);margin:0 auto;opacity:0;border-radius:2px;}
-.pixQrTagRig{transform-origin:top center;}
-.pixQrTagFlip{width:210px;height:250px;position:relative;transform-style:preserve-3d;margin-top:0;}
-.pixQrTagFace,.pixQrTagBack{position:absolute;inset:0;backface-visibility:hidden;border-radius:20px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;}
-.pixQrTagFace{background:linear-gradient(160deg,var(--yellow),#ffc21f);border:4px solid var(--ink);box-shadow:5px 6px 0 rgba(36,25,52,.18);}
-.pixQrTagFace::before{content:'';position:absolute;top:-11px;left:50%;translate:-50% 0;width:18px;height:18px;border-radius:50%;background:var(--paper);border:4px solid var(--ink);}
-.pixQrTagFace .pixQrTagIcon{font-size:46px;filter:drop-shadow(2px 3px 0 rgba(36,25,52,.15));}
-.pixQrTagFace .pixQrTagText{font-weight:800;color:var(--ink);font-size:15px;}
-.pixQrTagBack{transform:rotateY(180deg);background:#fff;border:4px solid var(--orange);box-shadow:5px 6px 0 rgba(36,25,52,.18);}
-
-@keyframes pixQrTagDrop{0%{transform:translateY(-60px);opacity:0;}70%{opacity:1;}100%{transform:translateY(0);opacity:1;}}
-@keyframes pixQrTagSwing{0%{transform:rotate(0);}22%{transform:rotate(7deg);}50%{transform:rotate(-4deg);}75%{transform:rotate(2deg);}92%{transform:rotate(-1deg);}100%{transform:rotate(0);}}
-.pixQrStage.m3 .pixQrTagRig{animation:pixQrTagDrop .36s cubic-bezier(.2,.7,.3,1.2) both, pixQrTagSwing 1.3s ease-in-out .36s both;}
-@keyframes pixQrStringFade{to{opacity:1;}}
-.pixQrStage.m3 .pixQrTagString{animation:pixQrStringFade .2s ease .08s both;}
-@keyframes pixQrTagPop{0%{transform:scale(0) rotate(-10deg);opacity:0;}60%{transform:scale(1.08) rotate(4deg);opacity:1;}100%{transform:scale(1) rotate(0);}}
-.pixQrStage.m3 .pixQrTagFlip{animation:pixQrTagPop .34s cubic-bezier(.3,1.35,.5,1) .28s both, pixQrTagFlipAnim .42s ease-in-out 1.05s both;}
-@keyframes pixQrTagFlipAnim{0%{transform:rotateY(0deg);}50%{transform:rotateY(92deg) scale(1.04);}100%{transform:rotateY(180deg);}}
-@keyframes pixQrQrOnTag{0%{transform:scale(.8) rotate(3deg);opacity:0;}100%{transform:scale(1) rotate(0);opacity:1;}}
-.pixQrStage.m3 .pixQrTagBack .pixQrFrame{opacity:1;animation:pixQrQrOnTag .3s ease 1.45s both;box-shadow:none;border:none;padding:6px;}
-
-/* ==================================================================
-   CONCEITO 4 — PROVADOR (CORTINA)
-================================================================== */
-.pixQrFittingScene{display:none;position:absolute;inset:-26px -24px;overflow:hidden;border-radius:26px;z-index:15;}
-.pixQrStage.m4 .pixQrFittingScene{display:block;}
-.pixQrStage.m4 #pixQrMainFrame{opacity:0;}
-.pixQrRod{position:absolute;top:14px;left:6%;right:6%;height:6px;background:var(--ink);border-radius:3px;z-index:3;}
-.pixQrCurtain{position:absolute;top:14px;bottom:0;width:52%;background:repeating-linear-gradient(90deg, var(--orange-deep) 0 16px, var(--orange) 16px 30px);box-shadow:inset 0 0 40px rgba(36,25,52,.35);}
-.pixQrCurtain.left{left:0;border-radius:0 0 30px 0;}
-.pixQrCurtain.right{right:0;border-radius:0 0 0 30px;}
-.pixQrCurtain .pixQrRings{position:absolute;top:-5px;left:0;right:0;display:flex;justify-content:space-around;}
-.pixQrCurtain .pixQrRings span{width:9px;height:9px;border-radius:50%;background:var(--yellow);border:2px solid var(--ink);}
-@keyframes pixQrM4Left{0%{transform:translateX(0) rotate(0);}100%{transform:translateX(-104%) rotate(-1deg);}}
-@keyframes pixQrM4Right{0%{transform:translateX(0) rotate(0);}100%{transform:translateX(104%) rotate(1deg);}}
-.pixQrStage.m4 .pixQrCurtain.left{animation:pixQrM4Left .58s cubic-bezier(.6,0,.3,1) .22s both;}
-.pixQrStage.m4 .pixQrCurtain.right{animation:pixQrM4Right .58s cubic-bezier(.6,0,.3,1) .22s both;}
-@keyframes pixQrM4Qr{0%{transform:scale(.6) rotate(-6deg);opacity:0;}60%{transform:scale(1.1) rotate(3deg);opacity:1;}100%{transform:scale(1) rotate(0);}}
-.pixQrStage.m4 #pixQrMainFrame{animation:pixQrM4Qr .42s cubic-bezier(.3,1.35,.5,1) .4s both;opacity:1;}
 
 /* ---------------- Popup de cliente fiado (após pagamento parcial via Pix/etc.) ---------------- */
 .fiadoPopBtnRow{display:flex;gap:8px;margin-top:14px;}
@@ -5629,17 +5531,8 @@ function gerarPixPayload(valor, txid){
    50 e só 30 foi colocado no campo Pix, o QR sai com 30). Enter ou o botão
    "Concluir" avançam pro próximo passo da venda.
 
-   A cada Pix gerado, o QR é revelado com uma de 4 animações diferentes
-   (1=sacola, 2=cabide, 3=etiqueta, 4=provador), sempre na ordem fixa definida
-   em PIX_QR_STYLE_ORDER — ver função proximoEstiloPixQr(). */
-const PIX_QR_STYLE_ORDER = [1,4,3,2, 1,3,2,4, 4,2,1,3, 2,2,1,3, 1,2,3,4, 4,2,1,3, 1,3,2,1, 1,4,2,3, 1,1,2,3, 1,4,3,2];
-function proximoEstiloPixQr(){
-  let idx = parseInt(localStorage.getItem('pixQrStyleIdx'), 10);
-  if(isNaN(idx) || idx < 0) idx = 0;
-  const estilo = PIX_QR_STYLE_ORDER[idx % PIX_QR_STYLE_ORDER.length];
-  localStorage.setItem('pixQrStyleIdx', String(idx + 1));
-  return estilo;
-}
+   O QR é sempre revelado com a animação do cabide: a camisa desce balançando
+   e vira, mostrando o QR Code do outro lado. */
 function montarConfetePixQr(){
   const box = document.getElementById('pixQrConfetti');
   if(!box) return;
@@ -5667,33 +5560,16 @@ function montarBurstPixQr(){
 }
 function celebrarPixQr(){ montarConfetePixQr(); montarBurstPixQr(); }
 function openPixQrModal(valor, onConcluir){
-  const estilo = proximoEstiloPixQr();
   showModal(`
     <button class="modalClose" onclick="closeModal()">×</button>
     <h3 style="text-align:center;">Pagamento via Pix</h3>
     <div class="pixQrValor">${fmtMoney(valor)}</div>
 
-    <div class="pixQrStage" id="pixQrStage">
+    <div class="pixQrStage m2" id="pixQrStage">
 
       <div class="pixQrBurst" id="pixQrBurst"></div>
 
-      <!-- Conceito 1: sacola -->
-      <div class="pixQrBagScene">
-        <div class="pixQrBagWrap">
-          <div class="pixQrBagHandles">
-            <svg viewBox="0 0 120 40"><path d="M20 40 C20 10, 100 10, 100 40" fill="none" stroke="#241934" stroke-width="5"/></svg>
-          </div>
-          <div class="pixQrBagBody">
-            <div class="pixQrBagFlapL"></div>
-            <div class="pixQrBagFlapR"></div>
-            <div class="pixQrTissue t1"></div>
-            <div class="pixQrTissue t2"></div>
-            <div class="pixQrTissue t3"></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Conceito 2: cabide -->
+      <!-- Cabide: a camisa desce balançando e vira o QR -->
       <div class="pixQrHangerScene">
         <div>
           <div class="pixQrRail"></div>
@@ -5709,30 +5585,6 @@ function openPixQrModal(valor, onConcluir){
         </div>
       </div>
 
-      <!-- Conceito 3: etiqueta -->
-      <div class="pixQrTagScene">
-        <div class="pixQrTagRig">
-          <div class="pixQrTagString"></div>
-          <div class="pixQrTagFlip">
-            <div class="pixQrTagFace">
-              <div class="pixQrTagIcon">👗</div>
-              <div class="pixQrTagText">Pagamento Pix</div>
-            </div>
-            <div class="pixQrTagBack"><div class="pixQrFrame"><canvas class="pixQrCanvasEl"></canvas></div></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Conceito 4: provador -->
-      <div class="pixQrFittingScene">
-        <div class="pixQrRod"></div>
-        <div class="pixQrCurtain left"><div class="pixQrRings"><span></span><span></span><span></span><span></span></div></div>
-        <div class="pixQrCurtain right"><div class="pixQrRings"><span></span><span></span><span></span><span></span></div></div>
-      </div>
-
-      <!-- QR principal (usado nos conceitos 1 e 4) -->
-      <div class="pixQrFrame" id="pixQrMainFrame"><canvas class="pixQrCanvasEl"></canvas></div>
-
       <div class="pixQrConfetti" id="pixQrConfetti"></div>
     </div>
 
@@ -5743,21 +5595,17 @@ function openPixQrModal(valor, onConcluir){
   const payload = gerarPixPayload(valor, 'VENDA'+Date.now().toString().slice(-8));
   window._pixQrPayload = payload;
 
-  const stage = document.getElementById('pixQrStage');
-  if(stage) stage.className = 'pixQrStage m'+estilo;
-
   setTimeout(()=>{
     document.querySelectorAll('#pixQrStage .pixQrCanvasEl').forEach(canvas=>{
       if(payload && typeof QRious!=='undefined'){
-        new QRious({element:canvas, value:payload, size:210, level:'M'});
+        new QRious({element:canvas, value:payload, size:280, level:'M'});
       }
     });
     const btn = document.getElementById('pixQrConcluirBtn');
     if(btn) btn.focus();
   }, 30);
 
-  const delaysCelebrar = {1:900, 2:1700, 3:1450, 4:400};
-  setTimeout(celebrarPixQr, delaysCelebrar[estilo] || 900);
+  setTimeout(celebrarPixQr, 1700);
 
   const concluir = ()=>{ closeModal(); onConcluir(); };
   document.getElementById('pixQrConcluirBtn').onclick = concluir;
