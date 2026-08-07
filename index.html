@@ -983,7 +983,7 @@ tr:hover td{background:#251c17;}
   background:var(--orange);color:#1a1110;border:none;font-weight:700;font-size:12px;
   padding:7px 14px;border-radius:999px;cursor:pointer;position:relative;overflow:visible;
   box-shadow:0 4px 12px rgba(255,106,26,.28);
-  transition:transform .18s cubic-bezier(.2,.8,.3,1), box-shadow .18s ease, background .18s ease;
+  transition:transform .18s cubic-bezier(.2,.8,.3,1), box-shadow .18s ease, background .18s ease, border-radius .25s ease;
 }
 .contasFiadoPill:hover{background:var(--orange-deep);transform:translateY(-2px);box-shadow:0 8px 18px rgba(255,106,26,.4);}
 .contasFiadoPill:active{transform:translateY(0) scale(.9);}
@@ -994,6 +994,35 @@ tr:hover td{background:#251c17;}
   70%{transform:translateY(-3px) rotate(-8deg);}
   80%{transform:translateY(0) rotate(6deg);}
   90%{transform:translateY(-1px) rotate(0deg);}
+}
+/* ---- Estouro "cartoon" ao clicar no botão Clientes: o botão faz um squash & stretch
+   bem exagerado (nem parece o mesmo botão por um instante) e solta um aro que "explode"
+   pra fora, tipo efeito "poof!" de desenho animado. O ícone segue junto, girando e crescendo. ---- */
+.contasFiadoPill::before{
+  content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  border:2.5px solid var(--orange);opacity:0;
+}
+.contasFiadoPill.popClick{animation:contasFiadoPillPop .55s cubic-bezier(.34,1.56,.64,1) both;}
+.contasFiadoPill.popClick::before{animation:contasFiadoPillRing .55s ease-out both;}
+.contasFiadoPill.popClick .contasFiadoPillIcon{animation:contasFiadoIconBurst .55s cubic-bezier(.34,1.56,.64,1) both;}
+@keyframes contasFiadoPillPop{
+  0%{transform:scale(1,1) rotate(0deg);}
+  22%{transform:scale(.74,1.28) rotate(-5deg);}
+  42%{transform:scale(1.22,.82) rotate(4deg);}
+  62%{transform:scale(.9,1.1) rotate(-2.5deg);}
+  80%{transform:scale(1.06,.96) rotate(1.5deg);}
+  100%{transform:scale(1,1) rotate(0deg);}
+}
+@keyframes contasFiadoPillRing{
+  0%{opacity:.8;transform:scale(1);border-width:2.5px;}
+  100%{opacity:0;transform:scale(1.7);border-width:.5px;}
+}
+@keyframes contasFiadoIconBurst{
+  0%{transform:scale(1) rotate(0deg);}
+  30%{transform:scale(1.55) rotate(-20deg);}
+  55%{transform:scale(.8) rotate(16deg);}
+  75%{transform:scale(1.18) rotate(-8deg);}
+  100%{transform:scale(1) rotate(0deg);}
 }
 .contasFiadoPillIcon{font-size:13px;line-height:1;display:inline-block;}
 .contasFiadoDot{
@@ -1013,11 +1042,16 @@ tr:hover td{background:#251c17;}
   box-shadow:0 14px 30px rgba(0,0,0,.35);max-height:340px;overflow:auto;
   transform-origin:top left;
 }
-.contasFiadoDropdown.show{display:block;animation:contasFiadoDropdownIn .28s cubic-bezier(.2,.85,.32,1.15) both;}
+/* Abertura em "pop" elástico: nasce pequeno e torto lá no canto do botão, estoura passando
+   do tamanho final (overshoot) e depois assenta balançando de leve, tipo bolha de desenho. */
+.contasFiadoDropdown.show{display:block;animation:contasFiadoDropdownIn .6s cubic-bezier(.22,1,.36,1) both;}
 @keyframes contasFiadoDropdownIn{
-  0%{opacity:0;transform:translateY(-8px) scale(.92);}
-  60%{opacity:1;}
-  100%{opacity:1;transform:translateY(0) scale(1);}
+  0%{opacity:0;transform:translateY(-20px) scale(.3) rotate(-10deg);}
+  38%{opacity:1;transform:translateY(6px) scale(1.09) rotate(3deg);}
+  58%{transform:translateY(-4px) scale(.95) rotate(-2deg);}
+  76%{transform:translateY(2px) scale(1.03) rotate(1deg);}
+  90%{transform:translateY(-1px) scale(.99) rotate(-.5deg);}
+  100%{opacity:1;transform:translateY(0) scale(1) rotate(0deg);}
 }
 .contasFiadoEmpty{padding:14px 8px;font-size:12px;color:var(--text-dim);text-align:center;animation:contasFiadoDetailIn .25s ease both;}
 .contasFiadoRow{border-radius:10px;overflow:hidden;margin-bottom:3px;opacity:0;animation:contasFiadoRowIn .3s cubic-bezier(.2,.8,.3,1) both;}
@@ -1076,6 +1110,66 @@ tr:hover td{background:#251c17;}
 .eyeBtn .eyePupil{transform-box:fill-box;transform-origin:center;transition:opacity .2s ease, transform .32s cubic-bezier(.34,1.56,.64,1);}
 .eyeBtn.revealed .eyePupil{transform:scale(0);opacity:0;}
 .contasFiadoReceberBtn{width:100%;}
+
+/* ---------------- Barra de pesquisa "cartoon" dentro do painel Clientes (tela de Vendas) ----------------
+   Botão redondo estilo figurinha/adesivo (contorno grosso + sombra "degrau"), com respiro e
+   tremelique animados; ao clicar, o campo de texto "estica" pra fora com efeito elástico
+   (squash & stretch), bem estilo desenho animado. */
+.contasFiadoSearchBar{
+  display:flex;align-items:center;
+  margin-bottom:10px;position:relative;
+}
+.contasFiadoSearchBtn{
+  --sz:32px;width:var(--sz);height:var(--sz);flex:0 0 auto;
+  border-radius:50%;border:2.5px solid #2a1610;position:relative;z-index:2;
+  background:linear-gradient(150deg,#ffc98a,var(--orange) 55%,var(--orange-deep));
+  box-shadow:0 3px 0 #2a1610,0 6px 12px rgba(0,0,0,.35);
+  display:flex;align-items:center;justify-content:center;padding:0;
+  transition:transform .22s cubic-bezier(.34,1.56,.64,1), box-shadow .18s ease, border-radius .3s ease;
+  animation:cartoonSearchIdle 2.8s ease-in-out infinite;
+}
+.contasFiadoSearchBtn:hover{
+  transform:scale(1.14) rotate(-6deg);
+  box-shadow:0 4px 0 #2a1610,0 9px 16px rgba(0,0,0,.4);
+  animation:cartoonSearchWiggle .55s ease-in-out infinite;
+}
+.contasFiadoSearchBtn:active{
+  transform:scale(.82) rotate(6deg) translateY(2px);
+  box-shadow:0 0 0 #2a1610,0 2px 4px rgba(0,0,0,.3);
+}
+.contasFiadoSearchBtn.active{
+  border-radius:12px;
+  background:linear-gradient(150deg,#fff0dd,var(--orange) 60%,var(--orange-deep));
+  animation:none;transform:none;
+}
+.contasFiadoSearchBtn.active:hover{transform:scale(1.06);animation:none;}
+@keyframes cartoonSearchIdle{
+  0%,100%{transform:translateY(0) rotate(0deg);}
+  50%{transform:translateY(-3px) rotate(-5deg);}
+}
+@keyframes cartoonSearchWiggle{
+  0%,100%{transform:scale(1.14) rotate(-8deg);}
+  25%{transform:scale(1.18) rotate(9deg);}
+  50%{transform:scale(1.14) rotate(-10deg);}
+  75%{transform:scale(1.18) rotate(7deg);}
+}
+.contasFiadoSearchIcon{width:15px;height:15px;fill:none;stroke:#2a1610;stroke-width:2.8;stroke-linecap:round;stroke-linejoin:round;pointer-events:none;}
+.contasFiadoSearchBtn .contasFiadoSearchIcon .lente{transition:transform .2s ease;transform-box:fill-box;transform-origin:center;}
+.contasFiadoSearchBtn:hover .contasFiadoSearchIcon .lente{animation:cartoonLensPeek .5s ease-in-out infinite;}
+@keyframes cartoonLensPeek{0%,100%{transform:scale(1);}50%{transform:scale(1.18);}}
+.contasFiadoSearchInput{
+  min-width:0;max-width:0;opacity:0;padding:0;margin-left:0;border-width:0;
+  height:32px;border-radius:16px;border:2.5px solid transparent;background:#1c1512;color:var(--text);
+  font-size:12.5px;font-weight:600;outline:none;box-shadow:inset 0 2px 5px rgba(0,0,0,.4);
+  transition:max-width .42s cubic-bezier(.34,1.56,.64,1), opacity .22s ease .04s, padding .35s ease, margin .35s ease, border-color .2s ease;
+}
+.contasFiadoSearchBar.open .contasFiadoSearchInput{
+  max-width:400px;opacity:1;padding:0 12px;margin-left:8px;flex:1;border-color:var(--glass-border-strong);
+}
+.contasFiadoSearchBar.open .contasFiadoSearchInput:focus{border-color:var(--orange);box-shadow:inset 0 2px 5px rgba(0,0,0,.4),0 0 0 3px rgba(255,106,26,.18);}
+.contasFiadoSearchInput::placeholder{color:var(--text-dim);}
+.contasFiadoSearchEmpty{padding:16px 8px;font-size:12px;color:var(--text-dim);text-align:center;animation:contasFiadoDetailIn .25s ease both;}
+.contasFiadoSearchEmpty .bigEmoji{display:block;font-size:24px;margin-bottom:4px;animation:cartoonSearchWiggle 1.2s ease-in-out infinite;}
 
 input,select{
   background:#120e0d;border:1px solid var(--line);color:var(--text);
@@ -1888,7 +1982,18 @@ html.is-mobile .btn::before{ display:none; }
                   <span>Clientes</span>
                   <span class="contasFiadoDot" id="contasFiadoDot"></span>
                 </button>
-                <div id="contasFiadoBody" class="contasFiadoDropdown"></div>
+                <div id="contasFiadoBody" class="contasFiadoDropdown">
+                  <div id="contasFiadoSearchBar" class="contasFiadoSearchBar">
+                    <button type="button" class="contasFiadoSearchBtn" id="contasFiadoSearchBtn" title="Pesquisar cliente" onclick="toggleContasFiadoSearch(event)">
+                      <svg class="contasFiadoSearchIcon" viewBox="0 0 24 24">
+                        <circle class="lente" cx="10" cy="10" r="6.2"/>
+                        <line x1="14.8" y1="14.8" x2="20.5" y2="20.5"/>
+                      </svg>
+                    </button>
+                    <input type="text" id="contasFiadoSearchInput" class="contasFiadoSearchInput" placeholder="Pesquisar cliente..." oninput="renderContasFiadoBox()" onclick="event.stopPropagation()" onkeydown="if(event.key==='Escape'){toggleContasFiadoSearch(event);}">
+                  </div>
+                  <div id="contasFiadoList"></div>
+                </div>
               </div>
               <div class="gridSectionLbl" id="productGridLbl">Todos os produtos (clique para adicionar)</div>
               <div id="productGrid"></div>
@@ -4787,10 +4892,35 @@ function renderSearch(){
 let contasFiadoExpanded = false;
 let contasFiadoOpenId = null;
 let contasFiadoRevealed = new Set();
+let contasFiadoSearchOpen = false;
 function toggleContasFiadoBox(){
   contasFiadoExpanded = !contasFiadoExpanded;
-  if(!contasFiadoExpanded){ contasFiadoOpenId = null; }
+  if(!contasFiadoExpanded){
+    contasFiadoOpenId = null;
+    contasFiadoSearchOpen = false;
+    const input = document.getElementById('contasFiadoSearchInput');
+    if(input) input.value = '';
+  }
   renderContasFiadoBox();
+}
+/* Botão de pesquisa "cartoon": ao clicar, o campo de texto estica pra fora com efeito
+   elástico; ao fechar, limpa a busca e volta a mostrar todo mundo. */
+function toggleContasFiadoSearch(e){
+  if(e) e.stopPropagation();
+  const bar = document.getElementById('contasFiadoSearchBar');
+  const btn = document.getElementById('contasFiadoSearchBtn');
+  const input = document.getElementById('contasFiadoSearchInput');
+  if(!bar || !btn || !input) return;
+  contasFiadoSearchOpen = !contasFiadoSearchOpen;
+  bar.classList.toggle('open', contasFiadoSearchOpen);
+  btn.classList.toggle('active', contasFiadoSearchOpen);
+  if(contasFiadoSearchOpen){
+    setTimeout(()=> input.focus(), 220);
+  } else {
+    input.value = '';
+    input.blur();
+    renderContasFiadoBox();
+  }
 }
 function toggleContasFiadoDetail(customerId){
   contasFiadoOpenId = (contasFiadoOpenId===customerId) ? null : customerId;
@@ -4805,17 +4935,25 @@ function renderContasFiadoBox(){
   const pillBtn = document.getElementById('contasFiadoPillBtn');
   const dot = document.getElementById('contasFiadoDot');
   const body = document.getElementById('contasFiadoBody');
-  if(!pillBtn || !body) return;
+  const list = document.getElementById('contasFiadoList');
+  if(!pillBtn || !body || !list) return;
   const withDebt = DB.customers.filter(c=>customerDebtTotal(c)>0.001).sort((a,b)=>customerDebtTotal(b)-customerDebtTotal(a));
   if(dot) dot.classList.toggle('show', withDebt.length>0);
   pillBtn.classList.toggle('open', contasFiadoExpanded);
   body.classList.toggle('show', contasFiadoExpanded);
   if(!contasFiadoExpanded) return;
   if(!withDebt.length){
-    body.innerHTML = '<div class="contasFiadoEmpty">Nenhum cliente devendo. 🎉</div>';
+    list.innerHTML = '<div class="contasFiadoEmpty">Nenhum cliente devendo. 🎉</div>';
     return;
   }
-  body.innerHTML = withDebt.map(c=>{
+  const searchInput = document.getElementById('contasFiadoSearchInput');
+  const termo = (searchInput ? searchInput.value : '').trim().toLowerCase();
+  const filtrados = termo ? withDebt.filter(c=> (c.nome||'').toLowerCase().includes(termo)) : withDebt;
+  if(!filtrados.length){
+    list.innerHTML = '<div class="contasFiadoSearchEmpty"><span class="bigEmoji">🔍</span>Nenhum cliente encontrado para "'+termo+'".</div>';
+    return;
+  }
+  list.innerHTML = filtrados.map(c=>{
     const isOpen = contasFiadoOpenId===c.id;
     const revealed = contasFiadoRevealed.has(c.id);
     const inicial = (c.nome||'?').trim().charAt(0).toUpperCase();
