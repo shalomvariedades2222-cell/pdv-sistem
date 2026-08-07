@@ -974,6 +974,81 @@ tr:hover td{background:#251c17;}
 .btn.secondary::before{background:linear-gradient(115deg, transparent, rgba(255,166,94,.22), transparent);}
 [data-perm]:disabled, [data-perm].permLocked{opacity:.4;cursor:not-allowed;}
 
+/* ---------------- Botão "Clientes" (pílula laranja, compacta e discreta) na tela de Vendas ----------------
+   Substitui o antigo painel grande "Pagar Contas"; agora é só um botão pequeno e redondo
+   pra não expor nada na tela, mas continua visível pro funcionário saber que existe. */
+#contasFiadoWrap{position:relative;margin-bottom:12px;display:flex;}
+.contasFiadoPill{
+  display:inline-flex;align-items:center;gap:6px;
+  background:var(--orange);color:#1a1110;border:none;font-weight:700;font-size:12px;
+  padding:7px 14px;border-radius:999px;cursor:pointer;position:relative;overflow:visible;
+  box-shadow:0 4px 12px rgba(255,106,26,.28);
+  transition:transform .18s cubic-bezier(.2,.8,.3,1), box-shadow .18s ease, background .18s ease;
+}
+.contasFiadoPill:hover{background:var(--orange-deep);transform:translateY(-2px);box-shadow:0 8px 18px rgba(255,106,26,.4);}
+.contasFiadoPill:active{transform:translateY(0) scale(.94);}
+.contasFiadoPill.open{border-radius:16px 16px 4px 4px;}
+.contasFiadoPillIcon{font-size:13px;line-height:1;}
+.contasFiadoDot{
+  width:8px;height:8px;border-radius:50%;background:var(--red);display:none;
+  box-shadow:0 0 0 rgba(224,80,63,.6);
+}
+.contasFiadoDot.show{display:inline-block;animation:contasFiadoDotPulse 1.8s ease-in-out infinite;}
+@keyframes contasFiadoDotPulse{
+  0%{box-shadow:0 0 0 0 rgba(224,80,63,.55);}
+  70%{box-shadow:0 0 0 7px rgba(224,80,63,0);}
+  100%{box-shadow:0 0 0 0 rgba(224,80,63,0);}
+}
+.contasFiadoDropdown{
+  display:none;position:absolute;top:calc(100% - 1px);left:0;min-width:240px;max-width:320px;z-index:60;
+  background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:4px 14px 14px 14px;
+  padding:8px;backdrop-filter:blur(var(--glass-blur)) saturate(150%);-webkit-backdrop-filter:blur(var(--glass-blur)) saturate(150%);
+  box-shadow:0 14px 30px rgba(0,0,0,.35);max-height:340px;overflow:auto;
+}
+.contasFiadoDropdown.show{display:block;animation:contasFiadoDropdownIn .22s cubic-bezier(.2,.8,.3,1) both;}
+@keyframes contasFiadoDropdownIn{
+  from{opacity:0;transform:translateY(-6px) scale(.97);}
+  to{opacity:1;transform:translateY(0) scale(1);}
+}
+.contasFiadoEmpty{padding:10px 8px;font-size:12px;color:var(--text-dim);text-align:center;}
+.contasFiadoRow{border-radius:10px;overflow:hidden;margin-bottom:3px;}
+.contasFiadoRow:last-child{margin-bottom:0;}
+.contasFiadoName{
+  display:flex;align-items:center;gap:8px;padding:9px 10px;cursor:pointer;font-size:12.5px;font-weight:600;
+  border-radius:10px;transition:background .15s ease;
+}
+.contasFiadoName:hover{background:rgba(255,106,26,.1);}
+.contasFiadoRow.open .contasFiadoName{background:rgba(255,106,26,.14);}
+.contasFiadoNameIcon{
+  width:22px;height:22px;border-radius:50%;background:var(--orange-dim);color:#ffd9bd;
+  display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0;
+}
+.contasFiadoName span.nomeTxt{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.contasFiadoChevron{color:var(--text-dim);font-size:10px;transition:transform .2s ease;}
+.contasFiadoRow.open .contasFiadoChevron{transform:rotate(180deg);color:var(--orange);}
+.contasFiadoDetail{
+  padding:4px 10px 10px 40px;animation:contasFiadoDetailIn .2s ease both;
+}
+@keyframes contasFiadoDetailIn{from{opacity:0;transform:translateY(-4px);}to{opacity:1;transform:translateY(0);}}
+.contasFiadoValueRow{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text-dim);margin-bottom:8px;}
+.contasFiadoValue{
+  font-weight:800;color:var(--text);letter-spacing:.5px;min-width:64px;display:inline-block;
+  transition:filter .18s ease, opacity .18s ease;
+}
+.eyeBtn{
+  background:none;border:none;padding:3px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;
+  border-radius:50%;transition:background .15s ease,transform .15s cubic-bezier(.2,.8,.3,1);
+}
+.eyeBtn:hover{background:rgba(255,106,26,.14);transform:scale(1.08);}
+.eyeBtn:active{transform:scale(.88);}
+.eyeIcon{width:17px;height:17px;stroke:var(--text-dim);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:stroke .2s ease;}
+.eyeBtn.revealed .eyeIcon{stroke:var(--orange);}
+.eyeBtn .eyeLid{transform-origin:center;transition:transform .28s cubic-bezier(.34,1.56,.64,1);}
+.eyeBtn.revealed .eyeLid{transform:scaleY(.15);}
+.eyeBtn .eyePupil{transition:opacity .18s ease, transform .28s cubic-bezier(.34,1.56,.64,1);transform-origin:center;}
+.eyeBtn.revealed .eyePupil{transform:scale(0);opacity:0;}
+.contasFiadoReceberBtn{width:100%;}
+
 input,select{
   background:#120e0d;border:1px solid var(--line);color:var(--text);
   padding:8px 10px;border-radius:7px;font-size:13px;
@@ -1779,15 +1854,13 @@ html.is-mobile .btn::before{ display:none; }
               <input id="searchBox" placeholder="Escaneie o código de barras ou digite o nome... (F2)" autofocus oninput="renderSearch()" onkeydown="pdvSearchKey(event)">
               <div class="searchBarcodeHint">Dica: escaneie a etiqueta ou digite e pressione Enter para adicionar. F4 finaliza a venda.</div>
               <div id="searchResults"></div>
-              <div class="panel" id="contasFiadoBox" style="margin-bottom:12px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="toggleContasFiadoBox()">
-                  <h3 style="margin:0;">💳 Pagar Contas (Clientes devendo)</h3>
-                  <div style="display:flex;align-items:center;gap:10px;">
-                    <span class="dimSmall">Total: <b id="contasFiadoTotalLbl" style="color:var(--red);">R$ 0,00</b></span>
-                    <span id="contasFiadoToggleIcon">▾</span>
-                  </div>
-                </div>
-                <div id="contasFiadoBody" style="margin-top:10px;display:none;"></div>
+              <div id="contasFiadoWrap">
+                <button type="button" class="contasFiadoPill" id="contasFiadoPillBtn" onclick="toggleContasFiadoBox()">
+                  <span class="contasFiadoPillIcon">👤</span>
+                  <span>Clientes</span>
+                  <span class="contasFiadoDot" id="contasFiadoDot"></span>
+                </button>
+                <div id="contasFiadoBody" class="contasFiadoDropdown"></div>
               </div>
               <div class="gridSectionLbl" id="productGridLbl">Todos os produtos (clique para adicionar)</div>
               <div id="productGrid"></div>
@@ -4678,39 +4751,78 @@ function renderSearch(){
       <div>${fmtMoney(p.venda)} <span class="dimSmall">(estoque: ${p.estoque})</span></div>
     </div>`).join('') || '<div class="dimSmall">Nenhum produto encontrado.</div>';
 }
-/* ---------------- Bloco "Pagar Contas" (clientes devendo/fiado) na tela de Vendas ----------------
-   Fica retrátil, junto da grade de produtos, pra quem está no caixa poder receber
-   um pagamento de fiado sem precisar sair da tela de Vendas e ir em Clientes/Fiado. */
+/* ---------------- Botão "Clientes" (clientes devendo/fiado) na tela de Vendas ----------------
+   Por privacidade, na tela de Vendas só aparece uma pílula laranja pequena com um pontinho
+   avisando que tem gente devendo. Ao abrir, mostra só os NOMES (sem telefone, sem valor).
+   Só ao clicar em cima de um nome é que aparece "Falta pagar: ***" (valor mascarado),
+   com um olho animado pra revelar o valor sob demanda. */
 let contasFiadoExpanded = false;
+let contasFiadoOpenId = null;
+let contasFiadoRevealed = new Set();
 function toggleContasFiadoBox(){
   contasFiadoExpanded = !contasFiadoExpanded;
+  if(!contasFiadoExpanded){ contasFiadoOpenId = null; }
+  renderContasFiadoBox();
+}
+function toggleContasFiadoDetail(customerId){
+  contasFiadoOpenId = (contasFiadoOpenId===customerId) ? null : customerId;
+  renderContasFiadoBox();
+}
+function toggleContasFiadoReveal(customerId){
+  if(contasFiadoRevealed.has(customerId)) contasFiadoRevealed.delete(customerId);
+  else contasFiadoRevealed.add(customerId);
   renderContasFiadoBox();
 }
 function renderContasFiadoBox(){
-  const box = document.getElementById('contasFiadoBox');
-  if(!box) return;
+  const pillBtn = document.getElementById('contasFiadoPillBtn');
+  const dot = document.getElementById('contasFiadoDot');
   const body = document.getElementById('contasFiadoBody');
-  const totalLbl = document.getElementById('contasFiadoTotalLbl');
-  const iconEl = document.getElementById('contasFiadoToggleIcon');
+  if(!pillBtn || !body) return;
   const withDebt = DB.customers.filter(c=>customerDebtTotal(c)>0.001).sort((a,b)=>customerDebtTotal(b)-customerDebtTotal(a));
-  const total = withDebt.reduce((s,c)=>s+customerDebtTotal(c),0);
-  if(totalLbl) totalLbl.textContent = fmtMoney(total);
-  if(iconEl) iconEl.textContent = contasFiadoExpanded ? '▴' : '▾';
-  if(!body) return;
-  body.style.display = contasFiadoExpanded ? '' : 'none';
+  if(dot) dot.classList.toggle('show', withDebt.length>0);
+  pillBtn.classList.toggle('open', contasFiadoExpanded);
+  body.classList.toggle('show', contasFiadoExpanded);
   if(!contasFiadoExpanded) return;
-  body.innerHTML = withDebt.length ? withDebt.map(c=>`
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);">
-      <div>
-        <div>${c.nome}</div>
-        <div class="dimSmall">${c.telefone||'-'}</div>
+  if(!withDebt.length){
+    body.innerHTML = '<div class="contasFiadoEmpty">Nenhum cliente devendo. 🎉</div>';
+    return;
+  }
+  body.innerHTML = withDebt.map(c=>{
+    const isOpen = contasFiadoOpenId===c.id;
+    const revealed = contasFiadoRevealed.has(c.id);
+    const inicial = (c.nome||'?').trim().charAt(0).toUpperCase();
+    return `
+    <div class="contasFiadoRow ${isOpen?'open':''}">
+      <div class="contasFiadoName" onclick="toggleContasFiadoDetail('${c.id}')">
+        <span class="contasFiadoNameIcon">${inicial}</span>
+        <span class="nomeTxt">${c.nome}</span>
+        <span class="contasFiadoChevron">▾</span>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <b style="color:var(--red);">${fmtMoney(customerDebtTotal(c))}</b>
-        <button type="button" class="btn small" onclick="receberPagamentoRapido('${c.id}')">Receber</button>
-      </div>
-    </div>`).join('') : '<div class="dimSmall">Nenhum cliente devendo no momento. 🎉</div>';
+      ${isOpen ? `
+      <div class="contasFiadoDetail">
+        <div class="contasFiadoValueRow">
+          <span>Falta pagar:</span>
+          <span class="contasFiadoValue">${revealed ? fmtMoney(customerDebtTotal(c)) : '***'}</span>
+          <button type="button" class="eyeBtn ${revealed?'revealed':''}" title="${revealed?'Ocultar valor':'Mostrar valor'}" onclick="event.stopPropagation();toggleContasFiadoReveal('${c.id}')">
+            <svg class="eyeIcon" viewBox="0 0 24 24">
+              <path class="eyeLid" d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/>
+              <circle class="eyePupil" cx="12" cy="12" r="3"/>
+            </svg>
+          </button>
+        </div>
+        <button type="button" class="btn small contasFiadoReceberBtn" onclick="event.stopPropagation();receberPagamentoRapido('${c.id}')">Receber</button>
+      </div>` : ''}
+    </div>`;
+  }).join('');
 }
+document.addEventListener('click', function(e){
+  if(!contasFiadoExpanded) return;
+  if(!e.target.closest('#contasFiadoWrap')){
+    contasFiadoExpanded = false;
+    contasFiadoOpenId = null;
+    renderContasFiadoBox();
+  }
+});
 function receberPagamentoRapido(customerId){
   if(!requirePerm(getPerms().canEditClientes)) return;
   const c = DB.customers.find(x=>x.id===customerId);
@@ -4731,6 +4843,8 @@ function receberPagamentoRapido(customerId){
   DB.ledger.push({date:todayISO(), desc:`Pagamento fiado - ${c.nome}`, tipo:'entrada', valor: totalPago});
   log(`Pagamento de fiado registrado (tela de Vendas): ${c.nome} - ${fmtMoney(totalPago)}`);
   toast(`Pagamento de ${fmtMoney(totalPago)} recebido de ${c.nome}.`, 'ok');
+  contasFiadoRevealed.delete(customerId);
+  if(customerDebtTotal(c)<=0.001) contasFiadoOpenId = null;
   renderContasFiadoBox();
   renderClientesLista();
   if(document.getElementById('fiadoOverviewBody')) renderFiadoOverview();
