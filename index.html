@@ -1382,6 +1382,19 @@ html.anim-off-glow .pixQrFrame{animation:none !important;}
 }
 .searchItem:hover{background:#241a15;cursor:pointer;}
 #cartTable{flex:1;overflow:visible;}
+/* Quebra de linha no carrinho (funciona em qualquer tamanho de tela, PC incluído):
+   em vez do nome do produto empurrar a tabela pra fora e criar rolagem lateral,
+   a coluna "Produto" quebra o texto e as outras colunas ficam com largura fixa
+   e enxuta. */
+#cartTable table{table-layout:fixed;width:100%;}
+#cartTable td, #cartTable th{white-space:normal;word-break:break-word;overflow-wrap:break-word;}
+#cartTable td:nth-child(1), #cartTable th:nth-child(1){width:64px;}   /* Código */
+#cartTable td:nth-child(3), #cartTable th:nth-child(3){width:64px;}   /* Qtd */
+#cartTable td:nth-child(4), #cartTable th:nth-child(4){width:76px;}   /* Preço */
+#cartTable td:nth-child(5), #cartTable th:nth-child(5){width:84px;}   /* Desc. item */
+#cartTable td:nth-child(6), #cartTable th:nth-child(6){width:84px;}   /* Total */
+#cartTable td:nth-child(7), #cartTable th:nth-child(7){width:34px;}   /* botão x */
+#cartTable input{max-width:100%;}
 .cartActions{display:flex;gap:6px;}
 #payArea{border-top:1px solid var(--line);padding-top:12px;margin-top:10px;}
 .payRow{display:flex;justify-content:space-between;font-size:15px;margin:6px 0;}
@@ -5883,23 +5896,33 @@ function finalizeSale(){
     else { alert('O caixa ainda não foi aberto hoje. Peça para um responsável abrir o caixa antes de vender.'); }
     return;
   }
+  clearTimeout(_pixAutoQrTimer); // evita o QR automático abrir "por baixo" ao mesmo tempo que o clique manual
   saleFlowPixStep();
 }
 function saleFlowPixStep(){
   const pixVal = moneyVal('pay_pix');
-  if(pixVal > 0.001 && DB.settings.pixChave){
+  if(pixVal > 0.001){
+    if(!DB.settings.pixChave){
+      // Sem chave cadastrada não dá pra gerar QR: trava a venda aqui (não deixa
+      // salvar "por baixo" sem o cliente ter pago) até a loja configurar a chave.
+      alert('Cadastre a chave Pix da loja em Configurações antes de vender no Pix — sem ela não é possível gerar o QR Code de pagamento.');
+      return;
+    }
     if(pixConfirmedValue === pixVal){
-      // já foi confirmado no QR (ex.: durante a digitação) — não reabre à toa
+      // já foi confirmado no QR (ex.: durante a digitação) — não reabre à toa,
+      // esse clique em "Finalizar Venda" é que efetivamente salva a venda.
       saleFlowFiadoStep();
       return;
     }
+    // 1º clique com Pix: sempre mostra o QR primeiro, com o valor certinho.
+    // Só quando a pessoa apertar "Concluir" (ou Enter) dentro do QR é que o
+    // valor passa a contar como pago — o 2º clique em "Finalizar Venda" é que salva.
     openPixQrModal(pixVal, ()=>{
       pixConfirmedValue = pixVal;
       updatePayTotals();
-      saleFlowFiadoStep();
+      toast('Pagamento via Pix confirmado. Aperte "Finalizar Venda" de novo para salvar.', 'ok');
     });
   } else {
-    if(pixVal > 0.001) toast('Cadastre a chave Pix em Configurações para gerar o QR Code automaticamente.', 'warn');
     saleFlowFiadoStep();
   }
 }
