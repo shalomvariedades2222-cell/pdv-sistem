@@ -4756,6 +4756,15 @@ function normalizePerfis(){
     if(!PERFIL_LABELS[e.perfil]) e.perfil='restrito';
   });
 }
+/* ---------- Garante que todo lançamento do livro caixa tenha um ID estável ----------
+   Antes, a exclusão de um lançamento dependia da posição dele no array (indexOf),
+   o que pode mudar por causa de sincronização em segundo plano (nuvem/outro
+   dispositivo) entre o clique e a confirmação — fazendo o botão "Excluir" clicar
+   na linha errada ou em nenhuma. Cada lançamento agora carrega um "id" fixo,
+   gerado uma única vez, que nunca muda mesmo se a posição no array mudar. */
+function ensureLedgerIds(){
+  (DB.ledger||[]).forEach(l=>{ if(!l.id) l.id = uid('ledger'); });
+}
 function expirarPedidosEstoque(){
   const now = Date.now();
   (DB.stockRequests||[]).forEach(r=>{
@@ -5508,7 +5517,7 @@ function confirmarReceberPagamentoRapido(customerId){
     d.paid += aplicar;
     restante -= aplicar;
   });
-  DB.ledger.push({date:todayISO(), desc:`Pagamento fiado - ${c.nome}`, tipo:'entrada', valor: totalPago});
+  DB.ledger.push({id:uid('ledger'), date:todayISO(), desc:`Pagamento fiado - ${c.nome}`, tipo:'entrada', valor: totalPago});
   log(`Pagamento de fiado registrado (tela de Vendas): ${c.nome} - ${fmtMoney(totalPago)}`);
   toast(`Pagamento de ${fmtMoney(totalPago)} recebido de ${c.nome}.`, 'ok');
   contasFiadoRevealed.delete(customerId);
@@ -6357,7 +6366,7 @@ function doFinalizeSale(){
     const cust = DB.customers.find(c=>c.id===customerId);
     cust.pontos = (cust.pontos||0) + Math.floor(sale.total/10);
   }
-  DB.ledger.push({date:sale.date, desc:'Venda #'+sale.id.slice(-5), tipo:'entrada', valor: paid, saleId: sale.id});
+  DB.ledger.push({id:uid('ledger'), date:sale.date, desc:'Venda #'+sale.id.slice(-5), tipo:'entrada', valor: paid, saleId: sale.id});
   log(`Venda realizada: ${fmtMoney(sale.total)} por ${currentUser.nome}`);
   cart = [];
   pixConfirmedValue = 0;
@@ -6584,7 +6593,7 @@ function registrarPixAvulso(valor){
     cashSessionId: DB.cashCurrentOpenId, cancelled:false, avulso:true
   };
   DB.sales.push(sale);
-  DB.ledger.push({date:sale.date, desc:'Pix avulso #'+sale.id.slice(-5), tipo:'entrada', valor, saleId:sale.id});
+  DB.ledger.push({id:uid('ledger'), date:sale.date, desc:'Pix avulso #'+sale.id.slice(-5), tipo:'entrada', valor, saleId:sale.id});
   log(`Pix avulso registrado: ${fmtMoney(valor)} por ${currentUser.nome}`);
   toast(`Pix de ${fmtMoney(valor)} registrado no caixa.`, 'ok');
   renderCaixa(); renderRelatorios(); renderLivroVendas(); renderRendimento();
@@ -9855,7 +9864,7 @@ function payDebtPrompt(customerId, debtId){
   const val = Number(prompt(`Valor a pagar (restante: ${fmtMoney(remaining)}):`, remaining.toFixed(2)));
   if(!val || val<=0) return;
   d.paid += Math.min(val, remaining);
-  DB.ledger.push({date:todayISO(), desc:`Pagamento fiado - ${c.nome}`, tipo:'entrada', valor: Math.min(val,remaining)});
+  DB.ledger.push({id:uid('ledger'), date:todayISO(), desc:`Pagamento fiado - ${c.nome}`, tipo:'entrada', valor: Math.min(val,remaining)});
   log(`Pagamento de fiado registrado: ${c.nome} - ${fmtMoney(val)}`);
   closeModal();
   renderClientesLista();
@@ -10002,6 +10011,10 @@ function confirmCancelItem(saleId, itemIndex){
     sale.cancelled = true;
     sale.cancelledAt = todayISO();
     sale.cancelledBy = admin.nome;
+    // a venda inteira foi cancelada peça por peça: remove qualquer resíduo que
+    // tenha sobrado no livro caixa por causa de arredondamento (paga x total do
+    // item), pra não deixar lançamento órfão vinculado a uma venda já cancelada
+    DB.ledger = DB.ledger.filter(l=>l.saleId!==sale.id);
   }
 
   log(`Peça cancelada na compra #${sale.id.slice(-5)}: ${it.name} x${it.qty} (${fmtMoney(itemNet)}) — autorizado por ${admin.nome}.`);
@@ -10024,6 +10037,7 @@ function renderFiadoOverview(){
    CAIXA / FINANCEIRO
 ========================================================= */
 function renderCaixa(){
+  ensureLedgerIds(); // garante id estável mesmo se o DB.ledger acabou de ser substituído por uma sincronização
   const open = DB.cashSessions.find(s=>s.id===DB.cashCurrentOpenId);
   document.getElementById('caixaStatusLabel').textContent = open ? 'Aberto' : 'Fechado';
   document.getElementById('caixaOpenBtn').style.display = open ? 'none' : '';
@@ -10050,9 +10064,9 @@ function renderCaixa(){
   document.getElementById('livroCaixaBody').innerHTML = DB.ledger.slice().reverse().slice(0,50).map(l=>{
     let acao = '';
     if(l.saleId && podeExcluirLancamento){
-      acao = `<button class="btn small danger" onclick="openCancelSaleModal('${l.saleId}')" title="Excluir esta venda (estorna estoque e fiado)">🗑️ Excluir</button>`;
+      acao = `<button class="btn small danger" onclick="excluirLancamentoVenda('${l.saleId}','${l.id}')" title="Excluir esta venda (estorna estoque e fiado)">🗑️ Excluir</button>`;
     } else if(!l.saleId && podeExcluirLancamento){
-      acao = `<button class="btn small danger" onclick="excluirLancamentoLedger(${DB.ledger.indexOf(l)})" title="Excluir este lançamento">🗑️ Excluir</button>`;
+      acao = `<button class="btn small danger" onclick="excluirLancamentoLedger('${l.id}')" title="Excluir este lançamento">🗑️ Excluir</button>`;
     }
     return `<tr><td>${fmtDateTime(l.date)}</td><td>${l.desc}</td><td style="color:${l.tipo==='entrada'?'var(--green)':'var(--red)'}">${l.tipo}</td><td>${fmtMoney(l.valor)}</td><td>${acao}</td></tr>`;
   }).join('') || '<tr><td colspan="5" class="dimSmall">Sem lançamentos.</td></tr>';
@@ -10064,7 +10078,7 @@ function openCaixa(){
   const session = {id:uid('caixa'), openDate:todayISO(), valorInicial:val, closeDate:null};
   DB.cashSessions.push(session);
   DB.cashCurrentOpenId = session.id;
-  DB.ledger.push({date:todayISO(), desc:'Abertura de caixa', tipo:'entrada', valor:val});
+  DB.ledger.push({id:uid('ledger'), date:todayISO(), desc:'Abertura de caixa', tipo:'entrada', valor:val});
   log('Caixa aberto com valor inicial de '+fmtMoney(val));
   renderCaixa();
 }
@@ -10098,19 +10112,52 @@ function closeCaixa(){
   document.getElementById('caixaValorInformado').value='';
   setTimeout(renderCaixa, 1500);
 }
-function excluirLancamentoLedger(idx){
-  if(!getPerms().isTotal) return;
-  const l = DB.ledger[idx];
-  if(!l) return;
+function excluirLancamentoLedger(ledgerId){
+  if(!getPerms().isTotal){ toast('Você não tem permissão para excluir lançamentos.', 'erro'); return; }
+  const l = DB.ledger.find(x=>x.id===ledgerId);
+  if(!l){ toast('Esse lançamento não existe mais (já foi removido).', 'erro'); renderCaixa(); return; }
   confirmModal(
     `Excluir o lançamento "<b>${l.desc}</b>" (${fmtMoney(l.valor)})?<br><br>Essa ação não pode ser desfeita.`,
     ()=>{
+      const idx = DB.ledger.findIndex(x=>x.id===ledgerId);
+      if(idx===-1){ toast('Esse lançamento não existe mais (já foi removido).', 'erro'); renderCaixa(); return; }
       DB.ledger.splice(idx,1);
       log('Lançamento excluído do livro caixa: '+l.desc);
+      toast('Lançamento excluído.');
       renderCaixa();
     },
     {titulo:'Excluir lançamento?', textoBtn:'Sim, excluir'}
   );
+}
+/* ---------- Excluir lançamento do caixa que está vinculado a uma venda ----------
+   Normalmente isso abre a tela de "Cancelar Venda" (estorna estoque/fiado).
+   Mas existe um caso em que o lançamento fica "órfão": a venda já foi cancelada
+   (ex.: todas as peças dela foram canceladas uma a uma) e mesmo assim sobrou um
+   resíduo no livro caixa. Nesse caso a venda não existe mais (ou já está
+   cancelada), então em vez de abrir a tela de cancelamento (que não serve pra
+   nada aqui) e falhar sem avisar, avisamos o usuário e removemos o lançamento
+   órfão diretamente. */
+function excluirLancamentoVenda(saleId, ledgerId){
+  if(!getPerms().isTotal){ toast('Você não tem permissão para excluir lançamentos.', 'erro'); return; }
+  const sale = DB.sales.find(s=>s.id===saleId);
+  if(!sale || sale.cancelled){
+    const l = DB.ledger.find(x=>x.id===ledgerId);
+    if(!l){ toast('Esse lançamento não existe mais (já foi removido).', 'erro'); renderCaixa(); return; }
+    confirmModal(
+      `Esse lançamento ("<b>${l.desc}</b>", ${fmtMoney(l.valor)}) está vinculado a uma venda que <b>já foi cancelada</b> (ou não existe mais), então não há mais estoque/fiado para estornar. Provavelmente é um resíduo deixado por um cancelamento anterior.<br><br>Deseja apenas remover esse lançamento do livro caixa?`,
+      ()=>{
+        const idx = DB.ledger.findIndex(x=>x.id===ledgerId);
+        if(idx===-1){ toast('Esse lançamento não existe mais (já foi removido).', 'erro'); renderCaixa(); return; }
+        DB.ledger.splice(idx,1);
+        log('Lançamento órfão removido do livro caixa (venda já cancelada): '+l.desc);
+        toast('Lançamento removido.');
+        renderCaixa();
+      },
+      {titulo:'Lançamento sem venda ativa', textoBtn:'Sim, remover'}
+    );
+    return;
+  }
+  openCancelSaleModal(saleId);
 }
 function addConta(){
   const desc = document.getElementById('contaDesc').value.trim();
@@ -10131,7 +10178,7 @@ function renderContas(){
 }
 function markContaPaga(id){
   const c = DB.contas.find(x=>x.id===id); c.paga=true;
-  DB.ledger.push({date:todayISO(), desc:c.desc, tipo: c.tipo==='pagar'?'saida':'entrada', valor:c.valor});
+  DB.ledger.push({id:uid('ledger'), date:todayISO(), desc:c.desc, tipo: c.tipo==='pagar'?'saida':'entrada', valor:c.valor});
   log('Conta paga/recebida: '+c.desc);
   renderCaixa();
 }
@@ -11763,6 +11810,7 @@ function tickClock(){
 }
 setInterval(tickClock, 1000); tickClock();
 normalizePerfis();
+ensureLedgerIds();
 fixDuplicateBarcodes();
 ensureCatalogDefaults();
 aplicarAnimacoesGlobais();
