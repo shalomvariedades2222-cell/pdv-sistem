@@ -1323,20 +1323,50 @@ html.anim-off-glow .pixQrFrame{animation:none !important;}
 
 /* ---------- PDV ---------- */
 #pdvWrap{display:flex;gap:16px;height:calc(100vh - 150px);align-items:stretch;position:relative;}
+
+/* ---------- Coluna esquerda: busca/grade de produtos + painel de Pagamento ----------
+   Quando uma venda está em andamento (carrinho com itens), o painel de Pagamento
+   (#pdvRight) aparece AQUI embaixo da busca — a busca/grade encolhe (mas continua
+   visível e utilizável) para abrir espaço para o pagamento, via a classe
+   "paymentActive" alternada em renderCart(). */
 #pdvLeft{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;gap:14px;}
-#pdvSearchSection{flex:1;display:flex;flex-direction:column;min-height:0;}
+#pdvSearchSection{flex:1;display:flex;flex-direction:column;min-height:0;transition:flex-basis .25s ease;}
 #pdvSearchSection #productGrid{flex:1;overflow:auto;}
-#pdvCartSection{flex-shrink:0;max-height:280px;display:flex;flex-direction:column;min-height:120px;}
-#pdvCartSection .panel{flex:1;display:flex;flex-direction:column;overflow:hidden;padding-bottom:10px;}
-#pdvCartSection #cartTable{flex:1;overflow:auto;}
+#pdvLeft.paymentActive #pdvSearchSection{flex:0 0 34%;min-height:190px;}
+
 #pdvRight{
-  position:relative;width:480px;max-width:44vw;flex-shrink:0;
-  display:flex;flex-direction:column;background:var(--glass-bg-strong);
+  display:none;position:relative;width:100%;flex:1;min-height:0;
+  flex-direction:column;background:var(--glass-bg-strong);
   border:1px solid var(--glass-border);border-radius:16px;padding:26px;
   overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.06);
   backdrop-filter:blur(var(--glass-blur-lg)) saturate(160%);
   -webkit-backdrop-filter:blur(var(--glass-blur-lg)) saturate(160%);
 }
+
+/* ---------- Coluna direita: Carrinho em cima, botões de função (quadrados) embaixo ---------- */
+#pdvRightCol{
+  width:420px;max-width:42vw;flex-shrink:0;
+  display:flex;flex-direction:column;gap:14px;min-height:0;
+}
+#pdvCartSection{flex:1;display:flex;flex-direction:column;min-height:120px;}
+#pdvCartSection .panel{flex:1;display:flex;flex-direction:column;overflow:hidden;padding-bottom:10px;}
+#pdvCartSection #cartTable{flex:1;overflow:auto;}
+
+#pdvQuickActions{flex-shrink:0;display:flex;gap:10px;justify-content:center;}
+.pdvQuickBtn{
+  width:88px;height:88px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
+  background:var(--glass-bg-soft);border:1px solid var(--glass-border);border-radius:14px;color:var(--text);
+  font-size:11px;font-weight:700;text-align:center;
+  transition:border-color .15s, background .15s, transform .15s;
+}
+.pdvQuickBtn .pdvQuickIcon{font-size:28px;line-height:1;}
+.pdvQuickBtn:hover{border-color:var(--orange);background:var(--glass-bg);transform:translateY(-2px);}
+.pdvQuickBtn:active{transform:translateY(0) scale(.97);}
+.pdvQuickBtn:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+
+/* ---------- Calculadora de venda avulsa ---------- */
+.calcAvulsaGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+.calcAvulsaGrid .btn{padding:14px 0;font-size:17px;}
 #searchBox{padding:12px;font-size:15px;width:100%;margin-bottom:10px;}
 #searchResults{max-height:180px;overflow:auto;margin-bottom:10px;}
 .searchItem{
@@ -1474,6 +1504,22 @@ html.is-mobile .recentAddsPanel{width:100%;}
 .modalBg.active .modalBox{animation:modalPopIn .3s cubic-bezier(.2,.8,.3,1);}
 @keyframes modalBgFadeIn{0%{opacity:0;}100%{opacity:1;}}
 .modalBg.active{animation:modalBgFadeIn .2s ease;}
+
+/* ---------- Animação "cartoon": cai de cima quicando, tipo desenho animado ----------
+   Usada nos popups de Calculadora (venda avulsa) e Pix Avulso — sobrepõe a animação
+   padrão do modal (modalPopIn) por ter mais especificidade de seletor. */
+@keyframes cartoonDropBounce{
+  0%{opacity:0;transform:translateY(-320px) scale(.6) rotate(-8deg);}
+  40%{opacity:1;transform:translateY(22px) scale(1.1) rotate(4deg);}
+  58%{transform:translateY(-14px) scale(.94) rotate(-3deg);}
+  74%{transform:translateY(7px) scale(1.04) rotate(1.5deg);}
+  88%{transform:translateY(-3px) scale(.99) rotate(-0.5deg);}
+  100%{opacity:1;transform:translateY(0) scale(1) rotate(0deg);}
+}
+.modalBg.active .modalBox.calcPixModalBox{
+  animation:cartoonDropBounce .68s cubic-bezier(.34,1.56,.64,1) both;
+  transform-origin:top center;
+}
 
 .toast{transform:translateY(-8px) scale(.94);transition:opacity .28s cubic-bezier(.2,.8,.3,1),transform .28s cubic-bezier(.2,.8,.3,1);}
 .toast.show{opacity:1;transform:translateY(0) scale(1);}
@@ -1773,12 +1819,15 @@ html.is-mobile .btn::before{ display:none; }
 
   #pdvWrap{ flex-direction:column; height:auto; gap:10px; }
   #pdvLeft{ min-width:0; }
+  #pdvLeft.paymentActive #pdvSearchSection{ flex:0 0 auto; max-height:220px; }
   #pdvSearchSection #productGrid{ overflow:visible; }
   #pdvCartSection{ max-height:none; }
   #productGrid{ grid-template-columns:repeat(auto-fill,minmax(76px,1fr)); gap:6px; }
   .prodTile img{ height:40px; }
 
   #pdvRight{ width:100%; max-width:100%; }
+  #pdvRightCol{ width:100%; max-width:100%; }
+  .pdvQuickBtn{ width:76px; height:76px; }
 
   .formGrid{ grid-template-columns:1fr; }
   .panel[style*="max-width"]{ max-width:100% !important; }
@@ -2064,52 +2113,66 @@ html.is-mobile .btn::before{ display:none; }
               <div class="gridSectionLbl" id="productGridLbl">Todos os produtos (clique para adicionar)</div>
               <div id="productGrid"></div>
             </div>
+            <div id="pdvRight" style="display:none;">
+              <h3 style="color:var(--orange);margin-top:0;">Pagamento</h3>
+              <button class="btn secondary small" data-perm="estoque" style="margin-bottom:10px;width:100%;" onclick="openQuickProductModal()">🧺 Cadastrar Peça de Roupa</button>
+              <div class="field">
+                <label>Desconto na venda (R$ ou %)</label>
+                <div style="display:flex;gap:6px;">
+                  <input id="saleDiscountVal" type="text" inputmode="decimal" placeholder="0,00" style="flex:1" oninput="if(document.getElementById('saleDiscountType').value==='value')maskMoneyInput(this);renderPay()">
+                  <select id="saleDiscountType" onchange="renderPay()">
+                    <option value="value">R$</option>
+                    <option value="pct">%</option>
+                  </select>
+                </div>
+              </div>
+              <button type="button" class="btn secondary" style="width:100%;margin-bottom:10px;" onclick="abrirValorAdicional()">➕ Valor adicional</button>
+              <div class="payRow"><span>Subtotal</span><span id="paySubtotal">R$ 0,00</span></div>
+              <div class="payRow total"><span>Total</span><span id="payTotal">R$ 0,00</span></div>
+
+              <div id="payArea">
+                <div class="payMethodRow"><label>Dinheiro</label><input type="text" inputmode="decimal" id="pay_dinheiro" placeholder="0,00" oninput="maskMoneyInput(this);updatePayTotals()"><button type="button" class="fillBtn" onclick="fillRemaining('dinheiro')">Preencher?</button></div>
+                <div class="payMethodRow"><label>Pix</label><input type="text" inputmode="decimal" id="pay_pix" placeholder="0,00" oninput="maskMoneyInput(this);updatePayTotals()"><button type="button" class="fillBtn" onclick="fillRemaining('pix')">Preencher?</button></div>
+                <div class="payMethodRow"><label>Cartão</label><input type="text" inputmode="decimal" id="pay_cartao" placeholder="0,00" oninput="maskMoneyInput(this);updatePayTotals()"><button type="button" class="fillBtn" onclick="fillRemaining('cartao')">Preencher?</button></div>
+                <div class="payRow"><span>Pago</span><span id="payPaid">R$ 0,00</span></div>
+                <div class="payRow"><span>Restante / Troco</span><span id="payRemaining">R$ 0,00</span></div>
+
+                <div id="fiadoBlock" style="display:none;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);">
+                  <div class="chip">Venda Fiado</div>
+                  <div class="dimSmall" style="margin:6px 0;">Saldo devedor: <b id="fiadoAmount">R$ 0,00</b></div>
+                  <label>Cliente vinculado</label>
+                  <div class="field pickerWrap" style="margin:0;">
+                    <input id="fiadoCustomerSearch" placeholder="Digite o nome do cliente..." autocomplete="off" onclick="openFiadoCustomerPicker()" oninput="filterFiadoCustomerPicker()">
+                    <input type="hidden" id="fiadoCustomerSelect">
+                    <div class="pickerDropdown" id="fiadoCustomerSearch_dd"></div>
+                  </div>
+                  <button class="btn secondary small" style="margin-top:6px;" onclick="openQuickCustomerModal()">+ Cadastrar novo cliente</button>
+                </div>
+              </div>
+
+              <div style="margin-top:14px;display:flex;gap:8px;">
+                <button class="btn" id="btnFinalizarVenda" style="flex:1;" onclick="finalizeSale()">Finalizar Venda (Enter)</button>
+                <button class="btn secondary" id="btnCancelarVenda" onclick="cancelSale()">Cancelar</button>
+              </div>
+            </div>
+          </div>
+          <div id="pdvRightCol">
             <div id="pdvCartSection">
               <div class="panel">
                 <h3 style="margin:0 0 8px;">Carrinho</h3>
                 <div id="cartTable"></div>
               </div>
             </div>
-          </div>
-          <div id="pdvRight" style="display:none;">
-            <h3 style="color:var(--orange);margin-top:0;">Pagamento</h3>
-            <button class="btn secondary small" data-perm="estoque" style="margin-bottom:10px;width:100%;" onclick="openQuickProductModal()">🧺 Cadastrar Peça de Roupa</button>
-            <div class="field">
-              <label>Desconto na venda (R$ ou %)</label>
-              <div style="display:flex;gap:6px;">
-                <input id="saleDiscountVal" type="text" inputmode="decimal" placeholder="0,00" style="flex:1" oninput="if(document.getElementById('saleDiscountType').value==='value')maskMoneyInput(this);renderPay()">
-                <select id="saleDiscountType" onchange="renderPay()">
-                  <option value="value">R$</option>
-                  <option value="pct">%</option>
-                </select>
-              </div>
-            </div>
-            <div class="payRow"><span>Subtotal</span><span id="paySubtotal">R$ 0,00</span></div>
-            <div class="payRow total"><span>Total</span><span id="payTotal">R$ 0,00</span></div>
-
-            <div id="payArea">
-              <div class="payMethodRow"><label>Dinheiro</label><input type="text" inputmode="decimal" id="pay_dinheiro" placeholder="0,00" oninput="maskMoneyInput(this);updatePayTotals()"><button type="button" class="fillBtn" onclick="fillRemaining('dinheiro')">Preencher?</button></div>
-              <div class="payMethodRow"><label>Pix</label><input type="text" inputmode="decimal" id="pay_pix" placeholder="0,00" oninput="maskMoneyInput(this);updatePayTotals()"><button type="button" class="fillBtn" onclick="fillRemaining('pix')">Preencher?</button></div>
-              <div class="payMethodRow"><label>Cartão</label><input type="text" inputmode="decimal" id="pay_cartao" placeholder="0,00" oninput="maskMoneyInput(this);updatePayTotals()"><button type="button" class="fillBtn" onclick="fillRemaining('cartao')">Preencher?</button></div>
-              <div class="payRow"><span>Pago</span><span id="payPaid">R$ 0,00</span></div>
-              <div class="payRow"><span>Restante / Troco</span><span id="payRemaining">R$ 0,00</span></div>
-
-              <div id="fiadoBlock" style="display:none;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);">
-                <div class="chip">Venda Fiado</div>
-                <div class="dimSmall" style="margin:6px 0;">Saldo devedor: <b id="fiadoAmount">R$ 0,00</b></div>
-                <label>Cliente vinculado</label>
-                <div class="field pickerWrap" style="margin:0;">
-                  <input id="fiadoCustomerSearch" placeholder="Digite o nome do cliente..." autocomplete="off" onclick="openFiadoCustomerPicker()" oninput="filterFiadoCustomerPicker()">
-                  <input type="hidden" id="fiadoCustomerSelect">
-                  <div class="pickerDropdown" id="fiadoCustomerSearch_dd"></div>
-                </div>
-                <button class="btn secondary small" style="margin-top:6px;" onclick="openQuickCustomerModal()">+ Cadastrar novo cliente</button>
-              </div>
-            </div>
-
-            <div style="margin-top:14px;display:flex;gap:8px;">
-              <button class="btn" id="btnFinalizarVenda" style="flex:1;" onclick="finalizeSale()">Finalizar Venda (Enter)</button>
-              <button class="btn secondary" id="btnCancelarVenda" onclick="cancelSale()">Cancelar</button>
+            <div id="pdvQuickActions">
+              <button type="button" class="btn pdvQuickBtn" id="btnCalcAvulsa" onclick="abrirCalculadoraVenda()" title="Calculadora — venda avulsa">
+                <span class="pdvQuickIcon">🧮</span><span class="pdvQuickLabel">Calculadora</span>
+              </button>
+              <button type="button" class="btn pdvQuickBtn" id="btnPixAvulso" onclick="abrirPixAvulso()" title="Cobrar Pix avulso">
+                <span class="pdvQuickIcon">💠</span><span class="pdvQuickLabel">Pix Avulso</span>
+              </button>
+              <button type="button" class="btn pdvQuickBtn" onclick="focarScannerVendas()" title="Focar campo de escanear código">
+                <span class="pdvQuickIcon">📷</span><span class="pdvQuickLabel">Escanear</span>
+              </button>
             </div>
           </div>
         </div>
@@ -4869,6 +4932,10 @@ function applyPermissions(){
   const btnCancelar = document.getElementById('btnCancelarVenda');
   if(btnFinalizar) btnFinalizar.disabled = !perm.canSell;
   if(btnCancelar) btnCancelar.disabled = !perm.canSell;
+  const btnCalcAvulsa = document.getElementById('btnCalcAvulsa');
+  const btnPixAvulso = document.getElementById('btnPixAvulso');
+  if(btnCalcAvulsa) btnCalcAvulsa.disabled = !perm.canSell;
+  if(btnPixAvulso) btnPixAvulso.disabled = !perm.canSell;
   // "Ver log" e "Backup" no widget flutuante levam a informações/ações de Configurações — só pra admin
   const logBtn = document.querySelector('#saveStatus .logBtn');
   const backupBtn = document.querySelector('#saveStatus .backupBtn');
@@ -5325,6 +5392,8 @@ function renderCart(){
      1 item no carrinho — some de novo se o carrinho ficar vazio. */
   const pdvRight = document.getElementById('pdvRight');
   if(pdvRight) pdvRight.style.display = cart.length>0 ? 'flex' : 'none';
+  const pdvLeft = document.getElementById('pdvLeft');
+  if(pdvLeft) pdvLeft.classList.toggle('paymentActive', cart.length>0);
   if(cart.length===0){
     el.innerHTML = '<div class="dimSmall">Carrinho vazio. Clique em um produto ou escaneie a etiqueta para começar.</div>';
     renderPay();
@@ -5915,6 +5984,188 @@ function cancelSale(){
   if(confirm('Cancelar a venda atual (limpar carrinho)?')){
     cart=[]; renderCart();
   }
+}
+
+/* =========================================================
+   BOTÕES DE FUNÇÃO RÁPIDA DA TELA DE VENDAS
+   1) Calculadora — soma um valor avulso (sem produto do estoque) ao carrinho
+      e leva direto para a tela de Pagamento normal, que já cuida de dinheiro/
+      Pix/cartão, troco e Venda Fiado se faltar valor.
+   2) Pix Avulso — cobra um Pix pontual (não entra no carrinho), gera o QR na
+      hora e registra o valor no caixa/relatórios assim que for concluído.
+   3) Escanear — só leva o foco pro campo de código de barras já existente.
+========================================================= */
+
+/* ---------- 1) Calculadora de venda avulsa ---------- */
+let calcAvulsaExpr = '';
+function abrirCalculadoraVenda(){
+  if(!requirePerm(getPerms().canSell)) return;
+  if(!DB.cashCurrentOpenId){
+    if(getPerms().isTotal){ alert('Abra o caixa antes de realizar vendas.'); showView('caixa'); }
+    else { alert('O caixa ainda não foi aberto hoje. Peça para um responsável abrir o caixa antes de vender.'); }
+    return;
+  }
+  calcAvulsaExpr = '';
+  showModal(`
+    <button class="modalClose" onclick="closeModal()">×</button>
+    <h3 style="text-align:center;">Calculadora — Venda avulsa</h3>
+    <input id="calcAvulsaDisplay" readonly value="0" style="width:100%;text-align:right;font-size:28px;padding:14px;margin-bottom:12px;border-radius:10px;">
+    <div class="calcAvulsaGrid">
+      <button type="button" class="btn secondary" onclick="calcAvulsaInput('clear')">C</button>
+      <button type="button" class="btn secondary" onclick="calcAvulsaInput('back')">⌫</button>
+      <button type="button" class="btn secondary" onclick="calcAvulsaInput('/')">÷</button>
+      <button type="button" class="btn secondary" onclick="calcAvulsaInput('*')">×</button>
+      <button type="button" class="btn secondary" onclick="calcAvulsaInput('7')">7</button>
+      <button type="button" class="btn secondary" onclick="calcAvulsaInput('8')">8</button>
+      <button type="button" class="btn secondary" onclick="calcAvulsaInput('9')">9</button>
+      <button type="button" class="btn secondary" onclick="calcAvulsaInput('-')">-</button>
+      <button type="button" class="btn secondary" onclick="calcAvulsaInput('4')">4</button>
+      <button type="button" class="btn secondary" onclick="calcAvulsaInput('5')">5</button>
+      <button type="button" class="btn secondary" onclick="calcAvulsaInput('6')">6</button>
+      <button type="button" class="btn secondary" onclick="calcAvulsaInput('+')">+</button>
+      <button type="button" class="btn secondary" onclick="calcAvulsaInput('1')">1</button>
+      <button type="button" class="btn secondary" onclick="calcAvulsaInput('2')">2</button>
+      <button type="button" class="btn secondary" onclick="calcAvulsaInput('3')">3</button>
+      <button type="button" class="btn" style="grid-row:span 2;" onclick="calcAvulsaEqual()">=</button>
+      <button type="button" class="btn secondary" style="grid-column:span 2;" onclick="calcAvulsaInput('0')">0</button>
+      <button type="button" class="btn secondary" onclick="calcAvulsaInput('.')">.</button>
+    </div>
+    <button type="button" class="btn" id="calcAvulsaConfirmBtn" style="width:100%;margin-top:14px;" onclick="calcAvulsaConfirmar()">Ir para Pagamento (Enter)</button>
+    <p class="dimSmall" style="text-align:center;margin-top:8px;">Você também pode digitar no teclado do computador.</p>
+  `, {extraClass:'calcPixModalBox'});
+  calcAvulsaRender();
+  _confirmModalKeyHandler = function(e){
+    if(e.key>='0' && e.key<='9'){ e.preventDefault(); calcAvulsaInput(e.key); }
+    else if(e.key==='+'||e.key==='-'||e.key==='*'||e.key==='/'){ e.preventDefault(); calcAvulsaInput(e.key); }
+    else if(e.key==='.'||e.key===','){ e.preventDefault(); calcAvulsaInput('.'); }
+    else if(e.key==='Backspace'){ e.preventDefault(); calcAvulsaInput('back'); }
+    else if(e.key==='Escape'){ e.preventDefault(); closeModal(); }
+    else if(e.key==='='){ e.preventDefault(); calcAvulsaEqual(); }
+    else if(e.key==='Enter'){ e.preventDefault(); calcAvulsaConfirmar(); }
+  };
+  document.addEventListener('keydown', _confirmModalKeyHandler);
+}
+function calcAvulsaInput(v){
+  if(v==='clear'){ calcAvulsaExpr=''; }
+  else if(v==='back'){ calcAvulsaExpr = calcAvulsaExpr.slice(0,-1); }
+  else if(v==='+'||v==='-'||v==='*'||v==='/'){
+    if(!calcAvulsaExpr) return; // não deixa começar com operador
+    const ultimo = calcAvulsaExpr.slice(-1);
+    if(ultimo==='+'||ultimo==='-'||ultimo==='*'||ultimo==='/') calcAvulsaExpr = calcAvulsaExpr.slice(0,-1)+v;
+    else calcAvulsaExpr += v;
+  } else {
+    calcAvulsaExpr += v;
+  }
+  calcAvulsaRender();
+}
+function calcAvulsaAvaliar(){
+  const expr = calcAvulsaExpr.trim();
+  if(!expr) return null;
+  if(!/^[0-9+\-*/. ]+$/.test(expr)) return null; // só dígitos e operadores básicos
+  try{
+    const resultado = Function('"use strict";return ('+expr+')')();
+    return (typeof resultado==='number' && isFinite(resultado)) ? resultado : null;
+  }catch(e){ return null; }
+}
+function calcAvulsaEqual(){
+  const resultado = calcAvulsaAvaliar();
+  if(resultado===null){ toast('Conta inválida.', 'warn'); return; }
+  calcAvulsaExpr = String(Math.round(resultado*100)/100);
+  calcAvulsaRender();
+}
+function calcAvulsaRender(){
+  const disp = document.getElementById('calcAvulsaDisplay');
+  if(disp) disp.value = calcAvulsaExpr || '0';
+}
+function calcAvulsaConfirmar(){
+  const resultado = calcAvulsaAvaliar();
+  if(resultado===null || resultado<=0){ toast('Informe um valor válido antes de continuar.', 'warn'); return; }
+  const valor = Math.round(resultado*100)/100;
+  closeModal();
+  addAvulsoToCart(valor);
+}
+function addAvulsoToCart(valor, nome){
+  cart.push({productId:null, name: nome || 'Venda avulsa', qty:1, price:valor, discount:0, discountType:'value'});
+  renderCart();
+  scrollCartToBottom();
+  toast(`Valor de ${fmtMoney(valor)} adicionado à venda.`, 'ok');
+}
+
+/* ---------- Valor adicional (dentro do painel de Pagamento) ----------
+   Soma um valor extra na venda em andamento — funciona junto com produtos já
+   escaneados/no carrinho, ou sozinho (o próprio valor vira o item da venda). */
+function abrirValorAdicional(){
+  if(!requirePerm(getPerms().canSell)) return;
+  showModal(`
+    <button class="modalClose" onclick="closeModal()">×</button>
+    <h3 style="text-align:center;">➕ Valor Adicional</h3>
+    <div class="dimSmall" style="text-align:center;margin-bottom:10px;">Soma um valor extra na venda atual — junto com os produtos do carrinho ou sozinho.</div>
+    <div class="field">
+      <label>Valor a adicionar (R$)</label>
+      <input id="valorAdicionalInput" type="text" inputmode="decimal" placeholder="0,00" oninput="maskMoneyInput(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();confirmarValorAdicional();}">
+    </div>
+    <button type="button" class="btn" style="width:100%;margin-top:10px;" onclick="confirmarValorAdicional()">Adicionar à venda (Enter)</button>
+  `, {extraClass:'calcPixModalBox'});
+  setTimeout(()=>{ const i=document.getElementById('valorAdicionalInput'); if(i){ i.focus(); } }, 50);
+}
+function confirmarValorAdicional(){
+  const valor = moneyVal('valorAdicionalInput');
+  if(valor<=0){ alert('Informe um valor válido.'); return; }
+  closeModal();
+  addAvulsoToCart(valor, 'Valor adicional');
+}
+
+/* ---------- 2) Pix Avulso (cobrança pontual, fora do carrinho) ---------- */
+function abrirPixAvulso(){
+  if(!requirePerm(getPerms().canSell)) return;
+  if(!DB.cashCurrentOpenId){
+    if(getPerms().isTotal){ alert('Abra o caixa antes de gerar um Pix.'); showView('caixa'); }
+    else { alert('O caixa ainda não foi aberto hoje. Peça para um responsável abrir o caixa antes de vender.'); }
+    return;
+  }
+  if(!DB.settings.pixChave){ alert('Cadastre a chave Pix em Configurações antes de gerar o QR Code.'); return; }
+  showModal(`
+    <button class="modalClose" onclick="closeModal()">×</button>
+    <h3 style="text-align:center;">Pix Avulso</h3>
+    <div class="dimSmall" style="text-align:center;margin-bottom:10px;">Cobrança pontual em Pix, sem precisar colocar produto no carrinho.</div>
+    <div class="field">
+      <label>Valor a cobrar (R$)</label>
+      <input id="pixAvulsoValor" type="text" inputmode="decimal" placeholder="0,00" oninput="maskMoneyInput(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();confirmarPixAvulso();}">
+    </div>
+    <button type="button" class="btn" style="width:100%;margin-top:10px;" onclick="confirmarPixAvulso()">Gerar QR Code Pix (Enter)</button>
+  `, {extraClass:'calcPixModalBox'});
+  setTimeout(()=>{ const i=document.getElementById('pixAvulsoValor'); if(i){ i.focus(); } }, 50);
+}
+function confirmarPixAvulso(){
+  const valor = moneyVal('pixAvulsoValor');
+  if(valor<=0){ alert('Informe um valor válido.'); return; }
+  closeModal();
+  openPixQrModal(valor, ()=>registrarPixAvulso(valor));
+}
+function registrarPixAvulso(valor){
+  if(!DB.cashCurrentOpenId){
+    toast('Caixa fechado — o Pix foi gerado mas não pôde ser lançado no caixa.', 'warn');
+    focusSearchBox();
+    return;
+  }
+  const sale = {
+    id: uid('venda'), date: todayISO(), items: [], subtotal: valor, itemDiscounts:0, saleDiscount:0,
+    total: valor, payments:{dinheiro:0,pix:valor,cartao:0}, paid: valor, change:0, debt:0,
+    customerId:null, sellerId: currentUser.id, sellerName: currentUser.nome,
+    cashSessionId: DB.cashCurrentOpenId, cancelled:false, avulso:true
+  };
+  DB.sales.push(sale);
+  DB.ledger.push({date:sale.date, desc:'Pix avulso #'+sale.id.slice(-5), tipo:'entrada', valor, saleId:sale.id});
+  log(`Pix avulso registrado: ${fmtMoney(valor)} por ${currentUser.nome}`);
+  toast(`Pix de ${fmtMoney(valor)} registrado no caixa.`, 'ok');
+  renderCaixa(); renderRelatorios(); renderLivroVendas(); renderRendimento();
+  focusSearchBox();
+}
+
+/* ---------- 3) Focar campo de escanear (o mesmo já usado ao escanear produto) ---------- */
+function focarScannerVendas(){
+  const box = document.getElementById('searchBox');
+  if(box){ box.focus(); if(box.select) box.select(); }
 }
 
 /* =========================================================
