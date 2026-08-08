@@ -622,6 +622,39 @@ html.anim-off-login #connectingScreen *{animation:none !important;}
   box-shadow:inset -1px 0 0 rgba(255,255,255,.03), 6px 0 30px rgba(0,0,0,.25);
   position:relative;
 }
+/* ---------- Sidebar "foge" pro lado (estilo cartoon) quando o painel de Pagamento abre ----------
+   Some ao virar pra tela de pagamento (carrinho com item) e volta com uma
+   molinha exagerada quando a venda é concluída ou o carrinho esvazia.
+   Otimização (sem mudar o visual): o blur do vidro fosco é a parte mais
+   pesada pra recalcular a cada quadro enquanto a largura muda, então ele é
+   desligado (trocado por um fundo sólido equivalente) só durante os ~0,5s da
+   animação, voltando ao normal assim que ela termina — o mesmo truque que o
+   app já usa no celular. "contain" e "will-change" avisam o navegador com
+   antecedência pra ele já reservar o que for preciso em vez de descobrir na
+   marra a cada frame. */
+@keyframes sidebarCloseCartoon{
+  0%{width:200px;transform:translateX(0) scaleX(1) rotate(0);opacity:1;}
+  30%{width:200px;transform:translateX(14px) scaleX(1.06) rotate(1deg);opacity:1;}
+  100%{width:0;transform:translateX(-60px) scaleX(.78) rotate(-4deg);opacity:0;}
+}
+@keyframes sidebarOpenCartoon{
+  0%{width:0;transform:translateX(-60px) scaleX(.78) rotate(-4deg);opacity:0;}
+  55%{width:210px;transform:translateX(14px) scaleX(1.06) rotate(1.5deg);opacity:1;}
+  78%{width:196px;transform:translateX(-4px) scaleX(.97) rotate(-.5deg);}
+  100%{width:200px;transform:translateX(0) scaleX(1) rotate(0);opacity:1;}
+}
+#sidebar.sidebarClosing,
+#sidebar.sidebarOpening{
+  backdrop-filter:none !important;-webkit-backdrop-filter:none !important;
+  background:linear-gradient(180deg,#26201d,#100c0a) !important;
+  will-change:width,transform,opacity;contain:layout style;overflow:hidden;
+}
+#sidebar.sidebarClosing{animation:sidebarCloseCartoon .5s cubic-bezier(.34,1.56,.64,1) both;}
+#sidebar.sidebarOpening{animation:sidebarOpenCartoon .55s cubic-bezier(.34,1.56,.64,1) both;}
+#sidebar.sidebarCollapsed{width:0 !important;min-width:0;border-right:none;opacity:0;pointer-events:none;overflow:hidden;}
+html.anim-off-transitions #sidebar.sidebarClosing,
+html.anim-off-transitions #sidebar.sidebarOpening{animation:none !important;}
+html.anim-off-transitions #sidebar.sidebarCollapsed{width:0 !important;opacity:0;}
 #sidebar .brand{
   padding:20px 16px 14px;border-bottom:1px solid var(--line);
 }
@@ -1373,14 +1406,14 @@ html.anim-off-transitions #pdvCartSection.pdvCartPop{animation:none !important;}
 #pdvCartSection .panel{flex:1;display:flex;flex-direction:column;overflow:visible;padding-bottom:10px;}
 #pdvCartSection #cartTable{flex:1;overflow:visible;}
 
-#pdvQuickActions{flex-shrink:0;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}
+#pdvQuickActions{flex-shrink:0;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;}
 .pdvQuickBtn{
-  width:104px;height:104px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
-  background:var(--glass-bg-soft);border:1px solid var(--glass-border);border-radius:16px;color:var(--text);
-  font-size:12.5px;font-weight:700;text-align:center;
+  width:76px;height:76px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+  background:var(--glass-bg-soft);border:1px solid var(--glass-border);border-radius:14px;color:var(--text);
+  font-size:10.5px;font-weight:700;text-align:center;
   transition:border-color .15s, background .15s, transform .15s;
 }
-.pdvQuickBtn .pdvQuickIcon{font-size:34px;line-height:1;}
+.pdvQuickBtn .pdvQuickIcon{font-size:24px;line-height:1;}
 .pdvQuickBtn:hover{border-color:var(--orange);background:var(--glass-bg);transform:translateY(-2px);}
 .pdvQuickBtn:active{transform:translateY(0) scale(.97);}
 .pdvQuickBtn:disabled{opacity:.4;cursor:not-allowed;transform:none;}
@@ -1968,6 +2001,25 @@ html.is-mobile .btn::before{ display:none; }
   #sidebar .navIcon{ font-size:16px; }
   #sidebar .userBox{ display:none; }
 
+  /* No celular a sidebar é uma barra horizontal no topo — "fechar pro lado"
+     vira "fechar pra cima", encolhendo a altura em vez da largura.
+     (No celular o blur já é desligado globalmente, então aqui a otimização
+     é só o "contain", que evita recalcular o resto da página à toa.) */
+  @keyframes sidebarCloseCartoonMobile{
+    0%{height:52px;transform:translateY(0) scaleY(1) rotate(0);opacity:1;}
+    30%{height:52px;transform:translateY(6px) scaleY(1.08);opacity:1;}
+    100%{height:0;transform:translateY(-24px) scaleY(.75);opacity:0;}
+  }
+  @keyframes sidebarOpenCartoonMobile{
+    0%{height:0;transform:translateY(-24px) scaleY(.75);opacity:0;}
+    55%{height:58px;transform:translateY(6px) scaleY(1.08);opacity:1;}
+    80%{height:50px;transform:translateY(-2px) scaleY(.96);}
+    100%{height:52px;transform:translateY(0) scaleY(1);opacity:1;}
+  }
+  #sidebar.sidebarClosing{animation:sidebarCloseCartoonMobile .5s cubic-bezier(.34,1.56,.64,1) both;will-change:height,transform,opacity;contain:layout style;overflow:hidden;width:100%;}
+  #sidebar.sidebarOpening{animation:sidebarOpenCartoonMobile .55s cubic-bezier(.34,1.56,.64,1) both;will-change:height,transform,opacity;contain:layout style;overflow:hidden;width:100%;}
+  #sidebar.sidebarCollapsed{width:100%;height:0 !important;min-height:0;border-bottom:none;opacity:0;pointer-events:none;overflow:hidden;}
+
   #main{ flex:1; min-height:0; }
   #topbar{ padding:0 12px; height:46px; }
   #topbar h2{ font-size:14px; }
@@ -1982,7 +2034,7 @@ html.is-mobile .btn::before{ display:none; }
   .prodTile img{ height:40px; }
 
   #pdvRight{ width:100%; max-width:100%; min-height:auto; }
-  .pdvQuickBtn{ width:90px; height:90px; }
+  .pdvQuickBtn{ width:64px; height:64px; }
 
   .formGrid{ grid-template-columns:1fr; }
   .panel[style*="max-width"]{ max-width:100% !important; }
@@ -5566,6 +5618,7 @@ function renderCart(){
      em re-renders normais (ex.: trocar a quantidade de um item). */
   const pdvRight = document.getElementById('pdvRight');
   const pdvCartSection = document.getElementById('pdvCartSection');
+  const sidebar = document.getElementById('sidebar');
   if(pdvRight){
     const estavaVisivel = pdvRight.style.display === 'flex';
     const deveFicarVisivel = cart.length>0;
@@ -5578,12 +5631,25 @@ function renderCart(){
         pdvCartSection.classList.remove('pdvCartPop'); void pdvCartSection.offsetWidth;
         pdvCartSection.classList.add('pdvCartPop');
       }
+      if(sidebar && !sidebar.classList.contains('sidebarCollapsed')){
+        sidebar.classList.remove('sidebarOpening');
+        sidebar.classList.remove('sidebarClosing'); void sidebar.offsetWidth;
+        sidebar.classList.add('sidebarClosing');
+        setTimeout(()=>{ sidebar.classList.remove('sidebarClosing'); sidebar.classList.add('sidebarCollapsed'); }, 500);
+      }
     } else if(!deveFicarVisivel && estavaVisivel){
       pdvRight.classList.remove('pdvRightPopIn');
       pdvRight.classList.add('pdvRightPopOut');
       setTimeout(()=>{
         if(cart.length===0){ pdvRight.style.display = 'none'; pdvRight.classList.remove('pdvRightPopOut'); }
       }, 280);
+      if(sidebar && sidebar.classList.contains('sidebarCollapsed')){
+        sidebar.classList.remove('sidebarCollapsed');
+        sidebar.classList.remove('sidebarClosing');
+        sidebar.classList.remove('sidebarOpening'); void sidebar.offsetWidth;
+        sidebar.classList.add('sidebarOpening');
+        setTimeout(()=>{ sidebar.classList.remove('sidebarOpening'); }, 550);
+      }
     }
   }
   const pdvLeft = document.getElementById('pdvLeft');
