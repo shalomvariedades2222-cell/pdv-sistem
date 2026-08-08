@@ -2040,7 +2040,7 @@ html.is-mobile .btn::before{ display:none; }
           <div id="pdvLeft">
             <div id="pdvSearchSection">
               <input id="searchBox" placeholder="Escaneie o código de barras ou digite o nome... (F2)" autofocus oninput="renderSearch()" onkeydown="pdvSearchKey(event)">
-              <div class="searchBarcodeHint">Dica: escaneie a etiqueta ou digite e pressione Enter para adicionar. F4 finaliza a venda.</div>
+              <div class="searchBarcodeHint">Dica: escaneie a etiqueta ou digite e pressione Enter para adicionar. Na tela de pagamento, pressione Enter para finalizar a venda.</div>
               <div id="searchResults"></div>
               <div id="contasFiadoWrap">
                 <button type="button" class="contasFiadoPill" id="contasFiadoPillBtn" onclick="toggleContasFiadoBox()">
@@ -2108,7 +2108,7 @@ html.is-mobile .btn::before{ display:none; }
             </div>
 
             <div style="margin-top:14px;display:flex;gap:8px;">
-              <button class="btn" id="btnFinalizarVenda" style="flex:1;" onclick="finalizeSale()">Finalizar Venda (F4)</button>
+              <button class="btn" id="btnFinalizarVenda" style="flex:1;" onclick="finalizeSale()">Finalizar Venda (Enter)</button>
               <button class="btn secondary" id="btnCancelarVenda" onclick="cancelSale()">Cancelar</button>
             </div>
           </div>
@@ -5173,7 +5173,16 @@ document.addEventListener('keydown', (e)=>{
   if(!currentUser) return;
   if(isModalOpen()) return; // atalhos globais não disparam com popup aberto
   if(e.key==='F2'){ e.preventDefault(); showView('vendas'); focusSearchBox(); }
-  if(e.key==='F4'){ e.preventDefault(); if(document.getElementById('view-vendas').classList.contains('active')) finalizeSale(); }
+  if(e.key==='Enter'){
+    if(!document.getElementById('view-vendas').classList.contains('active')) return;
+    const pdvRight = document.getElementById('pdvRight');
+    if(!pdvRight || pdvRight.style.display==='none') return; // só finaliza quando o painel de pagamento está visível
+    const foco = document.activeElement;
+    const idsComEnterProprio = ['searchBox','contasFiadoSearchInput','fiadoCustomerSearch'];
+    if(foco && idsComEnterProprio.includes(foco.id)) return; // não interfere com campos que já usam Enter
+    e.preventDefault();
+    finalizeSale();
+  }
 });
 function addToCart(productId){
   if(!requirePerm(getPerms().canSell)) return;
