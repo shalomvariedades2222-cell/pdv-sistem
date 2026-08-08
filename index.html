@@ -1329,16 +1329,20 @@ html.anim-off-glow .pixQrFrame{animation:none !important;}
    (#pdvRight) aparece AQUI embaixo da busca — a busca/grade encolhe (mas continua
    visível e utilizável) para abrir espaço para o pagamento, via a classe
    "paymentActive" alternada em renderCart(). */
-#pdvLeft{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;gap:14px;}
+#pdvLeft{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;gap:14px;position:relative;}
 #pdvSearchSection{flex:1;display:flex;flex-direction:column;min-height:0;transition:flex-basis .25s ease;}
 #pdvSearchSection #productGrid{flex:1;overflow:auto;}
 #pdvLeft.paymentActive #pdvSearchSection{flex:0 0 34%;min-height:190px;}
 
+/* Sem barra de rolagem no painel de Pagamento: ele fica por cima da busca/grade
+   de produtos (que fica escondida atrás enquanto o pagamento estiver aberto) em
+   vez de criar uma caixa com scroll interno — se o conteúdo for mais alto que a
+   tela, quem rola é a página toda (#content), não uma caixinha por dentro. */
 #pdvRight{
-  display:none;position:relative;width:100%;flex:1;min-height:0;
+  display:none;position:absolute;inset:0;width:auto;min-height:100%;z-index:5;
   flex-direction:column;background:var(--glass-bg-strong);
   border:1px solid var(--glass-border);border-radius:16px;padding:26px;
-  overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.06);
+  overflow:visible;box-shadow:0 12px 40px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.06);
   backdrop-filter:blur(var(--glass-blur-lg)) saturate(160%);
   -webkit-backdrop-filter:blur(var(--glass-blur-lg)) saturate(160%);
 }
@@ -1349,8 +1353,11 @@ html.anim-off-glow .pixQrFrame{animation:none !important;}
   display:flex;flex-direction:column;gap:14px;min-height:0;
 }
 #pdvCartSection{flex:1;display:flex;flex-direction:column;min-height:120px;}
-#pdvCartSection .panel{flex:1;display:flex;flex-direction:column;overflow:hidden;padding-bottom:10px;}
-#pdvCartSection #cartTable{flex:1;overflow:auto;}
+/* Sem barra de rolagem no carrinho: a lista cresce livremente (podendo cobrir os
+   botões de função logo abaixo em carrinhos bem grandes) em vez de rolar dentro
+   de uma caixa fixa. */
+#pdvCartSection .panel{flex:1;display:flex;flex-direction:column;overflow:visible;padding-bottom:10px;}
+#pdvCartSection #cartTable{flex:1;overflow:visible;}
 
 #pdvQuickActions{flex-shrink:0;display:flex;gap:10px;justify-content:center;}
 .pdvQuickBtn{
@@ -1374,7 +1381,7 @@ html.anim-off-glow .pixQrFrame{animation:none !important;}
   border-bottom:1px solid var(--line);
 }
 .searchItem:hover{background:#241a15;cursor:pointer;}
-#cartTable{flex:1;overflow:auto;}
+#cartTable{flex:1;overflow:visible;}
 .cartActions{display:flex;gap:6px;}
 #payArea{border-top:1px solid var(--line);padding-top:12px;margin-top:10px;}
 .payRow{display:flex;justify-content:space-between;font-size:15px;margin:6px 0;}
@@ -1825,7 +1832,7 @@ html.is-mobile .btn::before{ display:none; }
   #productGrid{ grid-template-columns:repeat(auto-fill,minmax(76px,1fr)); gap:6px; }
   .prodTile img{ height:40px; }
 
-  #pdvRight{ width:100%; max-width:100%; }
+  #pdvRight{ width:100%; max-width:100%; min-height:auto; }
   #pdvRightCol{ width:100%; max-width:100%; }
   .pdvQuickBtn{ width:76px; height:76px; }
 
@@ -1840,6 +1847,14 @@ html.is-mobile .btn::before{ display:none; }
   .modalBox{ width:94vw; max-width:94vw; padding:16px; }
   .loginBox{ width:88vw; max-width:340px; padding:26px 20px 22px; }
   table{ display:block; overflow-x:auto; white-space:nowrap; }
+  /* O carrinho fica de fora dessa regra geral: em vez de rolar de lado com texto
+     cortado, ele volta a ser uma tabela normal e deixa o texto (ex.: nome do
+     produto) quebrar linha — fica mais alto, mas sem rolagem/scroll esquisito. */
+  #cartTable table{ display:table; width:100%; overflow-x:visible; white-space:normal; table-layout:fixed; }
+  #cartTable td, #cartTable th{ white-space:normal; word-break:break-word; overflow-wrap:break-word; }
+  #cartTable td:nth-child(3){ width:56px; } /* Qtd */
+  #cartTable td:nth-child(5){ width:78px; } /* Desc. item */
+  #cartTable input{ max-width:100%; }
   .statCard .val{ font-size:18px; }
 
   /* Alvos maiores pro toque: arrastar produto até a lixeira, ou tocar na lixeira pra abrir os excluídos */
@@ -2132,7 +2147,7 @@ html.is-mobile .btn::before{ display:none; }
 
               <div id="payArea">
                 <div class="payMethodRow"><label>Dinheiro</label><input type="text" inputmode="decimal" id="pay_dinheiro" placeholder="0,00" oninput="maskMoneyInput(this);updatePayTotals()"><button type="button" class="fillBtn" onclick="fillRemaining('dinheiro')">Preencher?</button></div>
-                <div class="payMethodRow"><label>Pix</label><input type="text" inputmode="decimal" id="pay_pix" placeholder="0,00" oninput="maskMoneyInput(this);updatePayTotals()"><button type="button" class="fillBtn" onclick="fillRemaining('pix')">Preencher?</button></div>
+                <div class="payMethodRow"><label>Pix</label><input type="text" inputmode="decimal" id="pay_pix" placeholder="0,00" oninput="onPixValorInput(this)"><button type="button" class="fillBtn" onclick="fillRemaining('pix')">Preencher?</button></div>
                 <div class="payMethodRow"><label>Cartão</label><input type="text" inputmode="decimal" id="pay_cartao" placeholder="0,00" oninput="maskMoneyInput(this);updatePayTotals()"><button type="button" class="fillBtn" onclick="fillRemaining('cartao')">Preencher?</button></div>
                 <div class="payRow"><span>Pago</span><span id="payPaid">R$ 0,00</span></div>
                 <div class="payRow"><span>Restante / Troco</span><span id="payRemaining">R$ 0,00</span></div>
@@ -2497,7 +2512,7 @@ html.is-mobile .btn::before{ display:none; }
         </div>
         <div class="panel">
           <h3>Livro Caixa</h3>
-          <table><thead><tr><th>Data</th><th>Descrição</th><th>Tipo</th><th>Valor</th></tr></thead><tbody id="livroCaixaBody"></tbody></table>
+          <table><thead><tr><th>Data</th><th>Descrição</th><th>Tipo</th><th>Valor</th><th>Ações</th></tr></thead><tbody id="livroCaixaBody"></tbody></table>
         </div>
         <div class="panel">
           <h3>Contas a Pagar / Receber</h3>
@@ -3008,6 +3023,12 @@ let DB = {
 
 let currentUser = null;
 let cart = []; // {productId, name, qty, price, discount, discountType}
+/* ---- Pix na tela de Pagamento: o valor digitado só conta como "pago" (e só
+   entra nos totais/entrada do sistema) depois que o cliente escaneia e o
+   caixa confirma com Enter/clique na tela do QR Code. Editar o campo depois
+   de confirmado invalida a confirmação e exige gerar/confirmar o QR de novo. */
+let pixConfirmedValue = 0;
+let _pixAutoQrTimer = null;
 let estoqueTab = 'lista';
 let clientesTab = 'lista';
 let modoTeste = false; // true quando conectado com a chave "teste" — nada é salvo em lugar nenhum
@@ -5457,11 +5478,51 @@ function fillRemaining(key){
   const othersSum = others.reduce((s,k)=> s + moneyVal('pay_'+k), 0);
   const remaining = Math.max(0, total - othersSum);
   document.getElementById('pay_'+key).value = fmtMoneyInput(remaining);
+  if(key==='pix'){
+    pixConfirmedValue = 0;
+    scheduleAutoPixQr();
+  }
   updatePayTotals();
+}
+/* Valor de Pix que efetivamente entra nos totais/entrada: só o que já foi
+   confirmado no QR. Se a loja não tem chave Pix cadastrada (sem QR possível),
+   mantém o comportamento antigo e conta o valor digitado direto. */
+function pixEffectiveValue(){
+  const digitado = moneyVal('pay_pix');
+  if(!DB.settings.pixChave) return digitado;
+  return pixConfirmedValue;
+}
+function paySlotValue(key){
+  return key==='pix' ? pixEffectiveValue() : moneyVal('pay_'+key);
+}
+function onPixValorInput(el){
+  maskMoneyInput(el);
+  pixConfirmedValue = 0; // qualquer edição invalida a confirmação anterior
+  updatePayTotals();
+  scheduleAutoPixQr();
+}
+/* Gera/abre o QR automaticamente uma fração de segundo depois que o caixa
+   para de digitar o valor do Pix — sem contar o valor como pago ainda.
+   Só quando a pessoa confirmar (Enter ou "Concluir") na tela do QR é que o
+   valor passa a entrar nos totais/entrada. */
+function scheduleAutoPixQr(){
+  clearTimeout(_pixAutoQrTimer);
+  const val = moneyVal('pay_pix');
+  if(val <= 0.001 || !DB.settings.pixChave) return;
+  _pixAutoQrTimer = setTimeout(()=>{
+    if(isModalOpen()) return; // não interrompe outro popup já aberto
+    const valAtual = moneyVal('pay_pix');
+    if(valAtual <= 0.001) return; // valor pode ter sido apagado nesse meio tempo
+    openPixQrModal(valAtual, ()=>{
+      pixConfirmedValue = valAtual;
+      updatePayTotals();
+      toast('Pagamento via Pix confirmado.', 'ok');
+    });
+  }, 700);
 }
 function updatePayTotals(){
   const total = cartTotal();
-  const paid = ['dinheiro','pix','cartao'].reduce((s,k)=> s + moneyVal('pay_'+k),0);
+  const paid = ['dinheiro','pix','cartao'].reduce((s,k)=> s + paySlotValue(k),0);
   document.getElementById('payPaid').textContent = fmtMoney(paid);
   const diff = paid - total;
   document.getElementById('payRemaining').textContent = fmtMoney(Math.abs(diff)) + (diff<0? ' (falta)': (diff>0?' (troco)':''));
@@ -5725,7 +5786,7 @@ function copiarPixCodigo(){
    quando já existe um nome de cliente digitado/selecionado no campo. */
 function openFiadoCustomerPopup(onProsseguir){
   const total = cartTotal();
-  const paid = ['dinheiro','pix','cartao'].reduce((s,k)=> s + moneyVal('pay_'+k),0);
+  const paid = ['dinheiro','pix','cartao'].reduce((s,k)=> s + paySlotValue(k),0);
   const debt = Math.max(0, total - paid);
   const currentId = document.getElementById('fiadoCustomerSelect').value;
   const currentName = currentId ? document.getElementById('fiadoCustomerSearch').value : '';
@@ -5827,7 +5888,16 @@ function finalizeSale(){
 function saleFlowPixStep(){
   const pixVal = moneyVal('pay_pix');
   if(pixVal > 0.001 && DB.settings.pixChave){
-    openPixQrModal(pixVal, saleFlowFiadoStep);
+    if(pixConfirmedValue === pixVal){
+      // já foi confirmado no QR (ex.: durante a digitação) — não reabre à toa
+      saleFlowFiadoStep();
+      return;
+    }
+    openPixQrModal(pixVal, ()=>{
+      pixConfirmedValue = pixVal;
+      updatePayTotals();
+      saleFlowFiadoStep();
+    });
   } else {
     if(pixVal > 0.001) toast('Cadastre a chave Pix em Configurações para gerar o QR Code automaticamente.', 'warn');
     saleFlowFiadoStep();
@@ -5835,12 +5905,12 @@ function saleFlowPixStep(){
 }
 function saleFlowFiadoStep(){
   const total = cartTotal();
-  const paid = ['dinheiro','pix','cartao'].reduce((s,k)=> s + moneyVal('pay_'+k),0);
+  const paid = ['dinheiro','pix','cartao'].reduce((s,k)=> s + paySlotValue(k),0);
   const diff = paid - total;
   if(diff < -0.001){
     openFiadoCustomerPopup(()=>{
       const total2 = cartTotal();
-      const paid2 = ['dinheiro','pix','cartao'].reduce((s,k)=> s + moneyVal('pay_'+k),0);
+      const paid2 = ['dinheiro','pix','cartao'].reduce((s,k)=> s + paySlotValue(k),0);
       openPayConfirmModal(total2, paid2, paid2-total2);
     });
   } else {
@@ -5889,7 +5959,7 @@ function payConfirmStep(){
 }
 function doFinalizeSale(){
   const total = cartTotal();
-  const paid = ['dinheiro','pix','cartao'].reduce((s,k)=> s + moneyVal('pay_'+k),0);
+  const paid = ['dinheiro','pix','cartao'].reduce((s,k)=> s + paySlotValue(k),0);
   const diff = paid - total;
   let customerId = null;
   if(diff < -0.001){
@@ -5904,7 +5974,7 @@ function doFinalizeSale(){
     itemDiscounts: cartItemDiscounts(),
     saleDiscount: saleDiscountAmount(cartSubtotal()-cartItemDiscounts()),
     total,
-    payments: { dinheiro:moneyVal('pay_dinheiro'), pix:moneyVal('pay_pix'), cartao:moneyVal('pay_cartao') },
+    payments: { dinheiro:moneyVal('pay_dinheiro'), pix:paySlotValue('pix'), cartao:moneyVal('pay_cartao') },
     paid,
     change: diff>0?diff:0,
     debt: diff<0?Math.abs(diff):0,
@@ -5932,6 +6002,7 @@ function doFinalizeSale(){
   DB.ledger.push({date:sale.date, desc:'Venda #'+sale.id.slice(-5), tipo:'entrada', valor: paid, saleId: sale.id});
   log(`Venda realizada: ${fmtMoney(sale.total)} por ${currentUser.nome}`);
   cart = [];
+  pixConfirmedValue = 0;
   ['dinheiro','pix','cartao'].forEach(k=>document.getElementById('pay_'+k).value='');
   document.getElementById('saleDiscountVal').value='';
   document.getElementById('fiadoCustomerSelect').value='';
@@ -5982,7 +6053,7 @@ function cancelSale(){
   if(!requirePerm(getPerms().canSell)) return;
   if(cart.length===0) return;
   if(confirm('Cancelar a venda atual (limpar carrinho)?')){
-    cart=[]; renderCart();
+    cart=[]; pixConfirmedValue = 0; renderCart();
   }
 }
 
@@ -9617,9 +9688,16 @@ function renderCaixa(){
     `<tr><td style="text-transform:capitalize">${k}</td><td>${fmtMoney(v)}</td></tr>`
   ).join('');
 
-  document.getElementById('livroCaixaBody').innerHTML = DB.ledger.slice().reverse().slice(0,50).map(l=>
-    `<tr><td>${fmtDateTime(l.date)}</td><td>${l.desc}</td><td style="color:${l.tipo==='entrada'?'var(--green)':'var(--red)'}">${l.tipo}</td><td>${fmtMoney(l.valor)}</td></tr>`
-  ).join('') || '<tr><td colspan="4" class="dimSmall">Sem lançamentos.</td></tr>';
+  const podeExcluirLancamento = getPerms().isTotal;
+  document.getElementById('livroCaixaBody').innerHTML = DB.ledger.slice().reverse().slice(0,50).map(l=>{
+    let acao = '';
+    if(l.saleId && podeExcluirLancamento){
+      acao = `<button class="btn small danger" onclick="openCancelSaleModal('${l.saleId}')" title="Excluir esta venda (estorna estoque e fiado)">🗑️ Excluir</button>`;
+    } else if(!l.saleId && podeExcluirLancamento){
+      acao = `<button class="btn small danger" onclick="excluirLancamentoLedger(${DB.ledger.indexOf(l)})" title="Excluir este lançamento">🗑️ Excluir</button>`;
+    }
+    return `<tr><td>${fmtDateTime(l.date)}</td><td>${l.desc}</td><td style="color:${l.tipo==='entrada'?'var(--green)':'var(--red)'}">${l.tipo}</td><td>${fmtMoney(l.valor)}</td><td>${acao}</td></tr>`;
+  }).join('') || '<tr><td colspan="5" class="dimSmall">Sem lançamentos.</td></tr>';
 
   renderContas();
 }
@@ -9661,6 +9739,20 @@ function closeCaixa(){
   DB.cashCurrentOpenId = null;
   document.getElementById('caixaValorInformado').value='';
   setTimeout(renderCaixa, 1500);
+}
+function excluirLancamentoLedger(idx){
+  if(!getPerms().isTotal) return;
+  const l = DB.ledger[idx];
+  if(!l) return;
+  confirmModal(
+    `Excluir o lançamento "<b>${l.desc}</b>" (${fmtMoney(l.valor)})?<br><br>Essa ação não pode ser desfeita.`,
+    ()=>{
+      DB.ledger.splice(idx,1);
+      log('Lançamento excluído do livro caixa: '+l.desc);
+      renderCaixa();
+    },
+    {titulo:'Excluir lançamento?', textoBtn:'Sim, excluir'}
+  );
 }
 function addConta(){
   const desc = document.getElementById('contaDesc').value.trim();
