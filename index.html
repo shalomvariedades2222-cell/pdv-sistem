@@ -1324,34 +1324,48 @@ html.anim-off-glow .pixQrFrame{animation:none !important;}
 /* ---------- PDV ---------- */
 #pdvWrap{display:flex;gap:16px;height:calc(100vh - 150px);align-items:stretch;position:relative;}
 
-/* ---------- Coluna esquerda: busca/grade de produtos + painel de Pagamento ----------
-   Quando uma venda está em andamento (carrinho com itens), o painel de Pagamento
-   (#pdvRight) aparece AQUI embaixo da busca — a busca/grade encolhe (mas continua
-   visível e utilizável) para abrir espaço para o pagamento, via a classe
-   "paymentActive" alternada em renderCart(). */
+/* ---------- Coluna esquerda: busca/grade de produtos + Carrinho ----------
+   Quando uma venda está em andamento (carrinho com itens), a busca/grade
+   encolhe (mas continua visível e utilizável) para abrir espaço para o
+   carrinho crescer, via a classe "paymentActive" alternada em renderCart(). */
 #pdvLeft{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;gap:14px;position:relative;}
-#pdvSearchSection{flex:1;display:flex;flex-direction:column;min-height:0;transition:flex-basis .25s ease;}
+#pdvSearchSection{flex:1;display:flex;flex-direction:column;min-height:0;
+  transition:flex-basis .3s cubic-bezier(.34,1.2,.4,1);}
 #pdvSearchSection #productGrid{flex:1;overflow:auto;}
 #pdvLeft.paymentActive #pdvSearchSection{flex:0 0 34%;min-height:190px;}
 
-/* Sem barra de rolagem no painel de Pagamento: ele fica por cima da busca/grade
-   de produtos (que fica escondida atrás enquanto o pagamento estiver aberto) em
-   vez de criar uma caixa com scroll interno — se o conteúdo for mais alto que a
-   tela, quem rola é a página toda (#content), não uma caixinha por dentro. */
+/* ---------- Coluna direita: painel de Pagamento ----------
+   Só aparece quando o carrinho tem pelo menos 1 item — entra com uma
+   animação "cartoon" (mola/bounce) vinda da direita, e sai com um encolhe
+   rápido quando o carrinho esvazia (venda finalizada/cancelada). */
 #pdvRight{
-  display:none;position:absolute;inset:0;width:auto;min-height:100%;z-index:5;
-  flex-direction:column;background:var(--glass-bg-strong);
+  width:600px;max-width:50vw;flex-shrink:0;display:none;flex-direction:column;
+  background:var(--glass-bg-strong);
   border:1px solid var(--glass-border);border-radius:16px;padding:26px;
   overflow:visible;box-shadow:0 12px 40px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.06);
   backdrop-filter:blur(var(--glass-blur-lg)) saturate(160%);
   -webkit-backdrop-filter:blur(var(--glass-blur-lg)) saturate(160%);
 }
-
-/* ---------- Coluna direita: Carrinho em cima, botões de função (quadrados) embaixo ---------- */
-#pdvRightCol{
-  width:420px;max-width:42vw;flex-shrink:0;
-  display:flex;flex-direction:column;gap:14px;min-height:0;
+@keyframes pdvRightPopIn{
+  0%{transform:translateX(70px) scale(.88) rotate(2deg);opacity:0;}
+  55%{transform:translateX(-10px) scale(1.035) rotate(-.6deg);opacity:1;}
+  78%{transform:translateX(4px) scale(.99) rotate(.3deg);}
+  100%{transform:translateX(0) scale(1) rotate(0);opacity:1;}
 }
+@keyframes pdvRightPopOut{
+  0%{transform:translateX(0) scale(1);opacity:1;}
+  100%{transform:translateX(50px) scale(.9);opacity:0;}
+}
+#pdvRight.pdvRightPopIn{animation:pdvRightPopIn .5s cubic-bezier(.34,1.56,.64,1) both;}
+#pdvRight.pdvRightPopOut{animation:pdvRightPopOut .28s ease both;}
+html.anim-off-transitions #pdvRight.pdvRightPopIn,
+html.anim-off-transitions #pdvRight.pdvRightPopOut{animation:none !important;}
+/* O carrinho também dá uma leve "respirada" (pop sutil) quando a venda começa,
+   pra reforçar visualmente que ele acabou de virar o protagonista da coluna. */
+@keyframes pdvCartPop{0%{transform:scale(.98);}55%{transform:scale(1.012);}100%{transform:scale(1);}}
+#pdvCartSection.pdvCartPop{animation:pdvCartPop .4s cubic-bezier(.34,1.56,.64,1) both;}
+html.anim-off-transitions #pdvCartSection.pdvCartPop{animation:none !important;}
+
 #pdvCartSection{flex:1;display:flex;flex-direction:column;min-height:120px;}
 /* Sem barra de rolagem no carrinho: a lista cresce livremente (podendo cobrir os
    botões de função logo abaixo em carrinhos bem grandes) em vez de rolar dentro
@@ -1359,17 +1373,139 @@ html.anim-off-glow .pixQrFrame{animation:none !important;}
 #pdvCartSection .panel{flex:1;display:flex;flex-direction:column;overflow:visible;padding-bottom:10px;}
 #pdvCartSection #cartTable{flex:1;overflow:visible;}
 
-#pdvQuickActions{flex-shrink:0;display:flex;gap:10px;justify-content:center;}
+#pdvQuickActions{flex-shrink:0;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}
 .pdvQuickBtn{
-  width:88px;height:88px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
-  background:var(--glass-bg-soft);border:1px solid var(--glass-border);border-radius:14px;color:var(--text);
-  font-size:11px;font-weight:700;text-align:center;
+  width:104px;height:104px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+  background:var(--glass-bg-soft);border:1px solid var(--glass-border);border-radius:16px;color:var(--text);
+  font-size:12.5px;font-weight:700;text-align:center;
   transition:border-color .15s, background .15s, transform .15s;
 }
-.pdvQuickBtn .pdvQuickIcon{font-size:28px;line-height:1;}
+.pdvQuickBtn .pdvQuickIcon{font-size:34px;line-height:1;}
 .pdvQuickBtn:hover{border-color:var(--orange);background:var(--glass-bg);transform:translateY(-2px);}
 .pdvQuickBtn:active{transform:translateY(0) scale(.97);}
 .pdvQuickBtn:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+
+/* ============================================================
+   TELA DE VENDAS — VISUAL CARTOON
+   Bordas grossas tipo "adesivo/quadrinho", sombra sólida deslocada
+   (em vez de blur), cantos bem arredondados e animações com "mola"
+   (bounce) em vez de easing linear. Só nesta tela (#pdvWrap/#pdvRight),
+   pro resto do sistema continuar com o visual de vidro normal.
+============================================================ */
+#pdvWrap{position:relative;}
+#pdvWrap::before{
+  content:'';position:absolute;inset:-10px;z-index:-1;pointer-events:none;border-radius:24px;
+  background-image:radial-gradient(rgba(255,138,60,.10) 1.6px, transparent 1.6px);
+  background-size:16px 16px;opacity:.5;
+}
+
+/* --- painel do carrinho e painel de pagamento: "cartão adesivo" --- */
+#pdvCartSection .panel, #pdvRight{
+  border-width:3px !important;border-style:solid !important;border-color:var(--orange-dim) !important;
+  border-radius:22px !important;
+  box-shadow:6px 6px 0 rgba(0,0,0,.35), 0 4px 0 rgba(255,255,255,.03) inset !important;
+}
+#pdvRight{padding:28px !important;}
+#pdvRight h3{font-size:19px !important;letter-spacing:.3px;}
+#pdvCartSection .panel h3, #pdvRight h3{
+  display:inline-block;transform:rotate(-1deg);
+}
+
+/* --- busca: campo tipo "balão de quadrinho" --- */
+#searchBox{
+  border:3px solid var(--orange-dim) !important;border-radius:16px !important;
+  box-shadow:4px 4px 0 rgba(0,0,0,.3) !important;
+  transition:transform .16s cubic-bezier(.34,1.56,.64,1), box-shadow .16s ease, border-color .16s ease !important;
+}
+#searchBox:focus{
+  border-color:var(--orange) !important;transform:translateY(-2px) scale(1.008);
+  box-shadow:5px 6px 0 rgba(0,0,0,.35) !important;
+}
+
+/* --- botões (Finalizar Venda, Cancelar, Preencher?, secundários) dentro da
+   tela de vendas: botão "3D" tipo quadrinho, afunda ao clicar --- */
+#pdvWrap .btn, #pdvRight .btn{
+  border-radius:14px !important;font-weight:800 !important;
+  box-shadow:0 4px 0 rgba(0,0,0,.35) !important;
+  transition:transform .12s cubic-bezier(.34,1.7,.5,1), box-shadow .12s ease, filter .12s ease !important;
+}
+#pdvWrap .btn:hover, #pdvRight .btn:hover{transform:translateY(-2px);filter:brightness(1.06);}
+#pdvWrap .btn:active, #pdvRight .btn:active{
+  transform:translateY(3px) !important;box-shadow:0 1px 0 rgba(0,0,0,.35) !important;
+}
+#btnFinalizarVenda{
+  font-size:16px !important;padding:16px !important;position:relative;
+  animation:pdvFinalizarPulse 2.4s ease-in-out infinite;
+}
+@keyframes pdvFinalizarPulse{
+  0%,100%{box-shadow:0 4px 0 rgba(0,0,0,.35), 0 0 0 rgba(255,106,26,0);}
+  50%{box-shadow:0 4px 0 rgba(0,0,0,.35), 0 0 22px rgba(255,106,26,.55);}
+}
+#btnFinalizarVenda:active{animation-play-state:paused;}
+.fillBtn{transition:transform .14s cubic-bezier(.34,1.7,.5,1) !important;}
+.fillBtn:hover{transform:translateY(-1px) scale(1.05);}
+.fillBtn:active{transform:translateY(1px) scale(.95);}
+
+/* --- botões redondos rápidos (Calculadora / Pix Avulso / Escanear): balançam
+   ao passar o mouse, tipo ícone de desenho animado --- */
+.pdvQuickBtn{border-width:2.5px !important;border-radius:18px !important;box-shadow:3px 3px 0 rgba(0,0,0,.3) !important;}
+.pdvQuickBtn:hover{animation:pdvQuickWobble .5s ease;border-color:var(--orange) !important;}
+@keyframes pdvQuickWobble{
+  0%,100%{transform:translateY(-2px) rotate(0);}
+  25%{transform:translateY(-2px) rotate(-4deg);}
+  75%{transform:translateY(-2px) rotate(4deg);}
+}
+.pdvQuickBtn:active{animation:none;transform:translateY(1px) scale(.94) !important;box-shadow:1px 1px 0 rgba(0,0,0,.3) !important;}
+
+/* --- tiles de produto: visual "Comic Pop" (contorno grosso tipo quadrinho,
+   sombra sólida deslocada, preço em selo/carimbo) --- */
+#pdvWrap .prodTile{
+  border-width:3px !important;border-style:solid !important;border-color:#100c0a !important;
+  border-radius:18px !important;background:var(--panel2) !important;
+  box-shadow:4px 4px 0 rgba(0,0,0,.5) !important;
+  padding:10px 8px !important;
+  transition:transform .16s cubic-bezier(.34,1.7,.5,1), box-shadow .16s ease, border-color .16s ease !important;
+}
+#pdvWrap .prodTile:hover{transform:translate(-2px,-3px) rotate(-1.4deg) scale(1.03);box-shadow:6px 7px 0 rgba(0,0,0,.5);border-color:var(--orange) !important;}
+#pdvWrap .prodTile:active{transform:translate(1px,1px) rotate(0) scale(.95);box-shadow:1px 1px 0 rgba(0,0,0,.5);}
+#pdvWrap .prodTile img{
+  border-radius:11px !important;border:2px solid #100c0a !important;height:52px !important;
+}
+#pdvWrap .prodTile .pName{
+  font-weight:800 !important;font-size:11px !important;margin-top:4px !important;
+}
+#pdvWrap .prodTile .pPrice{
+  display:inline-block !important;background:var(--orange) !important;color:#100c0a !important;
+  font-weight:800 !important;padding:2px 10px !important;border-radius:20px !important;
+  border:2px solid #100c0a !important;transform:rotate(-2deg);box-shadow:2px 2px 0 rgba(0,0,0,.4);
+  margin-top:4px !important;
+}
+#pdvWrap .prodTile .pStockBar{border-radius:6px !important;overflow:hidden;border:1.5px solid #100c0a;height:4px !important;}
+#pdvWrap .prodTile.lowstock{border-color:var(--yellow) !important;}
+#pdvWrap .prodTile.outstock{border-style:dashed !important;}
+#pdvWrap .prodTile.recemAdicionado{
+  border-color:var(--orange) !important;
+  box-shadow:4px 4px 0 rgba(0,0,0,.5), 0 0 14px rgba(255,106,26,.5) !important;
+}
+
+/* --- total da venda: "carimbo de preço", levemente torto --- */
+.payRow.total{
+  display:inline-flex;align-self:flex-start;padding:4px 14px;border-radius:10px;
+  border:2.5px dashed var(--orange);transform:rotate(-1deg);
+}
+
+/* --- popup "Adicionado ao carrinho": bounce elástico em vez de fade simples --- */
+#cartAddPopup{
+  border-width:3px !important;border-radius:18px !important;
+  box-shadow:5px 5px 0 rgba(0,0,0,.35) !important;
+  transition:opacity .3s cubic-bezier(.34,1.6,.5,1), transform .3s cubic-bezier(.34,1.6,.5,1) !important;
+}
+#cartAddPopup.show{transform:translateX(-50%) translateY(0) scale(1) rotate(-.6deg) !important;}
+
+html.anim-off-hover .pdvQuickBtn:hover,
+html.anim-off-hover #pdvWrap .prodTile:hover,
+html.anim-off-hover #searchBox:focus{animation:none !important;transform:none !important;}
+html.anim-off-transitions #btnFinalizarVenda{animation:none !important;}
 
 /* ---------- Calculadora de venda avulsa ---------- */
 .calcAvulsaGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
@@ -1846,8 +1982,7 @@ html.is-mobile .btn::before{ display:none; }
   .prodTile img{ height:40px; }
 
   #pdvRight{ width:100%; max-width:100%; min-height:auto; }
-  #pdvRightCol{ width:100%; max-width:100%; }
-  .pdvQuickBtn{ width:76px; height:76px; }
+  .pdvQuickBtn{ width:90px; height:90px; }
 
   .formGrid{ grid-template-columns:1fr; }
   .panel[style*="max-width"]{ max-width:100% !important; }
@@ -2141,50 +2276,6 @@ html.is-mobile .btn::before{ display:none; }
               <div class="gridSectionLbl" id="productGridLbl">Todos os produtos (clique para adicionar)</div>
               <div id="productGrid"></div>
             </div>
-            <div id="pdvRight" style="display:none;">
-              <h3 style="color:var(--orange);margin-top:0;">Pagamento</h3>
-              <button class="btn secondary small" data-perm="estoque" style="margin-bottom:10px;width:100%;" onclick="openQuickProductModal()">🧺 Cadastrar Peça de Roupa</button>
-              <div class="field">
-                <label>Desconto na venda (R$ ou %)</label>
-                <div style="display:flex;gap:6px;">
-                  <input id="saleDiscountVal" type="text" inputmode="decimal" placeholder="0,00" style="flex:1" oninput="if(document.getElementById('saleDiscountType').value==='value')maskMoneyInput(this);renderPay()">
-                  <select id="saleDiscountType" onchange="renderPay()">
-                    <option value="value">R$</option>
-                    <option value="pct">%</option>
-                  </select>
-                </div>
-              </div>
-              <button type="button" class="btn secondary" style="width:100%;margin-bottom:10px;" onclick="abrirValorAdicional()">➕ Valor adicional</button>
-              <div class="payRow"><span>Subtotal</span><span id="paySubtotal">R$ 0,00</span></div>
-              <div class="payRow total"><span>Total</span><span id="payTotal">R$ 0,00</span></div>
-
-              <div id="payArea">
-                <div class="payMethodRow"><label>Dinheiro</label><input type="text" inputmode="decimal" id="pay_dinheiro" placeholder="0,00" oninput="maskMoneyInput(this);updatePayTotals()"><button type="button" class="fillBtn" onclick="fillRemaining('dinheiro')">Preencher?</button></div>
-                <div class="payMethodRow"><label>Pix</label><input type="text" inputmode="decimal" id="pay_pix" placeholder="0,00" oninput="onPixValorInput(this)"><button type="button" class="fillBtn" onclick="fillRemaining('pix')">Preencher?</button></div>
-                <div class="payMethodRow"><label>Cartão</label><input type="text" inputmode="decimal" id="pay_cartao" placeholder="0,00" oninput="maskMoneyInput(this);updatePayTotals()"><button type="button" class="fillBtn" onclick="fillRemaining('cartao')">Preencher?</button></div>
-                <div class="payRow"><span>Pago</span><span id="payPaid">R$ 0,00</span></div>
-                <div class="payRow"><span>Restante / Troco</span><span id="payRemaining">R$ 0,00</span></div>
-
-                <div id="fiadoBlock" style="display:none;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);">
-                  <div class="chip">Venda Fiado</div>
-                  <div class="dimSmall" style="margin:6px 0;">Saldo devedor: <b id="fiadoAmount">R$ 0,00</b></div>
-                  <label>Cliente vinculado</label>
-                  <div class="field pickerWrap" style="margin:0;">
-                    <input id="fiadoCustomerSearch" placeholder="Digite o nome do cliente..." autocomplete="off" onclick="openFiadoCustomerPicker()" oninput="filterFiadoCustomerPicker()">
-                    <input type="hidden" id="fiadoCustomerSelect">
-                    <div class="pickerDropdown" id="fiadoCustomerSearch_dd"></div>
-                  </div>
-                  <button class="btn secondary small" style="margin-top:6px;" onclick="openQuickCustomerModal()">+ Cadastrar novo cliente</button>
-                </div>
-              </div>
-
-              <div style="margin-top:14px;display:flex;gap:8px;">
-                <button class="btn" id="btnFinalizarVenda" style="flex:1;" onclick="finalizeSale()">Finalizar Venda (Enter)</button>
-                <button class="btn secondary" id="btnCancelarVenda" onclick="cancelSale()">Cancelar</button>
-              </div>
-            </div>
-          </div>
-          <div id="pdvRightCol">
             <div id="pdvCartSection">
               <div class="panel">
                 <h3 style="margin:0 0 8px;">Carrinho</h3>
@@ -2201,6 +2292,52 @@ html.is-mobile .btn::before{ display:none; }
               <button type="button" class="btn pdvQuickBtn" onclick="focarScannerVendas()" title="Focar campo de escanear código">
                 <span class="pdvQuickIcon">📷</span><span class="pdvQuickLabel">Escanear</span>
               </button>
+              <button type="button" class="btn pdvQuickBtn" data-perm="estoque" onclick="openQuickProductModal()" title="Cadastrar peça de roupa rapidamente">
+                <span class="pdvQuickIcon">🧺</span><span class="pdvQuickLabel">Cadastrar Peça</span>
+              </button>
+              <button type="button" class="btn pdvQuickBtn" onclick="abrirValorAdicional()" title="Somar um valor extra na venda">
+                <span class="pdvQuickIcon">➕</span><span class="pdvQuickLabel">Valor Adicional</span>
+              </button>
+            </div>
+          </div>
+          <div id="pdvRight" style="display:none;">
+            <h3 style="color:var(--orange);margin-top:0;">Pagamento</h3>
+            <div class="field">
+              <label>Desconto na venda (R$ ou %)</label>
+              <div style="display:flex;gap:6px;">
+                <input id="saleDiscountVal" type="text" inputmode="decimal" placeholder="0,00" style="flex:1" oninput="if(document.getElementById('saleDiscountType').value==='value')maskMoneyInput(this);renderPay()">
+                <select id="saleDiscountType" onchange="renderPay()">
+                  <option value="value">R$</option>
+                  <option value="pct">%</option>
+                </select>
+              </div>
+            </div>
+            <div class="payRow"><span>Subtotal</span><span id="paySubtotal">R$ 0,00</span></div>
+            <div class="payRow total"><span>Total</span><span id="payTotal">R$ 0,00</span></div>
+
+            <div id="payArea">
+              <div class="payMethodRow"><label>💵 Dinheiro</label><input type="text" inputmode="decimal" id="pay_dinheiro" placeholder="0,00" oninput="maskMoneyInput(this);updatePayTotals()"><button type="button" class="fillBtn" onclick="fillRemaining('dinheiro')">Preencher?</button></div>
+              <div class="payMethodRow"><label>💠 Pix</label><input type="text" inputmode="decimal" id="pay_pix" placeholder="0,00" oninput="onPixValorInput(this)"><button type="button" class="fillBtn" onclick="fillRemaining('pix')">Preencher?</button></div>
+              <div class="payMethodRow"><label>💳 Cartão</label><input type="text" inputmode="decimal" id="pay_cartao" placeholder="0,00" oninput="maskMoneyInput(this);updatePayTotals()"><button type="button" class="fillBtn" onclick="fillRemaining('cartao')">Preencher?</button></div>
+              <div class="payRow"><span>Pago</span><span id="payPaid">R$ 0,00</span></div>
+              <div class="payRow"><span>Restante / Troco</span><span id="payRemaining">R$ 0,00</span></div>
+
+              <div id="fiadoBlock" style="display:none;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);">
+                <div class="chip">Venda Fiado</div>
+                <div class="dimSmall" style="margin:6px 0;">Saldo devedor: <b id="fiadoAmount">R$ 0,00</b></div>
+                <label>Cliente vinculado</label>
+                <div class="field pickerWrap" style="margin:0;">
+                  <input id="fiadoCustomerSearch" placeholder="Digite o nome do cliente..." autocomplete="off" onclick="openFiadoCustomerPicker()" oninput="filterFiadoCustomerPicker()">
+                  <input type="hidden" id="fiadoCustomerSelect">
+                  <div class="pickerDropdown" id="fiadoCustomerSearch_dd"></div>
+                </div>
+                <button class="btn secondary" style="margin-top:6px;" onclick="openQuickCustomerModal()">+ Cadastrar novo cliente</button>
+              </div>
+            </div>
+
+            <div style="margin-top:14px;display:flex;gap:8px;">
+              <button class="btn" id="btnFinalizarVenda" style="flex:1;" onclick="finalizeSale()">Finalizar Venda (Enter)</button>
+              <button class="btn secondary" id="btnCancelarVenda" onclick="cancelSale()">Cancelar</button>
             </div>
           </div>
         </div>
@@ -5422,10 +5559,33 @@ function aplicarEstoqueRapido(productId, qtd){
 function renderCart(){
   const el = document.getElementById('cartTable');
   renderProductGrid();
-  /* O painel de Pagamento (pdvRight) só aparece do lado quando há pelo menos
-     1 item no carrinho — some de novo se o carrinho ficar vazio. */
+  /* O painel de Pagamento (pdvRight) só aparece do lado direito quando há pelo
+     menos 1 item no carrinho — entra com uma animação tipo "mola" e sai de
+     novo (com uma saidinha rápida) se o carrinho ficar vazio. Só dispara a
+     animação na transição real (vazio->com item / com item->vazio), nunca
+     em re-renders normais (ex.: trocar a quantidade de um item). */
   const pdvRight = document.getElementById('pdvRight');
-  if(pdvRight) pdvRight.style.display = cart.length>0 ? 'flex' : 'none';
+  const pdvCartSection = document.getElementById('pdvCartSection');
+  if(pdvRight){
+    const estavaVisivel = pdvRight.style.display === 'flex';
+    const deveFicarVisivel = cart.length>0;
+    if(deveFicarVisivel && !estavaVisivel){
+      pdvRight.style.display = 'flex';
+      pdvRight.classList.remove('pdvRightPopOut');
+      pdvRight.classList.remove('pdvRightPopIn'); void pdvRight.offsetWidth;
+      pdvRight.classList.add('pdvRightPopIn');
+      if(pdvCartSection){
+        pdvCartSection.classList.remove('pdvCartPop'); void pdvCartSection.offsetWidth;
+        pdvCartSection.classList.add('pdvCartPop');
+      }
+    } else if(!deveFicarVisivel && estavaVisivel){
+      pdvRight.classList.remove('pdvRightPopIn');
+      pdvRight.classList.add('pdvRightPopOut');
+      setTimeout(()=>{
+        if(cart.length===0){ pdvRight.style.display = 'none'; pdvRight.classList.remove('pdvRightPopOut'); }
+      }, 280);
+    }
+  }
   const pdvLeft = document.getElementById('pdvLeft');
   if(pdvLeft) pdvLeft.classList.toggle('paymentActive', cart.length>0);
   if(cart.length===0){
