@@ -1225,10 +1225,10 @@ label{font-size:11.5px;color:var(--text-dim);display:block;margin-bottom:4px;}
   border:4px solid var(--ink);border-radius:26px;
   box-shadow:8px 9px 0 var(--ink), 0 25px 60px rgba(0,0,0,.5);
   backdrop-filter:none;-webkit-backdrop-filter:none;
-  overflow:visible;max-height:none;padding:24px 20px;
+  overflow:visible;max-height:none;padding:16px 20px;
 }
 .pixQrModalBox::before{display:none;}
-.pixQrModalBox h3{color:var(--ink);font-weight:800;}
+.pixQrModalBox h3{color:var(--ink);font-weight:800;margin:0 0 8px;}
 .pixQrModalBox .modalClose{
   position:absolute;top:-14px;right:-14px;background:var(--paper);border:3px solid var(--ink);
   color:var(--orange-deep);font-size:16px;cursor:pointer;width:34px;height:34px;border-radius:50%;
@@ -1237,32 +1237,32 @@ label{font-size:11.5px;color:var(--text-dim);display:block;margin-bottom:4px;}
   transition:transform .15s ease;
 }
 .pixQrModalBox .modalClose:hover{transform:rotate(90deg) scale(1.06);}
-.pixQrValor{font-size:32px;font-weight:800;color:var(--orange-deep);margin:4px 0 10px;letter-spacing:.3px;}
-.pixQrChaveInfo{font-size:12px;color:#6c5f92;text-align:center;line-height:1.5;margin:14px 0;}
-.pixQrCopiaBtn{background:var(--paper-dim);border:2.5px dashed var(--ink);color:var(--ink);border-radius:12px;padding:8px 14px;font-size:12.5px;font-weight:700;cursor:pointer;transition:background .15s ease, transform .15s ease;}
+.pixQrValor{font-size:32px;font-weight:800;color:var(--orange-deep);margin:0 0 10px;letter-spacing:.3px;}
+.pixQrChaveInfo{font-size:12px;color:#6c5f92;text-align:center;line-height:1.4;margin:10px 0;}
+.pixQrCopiaBtn{background:var(--paper-dim);border:2.5px dashed var(--ink);color:var(--ink);border-radius:12px;padding:7px 14px;font-size:12.5px;font-weight:700;cursor:pointer;transition:background .15s ease, transform .15s ease;}
 .pixQrCopiaBtn:hover{background:var(--yellow);transform:translateY(-2px);}
 .pixQrModalBox #pixQrConcluirBtn{
   background:var(--green);border:3px solid var(--ink);color:var(--ink);
-  font-weight:800;padding:14px;border-radius:18px;font-size:15px;cursor:pointer;
+  font-weight:800;padding:12px 14px;border-radius:18px;font-size:15px;cursor:pointer;
   box-shadow:4px 5px 0 var(--ink);
   transition:transform .15s cubic-bezier(.34,1.5,.5,1), box-shadow .15s ease;
 }
 .pixQrModalBox #pixQrConcluirBtn:hover{transform:translate(-1px,-2px);box-shadow:5px 6px 0 var(--ink);}
 .pixQrModalBox #pixQrConcluirBtn:active{transform:translate(2px,3px);box-shadow:1px 1px 0 var(--ink);}
 
-.pixQrStage{position:relative;display:flex;align-items:center;justify-content:center;height:460px;perspective:1000px;overflow:visible;}
+.pixQrStage{position:relative;display:flex;align-items:center;justify-content:center;height:500px;perspective:1000px;overflow:visible;}
 
 .pixQrFrame{
   position:relative;padding:16px;border-radius:26px;background:linear-gradient(160deg, var(--orange), var(--orange-deep));
   border:4px solid var(--ink);z-index:5;
   box-shadow:6px 6px 0 var(--ink), 0 16px 34px rgba(36,25,52,.28);
 }
-.pixQrFrame canvas{display:block;border-radius:14px;width:340px;height:340px;}
+.pixQrFrame canvas{display:block;border-radius:14px;width:410px;height:410px;}
 html.anim-off-glow .pixQrFrame{animation:none !important;}
 
 /* estouro tipo quadrinho (atrás do QR ao revelar) */
 .pixQrBurst{
-  position:absolute;top:50%;left:50%;width:420px;height:420px;z-index:3;pointer-events:none;
+  position:absolute;top:50%;left:50%;width:500px;height:500px;z-index:3;pointer-events:none;
   border-radius:50%;opacity:0;
   background:repeating-conic-gradient(var(--yellow) 0deg 11deg, transparent 11deg 22deg);
 }
@@ -1278,10 +1278,10 @@ html.anim-off-glow .pixQrFrame{animation:none !important;}
 ================================================================== */
 .pixQrHangerScene{display:none;position:absolute;inset:0;align-items:flex-start;justify-content:center;padding-top:6px;}
 .pixQrStage.m2 .pixQrHangerScene{display:flex;}
-.pixQrRail{width:330px;height:4px;background:linear-gradient(90deg,transparent,var(--ink) 25%,var(--ink) 75%,transparent);opacity:0;border-radius:4px;}
+.pixQrRail{width:390px;height:4px;background:linear-gradient(90deg,transparent,var(--ink) 25%,var(--ink) 75%,transparent);opacity:0;border-radius:4px;}
 .pixQrRig{position:absolute;top:18px;left:50%;translate:-50% 0;transform-origin:top center;}
 .pixQrHook{width:18px;height:18px;border:4px solid var(--ink);border-bottom:none;border-radius:18px 18px 0 0;margin:0 auto;background:var(--paper-dim);}
-.pixQrFlipStage{width:380px;height:380px;margin-top:4px;position:relative;transform-style:preserve-3d;}
+.pixQrFlipStage{width:450px;height:450px;margin-top:4px;position:relative;transform-style:preserve-3d;}
 .pixQrShirtFace,.pixQrFaceWrap{position:absolute;inset:0;backface-visibility:hidden;display:flex;align-items:center;justify-content:center;}
 .pixQrShirtFace svg{width:190px;height:216px;filter:drop-shadow(4px 6px 0 rgba(36,25,52,.16));}
 .pixQrFaceWrap{transform:rotateY(180deg);}
@@ -5579,7 +5579,7 @@ function openPixQrModal(valor, onConcluir){
   setTimeout(()=>{
     document.querySelectorAll('#pixQrStage .pixQrCanvasEl').forEach(canvas=>{
       if(payload && typeof QRious!=='undefined'){
-        new QRious({element:canvas, value:payload, size:340, level:'M'});
+        new QRious({element:canvas, value:payload, size:410, level:'M'});
       }
     });
     const btn = document.getElementById('pixQrConcluirBtn');
