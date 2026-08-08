@@ -2994,7 +2994,7 @@ html.is-mobile .btn::before{ display:none; }
         </div>
         <div class="panel">
           <h3>Livro de Vendas</h3>
-          <table><thead><tr><th>Data/Hora</th><th>Roupa</th><th>Qtd</th><th>Custo (un.)</th><th>Venda (un.)</th><th>Total</th><th>Vendedor</th><th>Status</th><th></th></tr></thead><tbody id="livroVendasBody"></tbody></table>
+          <table><thead><tr><th>Data/Hora</th><th>Roupa</th><th>Qtd</th><th>Custo (un.)</th><th>Venda (un.)</th><th>Total</th><th>Pagamento</th><th>Vendedor</th><th>Status</th><th></th></tr></thead><tbody id="livroVendasBody"></tbody></table>
         </div>
       </div>
 
@@ -5988,7 +5988,7 @@ function scheduleAutoPixQr(){
   clearTimeout(_pixAutoQrTimer);
   const val = moneyVal('pay_pix');
   if(val <= 0.001 || !DB.settings.pixChave) return;
-  _pixAutoQrTimer = setTimeout(abrirOuAtualizarPixQr, 700);
+  _pixAutoQrTimer = setTimeout(abrirOuAtualizarPixQr, 1800);
 }
 function updatePayTotals(){
   const total = cartTotal();
@@ -6681,13 +6681,27 @@ function abrirPixAvulso(){
     <div class="dimSmall" style="text-align:center;margin-bottom:10px;">Cobrança pontual em Pix, sem precisar colocar produto no carrinho.</div>
     <div class="field">
       <label>Valor a cobrar (R$)</label>
-      <input id="pixAvulsoValor" type="text" inputmode="decimal" placeholder="0,00" oninput="maskMoneyInput(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();confirmarPixAvulso();}">
+      <input id="pixAvulsoValor" type="text" inputmode="decimal" placeholder="0,00" oninput="maskMoneyInput(this);scheduleAutoPixAvulsoQr();" onkeydown="if(event.key==='Enter'){event.preventDefault();event.stopPropagation();confirmarPixAvulso();}">
     </div>
     <button type="button" class="btn" style="width:100%;margin-top:10px;" onclick="confirmarPixAvulso()">Gerar QR Code Pix (Enter)</button>
   `, {extraClass:'calcPixModalBox'});
   setTimeout(()=>{ const i=document.getElementById('pixAvulsoValor'); if(i){ i.focus(); } }, 50);
 }
+let _pixAvulsoAutoTimer = null;
+/* Segurança extra: se o Enter não disparar (alguns teclados numéricos de
+   celular não mandam o evento certinho), o QR abre sozinho um pouco depois
+   que a pessoa parar de digitar — igual acontece no Pix da tela de venda. */
+function scheduleAutoPixAvulsoQr(){
+  clearTimeout(_pixAvulsoAutoTimer);
+  const val = moneyVal('pixAvulsoValor');
+  if(val<=0.001) return;
+  _pixAvulsoAutoTimer = setTimeout(()=>{
+    const i = document.getElementById('pixAvulsoValor');
+    if(i && isModalOpen()) confirmarPixAvulso();
+  }, 1200);
+}
 function confirmarPixAvulso(){
+  clearTimeout(_pixAvulsoAutoTimer);
   const valor = moneyVal('pixAvulsoValor');
   if(valor<=0){ alert('Informe um valor válido.'); return; }
   closeModal();
@@ -10785,6 +10799,18 @@ function filterAllSalesByPeriodo(periodoId, deId, ateId, incluirCanceladas){
     return true;
   });
 }
+/* Texto tipo "Pix R$ 90,00 + Dinheiro R$ 10,00 + Cartão R$ 10,00" mostrando
+   quanto da venda foi pago em cada forma de pagamento. */
+function paymentBreakdownText(sale){
+  const partes = [];
+  if(sale.payments){
+    if(sale.payments.dinheiro>0.001) partes.push('Dinheiro '+fmtMoney(sale.payments.dinheiro));
+    if(sale.payments.pix>0.001) partes.push('Pix '+fmtMoney(sale.payments.pix));
+    if(sale.payments.cartao>0.001) partes.push('Cartão '+fmtMoney(sale.payments.cartao));
+  }
+  if(sale.debt>0.001) partes.push('Fiado '+fmtMoney(sale.debt));
+  return partes.join(' + ') || '-';
+}
 function renderLivroVendas(){
   const sales = filterAllSalesByPeriodo('livroPeriodo','livroDataDe','livroDataAte', true)
     .slice().sort((a,b)=> new Date(b.date)-new Date(a.date));
@@ -10827,18 +10853,20 @@ function renderLivroVendas(){
       }
       const classAttr = classes.length ? ` class="${classes.join(' ')}"` : '';
 
-      rows.push(`<tr${classAttr}><td>${fmtDateTime(s.date)}</td><td>${it.name}</td><td>${it.qty}</td><td>${fmtMoney(custoUn)}</td><td>${fmtMoney(it.price)}</td><td>${fmtMoney(it.price*it.qty)}</td><td>${s.sellerName||'-'}</td><td>${statusHtml}</td><td>${actionHtml}</td></tr>`);
+      const pagamentoCell = ehGrupo ? '<td></td>' : `<td>${paymentBreakdownText(s)}</td>`;
+      rows.push(`<tr${classAttr}><td>${fmtDateTime(s.date)}</td><td>${it.name}</td><td>${it.qty}</td><td>${fmtMoney(custoUn)}</td><td>${fmtMoney(it.price)}</td><td>${fmtMoney(it.price*it.qty)}</td>${pagamentoCell}<td>${s.sellerName||'-'}</td><td>${statusHtml}</td><td>${actionHtml}</td></tr>`);
     });
     // linha de fechamento do grupo: destaca o valor bruto da compra inteira
+    // e mostra quanto foi pago em cada forma de pagamento (dinheiro/pix/cartão)
     if(ehGrupo){
       const statusResumo = s.cancelled ? 'Venda cancelada' : (itensAtivos.length ? `${itensAtivos.length} peça(s) ativa(s)` : 'Todas as peças canceladas');
-      rows.push(`<tr class="livroGrupoVenda livroGrupoVendaFim"><td colspan="5" style="text-align:right;font-weight:700;">Total da compra #${s.id.slice(-5)} (valor bruto) — ${statusResumo}</td><td style="font-weight:700;">${fmtMoney(s.total)}</td><td colspan="3"></td></tr>`);
+      rows.push(`<tr class="livroGrupoVenda livroGrupoVendaFim"><td colspan="5" style="text-align:right;font-weight:700;">Total da compra #${s.id.slice(-5)} (valor bruto) — ${statusResumo}</td><td style="font-weight:700;">${fmtMoney(s.total)}</td><td>${paymentBreakdownText(s)}</td><td colspan="3"></td></tr>`);
     }
   });
   document.getElementById('livroReceita').textContent = fmtMoney(receita);
   document.getElementById('livroCusto').textContent = fmtMoney(custo);
   document.getElementById('livroQtdPecas').textContent = qtdPecas;
-  document.getElementById('livroVendasBody').innerHTML = rows.join('') || '<tr><td colspan="9" class="dimSmall">Nenhuma venda no período selecionado.</td></tr>';
+  document.getElementById('livroVendasBody').innerHTML = rows.join('') || '<tr><td colspan="10" class="dimSmall">Nenhuma venda no período selecionado.</td></tr>';
 }
 
 /* =========================================================
@@ -11462,6 +11490,7 @@ function showModal(html, opts){
 }
 let _ultimaModalExtraClass = null;
 function closeModal(){
+  clearTimeout(_pixAvulsoAutoTimer);
   document.getElementById('modalBg').classList.remove('active');
   document.getElementById('modalBg').classList.remove('modalBgScrollable');
   const box = document.getElementById('modalBox');
