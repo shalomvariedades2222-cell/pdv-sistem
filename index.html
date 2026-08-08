@@ -631,7 +631,11 @@ html.anim-off-login #connectingScreen *{animation:none !important;}
    "leve" (padrão, classe .anim-opt-light já embutida abaixo) troca o blur
    pesado do vidro fosco por um fundo sólido só durante os ~0,5s da
    animação — "nenhuma" volta o blur completo (mais fiel, mais pesado);
-   "máxima" também tira a sombra externa (outro item caro de repintura). */
+   "máxima" também tira a sombra externa (outro item caro de repintura);
+   "ultra" herda tudo da máxima e ainda troca a propriedade 'width' (que
+   força recálculo de layout a cada quadro) por só transform+opacity —
+   a largura final só é aplicada de uma vez no fim (quando já está
+   transparente), então visualmente é quase idêntico, só mais barato. */
 @keyframes sidebarCloseCartoon{
   0%{width:200px;transform:translateX(0) scaleX(1) rotate(0);opacity:1;}
   30%{width:200px;transform:translateX(14px) scaleX(1.06) rotate(1deg);opacity:1;}
@@ -642,6 +646,20 @@ html.anim-off-login #connectingScreen *{animation:none !important;}
   55%{width:210px;transform:translateX(14px) scaleX(1.06) rotate(1.5deg);opacity:1;}
   78%{width:196px;transform:translateX(-4px) scaleX(.97) rotate(-.5deg);}
   100%{width:200px;transform:translateX(0) scaleX(1) rotate(0);opacity:1;}
+}
+/* Nível "Ultra": mesmíssimos passos/curva acima, só sem animar 'width' (fica
+   fixa em 200px, sem forçar layout a cada quadro) — só transform+opacity,
+   que o navegador anima direto na composição (bem mais barato). */
+@keyframes sidebarCloseCartoonUltra{
+  0%{transform:translateX(0) scaleX(1) rotate(0);opacity:1;}
+  30%{transform:translateX(14px) scaleX(1.06) rotate(1deg);opacity:1;}
+  100%{transform:translateX(-60px) scaleX(.78) rotate(-4deg);opacity:0;}
+}
+@keyframes sidebarOpenCartoonUltra{
+  0%{transform:translateX(-60px) scaleX(.78) rotate(-4deg);opacity:0;}
+  55%{transform:translateX(14px) scaleX(1.06) rotate(1.5deg);opacity:1;}
+  78%{transform:translateX(-4px) scaleX(.97) rotate(-.5deg);opacity:1;}
+  100%{transform:translateX(0) scaleX(1) rotate(0);opacity:1;}
 }
 #sidebar.sidebarClosing,
 #sidebar.sidebarOpening{
@@ -667,6 +685,15 @@ html.anim-opt-none #sidebar.sidebarOpening{
 html.anim-opt-max #sidebar.sidebarClosing,
 html.anim-opt-max #sidebar.sidebarOpening{
   box-shadow:none !important;border-right-color:transparent !important;
+}
+/* Nível "Ultra": herda tudo da "máxima" (classe anim-opt-max também é ligada
+   junto) e ainda troca a animação pela versão sem 'width' acima — a largura
+   fica travada em 200px até o fim, sem forçar layout a cada quadro do bicho. */
+html.anim-opt-ultra #sidebar.sidebarClosing{
+  animation-name:sidebarCloseCartoonUltra !important;width:200px !important;
+}
+html.anim-opt-ultra #sidebar.sidebarOpening{
+  animation-name:sidebarOpenCartoonUltra !important;width:200px !important;
 }
 #sidebar .brand{
   padding:20px 16px 14px;border-bottom:1px solid var(--line);
@@ -2038,6 +2065,19 @@ html.is-mobile .btn::before{ display:none; }
     80%{height:50px;transform:translateY(-2px) scaleY(.96);}
     100%{height:52px;transform:translateY(0) scaleY(1);opacity:1;}
   }
+  /* Nível "Ultra" (celular): mesma coreografia, sem animar 'height' — fica
+     travada em 52px e some só por transform+opacity. */
+  @keyframes sidebarCloseCartoonMobileUltra{
+    0%{transform:translateY(0) scaleY(1) rotate(0);opacity:1;}
+    30%{transform:translateY(6px) scaleY(1.08);opacity:1;}
+    100%{transform:translateY(-24px) scaleY(.75);opacity:0;}
+  }
+  @keyframes sidebarOpenCartoonMobileUltra{
+    0%{transform:translateY(-24px) scaleY(.75);opacity:0;}
+    55%{transform:translateY(6px) scaleY(1.08);opacity:1;}
+    80%{transform:translateY(-2px) scaleY(.96);opacity:1;}
+    100%{transform:translateY(0) scaleY(1);opacity:1;}
+  }
   #sidebar.sidebarClosing{animation:sidebarCloseCartoonMobile .5s cubic-bezier(.34,1.56,.64,1) both;will-change:height,transform,opacity;contain:layout style;overflow:hidden;width:100%;}
   #sidebar.sidebarOpening{animation:sidebarOpenCartoonMobile .55s cubic-bezier(.34,1.56,.64,1) both;will-change:height,transform,opacity;contain:layout style;overflow:hidden;width:100%;}
   #sidebar.sidebarCollapsed{width:100%;height:0 !important;min-height:0;border-bottom:none;opacity:0;pointer-events:none;overflow:hidden;}
@@ -2046,6 +2086,8 @@ html.is-mobile .btn::before{ display:none; }
   html.anim-off-sidebarToggle #sidebar.sidebarCollapsed{height:0 !important;opacity:0;}
   html.anim-opt-max #sidebar.sidebarClosing,
   html.anim-opt-max #sidebar.sidebarOpening{box-shadow:none !important;border-bottom-color:transparent !important;}
+  html.anim-opt-ultra #sidebar.sidebarClosing{animation-name:sidebarCloseCartoonMobileUltra !important;height:52px !important;}
+  html.anim-opt-ultra #sidebar.sidebarOpening{animation-name:sidebarOpenCartoonMobileUltra !important;height:52px !important;}
 
   #main{ flex:1; min-height:0; }
   #topbar{ padding:0 12px; height:46px; }
@@ -10881,24 +10923,29 @@ function aplicarAnimacoesGlobais(){
 }
 /* ---------- Nível de otimização das animações (separado dos liga/desliga acima) ----------
    Isso não decide SE uma animação roda, e sim O QUANTO de trabalho pesado
-   (blur, sombra) ela carrega enquanto roda. 100% local a este aparelho,
+   (blur, sombra, layout) ela carrega enquanto roda. 100% local a este aparelho,
    junto com o resto da config de animações.
    'nenhuma' = visual completo (mais fiel, mais pesado)
    'leve'    = padrão — desliga blur/sombra pesados só durante a animação
-   'maxima'  = também remove o pulso contínuo do botão Finalizar Venda */
+   'maxima'  = também remove o pulso contínuo do botão Finalizar Venda
+   'ultra'   = tudo da máxima + troca a animação da sidebar pra uma versão
+               que não anima 'width'/'height' (só transform+opacity),
+               evitando forçar recálculo de layout a cada quadro */
 const ANIM_OPT_NIVEIS = [
   { key:'nenhuma', label:'Nenhuma (visual completo)' },
   { key:'leve',    label:'Leve (recomendado)' },
   { key:'maxima',  label:'Máxima (mais rápido)' },
+  { key:'ultra',   label:'Ultra otimizado (extremo)' },
 ];
 function lerNivelOtimizacaoAnim(){
   const cfg = ensureAnimConfig();
-  return cfg.otimizacao === 'nenhuma' || cfg.otimizacao === 'maxima' ? cfg.otimizacao : 'leve';
+  return ['nenhuma','maxima','ultra'].includes(cfg.otimizacao) ? cfg.otimizacao : 'leve';
 }
 function aplicarNivelOtimizacaoAnim(){
   const nivel = lerNivelOtimizacaoAnim();
   document.documentElement.classList.toggle('anim-opt-none', nivel==='nenhuma');
-  document.documentElement.classList.toggle('anim-opt-max', nivel==='maxima');
+  document.documentElement.classList.toggle('anim-opt-max', nivel==='maxima' || nivel==='ultra');
+  document.documentElement.classList.toggle('anim-opt-ultra', nivel==='ultra');
 }
 function setNivelOtimizacaoAnim(nivel){
   const cfg = ensureAnimConfig();
