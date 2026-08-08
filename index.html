@@ -5072,8 +5072,44 @@ function receberPagamentoRapido(customerId){
   if(!c) return;
   const remaining = customerDebtTotal(c);
   if(remaining<=0.001) return;
-  const val = Number(prompt(`Valor a receber de ${c.nome} (restante: ${fmtMoney(remaining)}):`, remaining.toFixed(2)));
-  if(!val || val<=0) return;
+  showModal(`
+    <button class="modalClose" onclick="closeModal()">×</button>
+    <h3>Receber pagamento</h3>
+    <div style="margin:2px 0 14px;color:var(--text);line-height:1.5;">
+      Cliente: <b>${c.nome}</b><br>
+      Falta pagar: <b>${fmtMoney(remaining)}</b>
+    </div>
+    <div class="field">
+      <label>Valor recebido (R$)</label>
+      <input id="receberFiadoValor" type="text" inputmode="decimal" placeholder="0,00" autocomplete="off"
+        style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--text);font-size:16px;"
+        oninput="maskMoneyInput(this)"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();confirmarReceberPagamentoRapido('${customerId}')}">
+    </div>
+    <div class="dimSmall" id="receberFiadoErro" style="margin-top:6px;color:var(--red);display:none;"></div>
+    <div style="display:flex;gap:8px;margin-top:14px;">
+      <button class="btn secondary" style="flex:1;" onclick="closeModal()">Cancelar</button>
+      <button class="btn" style="flex:1;" onclick="confirmarReceberPagamentoRapido('${customerId}')">Confirmar</button>
+    </div>
+  `);
+  const input = document.getElementById('receberFiadoValor');
+  input.value = remaining.toFixed(2).replace('.', ',');
+  input.focus();
+  input.select();
+}
+function confirmarReceberPagamentoRapido(customerId){
+  const c = DB.customers.find(x=>x.id===customerId);
+  if(!c) return;
+  const remaining = customerDebtTotal(c);
+  const input = document.getElementById('receberFiadoValor');
+  const erroBox = document.getElementById('receberFiadoErro');
+  const val = moneyVal('receberFiadoValor');
+  if(!val || val<=0){
+    if(erroBox){ erroBox.textContent = 'Digite um valor válido.'; erroBox.style.display='block'; }
+    if(input) input.focus();
+    return;
+  }
+  closeModal();
   const totalPago = Math.min(val, remaining);
   let restante = totalPago;
   c.debts.filter(d=>d.value-d.paid>0.001).sort((a,b)=>new Date(a.date)-new Date(b.date)).forEach(d=>{
