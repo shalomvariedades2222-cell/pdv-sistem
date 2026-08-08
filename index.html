@@ -3722,6 +3722,7 @@ async function loadFromGitHub(){
     if(!DB.deleted) DB.deleted = {};
     if(!Array.isArray(DB.trashProducts)) DB.trashProducts = [];
     if(tombstonesAntesDoPull) aplicarTombstonesLocais_(tombstonesAntesDoPull);
+    resolverIdsDuplicados(DB);
     driveVersion = json.version || 0;
     migrarFotosLegado_();
     await carregarFotosDoServidor();
@@ -3770,8 +3771,8 @@ async function loadFromGitHub(){
    nas listas principais; por conteúdo, nas listas tipo log/caixa),
    e tenta salvar de novo com o resultado combinado.
 ------------------------------------------------------------ */
-const CAMPOS_POR_ID = ['products','customers','sales','employees','cashSessions','contas','incomingStock','outgoingStock','kits','categoryGroups','categories','productNames','stockRequests','accessRequests','trashProducts'];
-const CAMPOS_SEM_ID = ['ledger','logs'];
+const CAMPOS_POR_ID = ['products','customers','sales','employees','cashSessions','contas','incomingStock','outgoingStock','kits','categoryGroups','categories','productNames','stockRequests','accessRequests','trashProducts','ledger'];
+const CAMPOS_SEM_ID = ['logs'];
 
 /* ------------------------------------------------------------
    "LÁPIDES" DE EXCLUSÃO (tombstones) — CORREÇÃO DO BUG "item excluído
@@ -3871,8 +3872,45 @@ function mergeDB_(remoto, local){
     const novosDesteAparelho = doAparelho.filter(function(x){ return !jaExistem.has(JSON.stringify(x)); });
     combinado[campo] = doServidor.concat(novosDesteAparelho);
   });
-  combinado.settings = local.settings || remoto.settings;
-  if(typeof local.cashCurrentOpenId !== 'undefined') combinado.cashCurrentOpenId = local.cashCurrentOpenId;
+  /* ---------- Configurações (settings) — mescladas campo por campo ----------
+     ANTES: `combinado.settings = local.settings || remoto.settings` trocava o
+     objeto de configurações INTEIRO por uma cópia possivelmente desatualizada
+     de "este aparelho", mesmo que a mudança sendo salva não tivesse nada a ver
+     com configurações. Resultado: um aparelho que ainda não tinha recebido o
+     PIX cadastrado em outro aparelho podia apagá-lo sem querer, só por salvar
+     qualquer outra coisa (produto, venda etc.) na hora errada.
+     AGORA: cada campo (nome da loja, PIX, impressora...) é decidido
+     individualmente. Se "este aparelho" tem um valor preenchido pra aquele
+     campo específico, ele vale (edição feita aqui é respeitada). Se "este
+     aparelho" está com o campo em branco/vazio mas o servidor tem algo
+     preenchido, mantém o do servidor em vez de apagar — nenhum campo some
+     só porque outro aparelho nunca chegou a preenchê-lo. */
+  combinado.settings = {};
+  const camposSettings = new Set(Object.keys(Object.assign({}, remoto.settings||{}, local.settings||{})));
+  camposSettings.forEach(function(campo){
+    const doAparelho = (local.settings||{})[campo];
+    const doServidor = (remoto.settings||{})[campo];
+    const aparelhoVazio = (doAparelho===undefined || doAparelho===null || doAparelho==='');
+    combinado.settings[campo] = aparelhoVazio ? doServidor : doAparelho;
+  });
+  /* ---------- cashCurrentOpenId (qual sessão de caixa está aberta agora) ----------
+     ANTES: sempre confiava em "este aparelho" (local), mesmo que o aparelho local
+     não soubesse que o caixa tinha sido aberto em outro lugar. Resultado possível:
+     o caixa é aberto no celular A e sincroniza; o celular B (ainda achando que
+     estava fechado) faz qualquer outra alteração, entra num empate de sync, e o
+     merge "esquece" que o caixa está aberto — o sistema volta a mostrar "Fechado"
+     mesmo o caixa estando aberto de verdade.
+     AGORA: depois de já termos combinado.cashSessions (mesclado por id acima),
+     verificamos qual sessão de caixa, nos dados combinados, está de fato aberta
+     (sem data de fechamento) — usando o lado que apontar pra uma sessão
+     genuinamente aberta, dando preferência a "este aparelho" só quando os dois
+     lados concordam que há uma sessão aberta. */
+  const sessaoAbertaLocal = (combinado.cashSessions||[]).find(function(s){ return s.id===local.cashCurrentOpenId && !s.closeDate; });
+  const sessaoAbertaRemota = (combinado.cashSessions||[]).find(function(s){ return s.id===remoto.cashCurrentOpenId && !s.closeDate; });
+  combinado.cashCurrentOpenId = sessaoAbertaLocal ? sessaoAbertaLocal.id : (sessaoAbertaRemota ? sessaoAbertaRemota.id : null);
+  // proteção extra: se a mesclagem de algum jeito produzir dois itens com o
+  // mesmo id (não deveria, mas é o ponto mais crítico pra checar), corrige aqui.
+  resolverIdsDuplicados(combinado);
   return combinado;
 }
 
@@ -4703,7 +4741,53 @@ window.addEventListener('offline', function(){ notificarConexao('offline'); });
 window.addEventListener('online', function(){ notificarConexao('online'); });
 
 /* ---------------- Utilities ---------------- */
-function uid(prefix){ return prefix + '_' + Math.random().toString(36).slice(2,9); }
+/* ---------- Geração de ID único ----------
+   Combina: horário atual em milissegundos + um contador que sempre avança
+   (nunca repete dentro do mesmo aparelho, mesmo que dois ids sejam gerados
+   no mesmíssimo milissegundo) + uma parte aleatória. As chances de dois
+   aparelhos diferentes gerarem o mesmo id são, na prática, zero — precisaria
+   acontecer o mesmíssimo milissegundo (até 1/1000 de segundo) E o mesmo
+   contador E o mesmo sorteio aleatório de ~4,7 trilhões de combinações,
+   tudo ao mesmo tempo, em dois aparelhos diferentes. */
+let _uidContador = 0;
+function uid(prefix){
+  _uidContador = (_uidContador + 1) % 46656; // 36^3, sempre 3 caracteres em base36
+  const tempo = Date.now().toString(36);
+  const contador = _uidContador.toString(36).padStart(3,'0');
+  const aleatorio = Math.random().toString(36).slice(2,10);
+  return prefix + '_' + tempo + contador + aleatorio;
+}
+/* ---------- Proteção extra: se por qualquer motivo dois itens diferentes
+   acabarem com o mesmo id (ex.: dado antigo importado, edição manual do
+   arquivo, algum caso extremo de sincronização), isso corrige sozinho: acha
+   os ids duplicados em qualquer lista do banco de dados e dá um id novo pro
+   segundo item em diante, mantendo o primeiro como está. Roda toda vez que
+   os dados chegam do servidor ou são mesclados entre dois aparelhos, então
+   uma duplicidade nunca fica "presa" no sistema. */
+function resolverIdsDuplicados(db){
+  db = db || DB;
+  const listasComId = CAMPOS_POR_ID.concat(['ledger']);
+  let corrigidos = 0;
+  listasComId.forEach(function(campo){
+    const lista = db[campo];
+    if(!Array.isArray(lista)) return;
+    const vistos = new Set();
+    lista.forEach(function(item){
+      if(!item || item.id==null) return;
+      if(vistos.has(item.id)){
+        const idAntigo = item.id;
+        item.id = uid(campo);
+        corrigidos++;
+        console.warn('ID duplicado corrigido em "'+campo+'": '+idAntigo+' -> '+item.id);
+      }
+      vistos.add(item.id);
+    });
+  });
+  if(corrigidos>0){
+    log('Atenção: '+corrigidos+' registro(s) com id duplicado foram corrigidos automaticamente.');
+  }
+  return db;
+}
 function ensureCatalogDefaults(){
   if(!Array.isArray(DB.categoryGroups)) DB.categoryGroups = [];
   if(!Array.isArray(DB.categories)) DB.categories = [];
@@ -4760,10 +4844,39 @@ function normalizePerfis(){
    Antes, a exclusão de um lançamento dependia da posição dele no array (indexOf),
    o que pode mudar por causa de sincronização em segundo plano (nuvem/outro
    dispositivo) entre o clique e a confirmação — fazendo o botão "Excluir" clicar
-   na linha errada ou em nenhuma. Cada lançamento agora carrega um "id" fixo,
-   gerado uma única vez, que nunca muda mesmo se a posição no array mudar. */
+   na linha errada ou em nenhuma. Cada lançamento agora carrega um "id" fixo.
+
+   IMPORTANTE sobre sincronização: 'ledger' passou a ser mesclado por ID (ver
+   CAMPOS_POR_ID mais acima), não mais por comparação de conteúdo inteiro. Para
+   lançamentos ANTIGOS que ainda não tinham "id" (dado salvo antes desta versão),
+   o id é calculado a partir do próprio conteúdo (data+descrição+tipo+valor+venda)
+   em vez de ser sorteado — assim, se dois aparelhos ainda não sincronizados
+   calcularem o id do "mesmo" lançamento antigo cada um na sua vez, os dois vão
+   chegar no MESMO id (e não em dois ids aleatórios diferentes), evitando que a
+   fusão enxergue como dois lançamentos e duplique a linha. Lançamentos NOVOS
+   (criados a partir de agora) recebem um id aleatório normalmente, já que não
+   existe risco de duplicidade nesse caso — cada um nasce em um único aparelho. */
+function _hashLedgerLegado_(l){
+  const bruto = JSON.stringify([l.date, l.desc, l.tipo, l.valor, l.saleId||'']);
+  let h = 0;
+  for(let i=0;i<bruto.length;i++){ h = (h*31 + bruto.charCodeAt(i)) | 0; }
+  return 'legado_' + (h>>>0).toString(36);
+}
 function ensureLedgerIds(){
-  (DB.ledger||[]).forEach(l=>{ if(!l.id) l.id = uid('ledger'); });
+  const vistos = {};
+  (DB.ledger||[]).forEach(l=>{
+    if(!l.id){
+      let base = _hashLedgerLegado_(l), candidato = base, n = 2;
+      // se já existir esse id nesta mesma lista (ex.: dois lançamentos antigos
+      // com data/descrição/valor idênticos), desempata acrescentando um sufixo,
+      // pra nunca dar dois lançamentos diferentes com o mesmo id no mesmo aparelho
+      while(vistos[candidato] || (DB.ledger||[]).some(x=>x!==l && x.id===candidato)){
+        candidato = base + '_' + n; n++;
+      }
+      l.id = candidato;
+    }
+    vistos[l.id] = true;
+  });
 }
 function expirarPedidosEstoque(){
   const now = Date.now();
@@ -9914,6 +10027,8 @@ function confirmCancelSale(saleId){
     }
   }
   // remove o lançamento correspondente do livro caixa
+  ensureLedgerIds();
+  DB.ledger.filter(l=>l.saleId===sale.id).forEach(l=>marcarExcluido('ledger', l.id));
   DB.ledger = DB.ledger.filter(l=>l.saleId!==sale.id);
   sale.cancelled = true;
   sale.cancelledAt = todayISO();
@@ -9995,10 +10110,11 @@ function confirmCancelItem(saleId, itemIndex){
   }
 
   // ajusta o lançamento no livro caixa referente a essa compra
+  ensureLedgerIds();
   const ledgerEntry = DB.ledger.find(l=>l.saleId===sale.id);
   if(ledgerEntry){
     ledgerEntry.valor = Math.max(0, ledgerEntry.valor - itemNet);
-    if(ledgerEntry.valor <= 0.001) DB.ledger = DB.ledger.filter(l=>l!==ledgerEntry);
+    if(ledgerEntry.valor <= 0.001){ marcarExcluido('ledger', ledgerEntry.id); DB.ledger = DB.ledger.filter(l=>l!==ledgerEntry); }
   }
 
   it.cancelled = true;
@@ -10014,6 +10130,7 @@ function confirmCancelItem(saleId, itemIndex){
     // a venda inteira foi cancelada peça por peça: remove qualquer resíduo que
     // tenha sobrado no livro caixa por causa de arredondamento (paga x total do
     // item), pra não deixar lançamento órfão vinculado a uma venda já cancelada
+    DB.ledger.filter(l=>l.saleId===sale.id).forEach(l=>marcarExcluido('ledger', l.id));
     DB.ledger = DB.ledger.filter(l=>l.saleId!==sale.id);
   }
 
@@ -10122,6 +10239,7 @@ function excluirLancamentoLedger(ledgerId){
       const idx = DB.ledger.findIndex(x=>x.id===ledgerId);
       if(idx===-1){ toast('Esse lançamento não existe mais (já foi removido).', 'erro'); renderCaixa(); return; }
       DB.ledger.splice(idx,1);
+      marcarExcluido('ledger', ledgerId);
       log('Lançamento excluído do livro caixa: '+l.desc);
       toast('Lançamento excluído.');
       renderCaixa();
@@ -10149,6 +10267,7 @@ function excluirLancamentoVenda(saleId, ledgerId){
         const idx = DB.ledger.findIndex(x=>x.id===ledgerId);
         if(idx===-1){ toast('Esse lançamento não existe mais (já foi removido).', 'erro'); renderCaixa(); return; }
         DB.ledger.splice(idx,1);
+        marcarExcluido('ledger', ledgerId);
         log('Lançamento órfão removido do livro caixa (venda já cancelada): '+l.desc);
         toast('Lançamento removido.');
         renderCaixa();
@@ -11286,6 +11405,8 @@ function importBackupFile(file){
       const data = JSON.parse(e.target.result);
       DB = Object.assign({products:[],customers:[],sales:[],employees:[{id:'u1',nome:'Administrador',usuario:'admin',senha:'admin',perfil:'total',comissao:0}],cashSessions:[],cashCurrentOpenId:null,ledger:[],contas:[],incomingStock:[],outgoingStock:[],kits:[],logs:[],stockRequests:[],accessRequests:[],categoryGroups:[],categories:[],productNames:[],settings:{nomeLoja:'Shalom Variedades',contato:'',logo:'',impressora:'',papel:'80mm',etiquetaQr:'',etiquetaMostrarQr:true,pixChave:'',pixNome:'',pixCidade:''}}, data);
       normalizePerfis();
+      ensureLedgerIds();
+      resolverIdsDuplicados();
       fixDuplicateBarcodes();
       ensureCatalogDefaults();
       aplicarAnimacoesGlobais();
@@ -11811,6 +11932,7 @@ function tickClock(){
 setInterval(tickClock, 1000); tickClock();
 normalizePerfis();
 ensureLedgerIds();
+resolverIdsDuplicados();
 fixDuplicateBarcodes();
 ensureCatalogDefaults();
 aplicarAnimacoesGlobais();
