@@ -90,6 +90,11 @@ if('serviceWorker' in navigator){
   --red:#e0503f;
   --yellow:#e0b13f;
   --radius:10px;
+  /* Tempo da animação de fechar/abrir a barra lateral (Config → Animações do
+     Sistema → "Tempos das animações"). JS lê/grava o mesmo valor em ms nos
+     setTimeout que ficam em sincronia com essa duração — mudar aqui sem
+     mudar lá (ou vice-versa) desalinha a sequência das animações. */
+  --pdv-anim-sidebar-ms:500ms;
   /* ---------- Liquid Glass (vidro derretido, tom laranja) ---------- */
   --glass-bg:linear-gradient(160deg, rgba(255,150,80,.09), rgba(36,28,24,.58));
   --glass-bg-strong:linear-gradient(160deg, rgba(255,150,80,.14), rgba(30,23,20,.68));
@@ -667,8 +672,8 @@ html.anim-off-login #connectingScreen *{animation:none !important;}
   background:linear-gradient(180deg,#26201d,#100c0a) !important;
   will-change:width,transform,opacity;contain:layout style;overflow:hidden;
 }
-#sidebar.sidebarClosing{animation:sidebarCloseCartoon .5s cubic-bezier(.34,1.56,.64,1) both;}
-#sidebar.sidebarOpening{animation:sidebarOpenCartoon .55s cubic-bezier(.34,1.56,.64,1) both;}
+#sidebar.sidebarClosing{animation:sidebarCloseCartoon var(--pdv-anim-sidebar-ms, 500ms) cubic-bezier(.34,1.56,.64,1) both;}
+#sidebar.sidebarOpening{animation:sidebarOpenCartoon calc(var(--pdv-anim-sidebar-ms, 500ms) * 1.1) cubic-bezier(.34,1.56,.64,1) both;}
 #sidebar.sidebarCollapsed{width:0 !important;min-width:0;border-right:none;opacity:0;pointer-events:none;overflow:hidden;}
 html.anim-off-sidebarToggle #sidebar.sidebarClosing,
 html.anim-off-sidebarToggle #sidebar.sidebarOpening{animation:none !important;}
@@ -699,24 +704,21 @@ html.anim-opt-ultra #sidebar.sidebarOpening{
    0 -> 200px) no instante em que a classe sidebarCollapsed é trocada — sem
    isso, a coluna do carrinho (#pdvLeft, que é flex:1 e cresce sozinha pra
    preencher o espaço) daria um "teleporte": ficaria parada os ~500ms da
-   sidebar fugindo e, no fim, saltaria de largura de uma vez. Esse "pop"
-   disfarça o salto com um estica-e-assenta (só transform, sem animar
-   width de verdade) — mesmo espírito cartoon do resto, sem o custo de
-   layout que o nível Ultra existe justamente pra evitar. */
-@keyframes pdvLeftGrowCartoon{
-  0%{transform:scaleX(.965);}
-  50%{transform:scaleX(1.012);}
-  100%{transform:scaleX(1);}
+   sidebar fugindo e, no fim, saltaria de largura de uma vez.
+   Esse MESMO problema também acontece (em QUALQUER nível de otimização,
+   não só Ultra) quando o painel de Pagamento (#pdvRight) aparece: ele vai
+   de display:none direto pros 600px finais no mesmo instante — o #pdvLeft
+   nunca tem uma largura "no meio do caminho" pra passar por, então ele
+   também teleporta. Por isso o #pdvLeft sempre tem uma transição real de
+   largura (curva suave, sem "mola"/overshoot — largura distorce o conteúdo
+   de dentro, tipo texto/imagem esticando, então aqui é só suave mesmo,
+   sem exagero cartoon): ele realmente cresce/encolhe aos poucos, tanto
+   quando a sidebar some quanto quando o painel de Pagamento aparece. */
+#pdvLeft{
+  transition:width var(--pdv-anim-sidebar-ms, 500ms) cubic-bezier(.3,.9,.25,1);
 }
-@keyframes pdvLeftShrinkCartoon{
-  0%{transform:scaleX(1.03);}
-  50%{transform:scaleX(.99);}
-  100%{transform:scaleX(1);}
-}
-#pdvLeft.pdvLeftGrowCartoon{animation:pdvLeftGrowCartoon .42s cubic-bezier(.34,1.56,.64,1) both;transform-origin:left center;}
-#pdvLeft.pdvLeftShrinkCartoon{animation:pdvLeftShrinkCartoon .42s cubic-bezier(.34,1.56,.64,1) both;transform-origin:left center;}
-html.anim-off-sidebarToggle #pdvLeft.pdvLeftGrowCartoon,
-html.anim-off-sidebarToggle #pdvLeft.pdvLeftShrinkCartoon{animation:none !important;}
+html.anim-off-sidebarToggle #pdvLeft,
+html.anim-off-pdv #pdvLeft{transition:none !important;}
 #sidebar .brand{
   padding:20px 16px 14px;border-bottom:1px solid var(--line);
 }
@@ -2103,8 +2105,8 @@ html.is-mobile .btn::before{ display:none; }
     80%{transform:translateY(-2px) scaleY(.96);opacity:1;}
     100%{transform:translateY(0) scaleY(1);opacity:1;}
   }
-  #sidebar.sidebarClosing{animation:sidebarCloseCartoonMobile .5s cubic-bezier(.34,1.56,.64,1) both;will-change:height,transform,opacity;contain:layout style;overflow:hidden;width:100%;}
-  #sidebar.sidebarOpening{animation:sidebarOpenCartoonMobile .55s cubic-bezier(.34,1.56,.64,1) both;will-change:height,transform,opacity;contain:layout style;overflow:hidden;width:100%;}
+  #sidebar.sidebarClosing{animation:sidebarCloseCartoonMobile var(--pdv-anim-sidebar-ms, 500ms) cubic-bezier(.34,1.56,.64,1) both;will-change:height,transform,opacity;contain:layout style;overflow:hidden;width:100%;}
+  #sidebar.sidebarOpening{animation:sidebarOpenCartoonMobile calc(var(--pdv-anim-sidebar-ms, 500ms) * 1.1) cubic-bezier(.34,1.56,.64,1) both;will-change:height,transform,opacity;contain:layout style;overflow:hidden;width:100%;}
   #sidebar.sidebarCollapsed{width:100%;height:0 !important;min-height:0;border-bottom:none;opacity:0;pointer-events:none;overflow:hidden;}
   html.anim-off-sidebarToggle #sidebar.sidebarClosing,
   html.anim-off-sidebarToggle #sidebar.sidebarOpening{animation:none !important;}
@@ -5511,8 +5513,7 @@ function renderSearch(){
   box.innerHTML = results.map(p=>`
     <div class="searchItem" onclick="addToCart('${p.id}')">
       <div>
-        <img class="thumb" src="${p.foto||''}" onerror="this.style.display='none'">
-        <b>${p.nome}</b> <span class="dimSmall">${p.tamanho||''} ${p.cor||''} — Cód: ${p.barcode}</span>
+        <img class="thumb" src="${p.foto||''}" loading="lazy" decoding="async" onerror="this.style.display='none'"> <b>${p.nome}</b> <span class="dimSmall">${p.tamanho||''} ${p.cor||''} — Cód: ${p.barcode}</span>
       </div>
       <div>${fmtMoney(p.venda)} <span class="dimSmall">(estoque: ${p.estoque})</span></div>
     </div>`).join('') || '<div class="dimSmall">Nenhum produto encontrado.</div>';
@@ -5703,7 +5704,7 @@ function renderProductGrid(){
     if(recemCadastrado) statusClass += ' recemAdicionado';
     return `
     <div class="prodTile ${statusClass}" onclick="addToCart('${p.id}')" title="${p.nome}">
-      <img src="${p.foto||''}" onerror="this.style.display='none'">
+      <img src="${p.foto||''}" loading="lazy" decoding="async" onerror="this.style.display='none'">
       <div class="pName">${p.nome}</div>
       <div class="dimSmall">Cód: ${p.barcode}</div>
       <div class="pPrice">${fmtMoney(p.venda)}</div>
@@ -5886,10 +5887,11 @@ function renderCart(){
   const pdvCartSection = document.getElementById('pdvCartSection');
   const sidebar = document.getElementById('sidebar');
   const pdvLeft = document.getElementById('pdvLeft');
-  const nivelUltra = lerNivelOtimizacaoAnim()==='ultra';
   if(pdvRight){
     const estavaVisivel = pdvRight.style.display === 'flex';
     const deveFicarVisivel = cart.length>0;
+    const tempoSidebarMs = lerTempoSidebarMs();
+    const tempoPainelDelayMs = lerTempoPainelDelayMs();
     if(deveFicarVisivel && !estavaVisivel){
       const sidebarVaiFechar = sidebar && !sidebar.classList.contains('sidebarCollapsed')
         && !document.documentElement.classList.contains('anim-off-sidebarToggle');
@@ -5900,24 +5902,15 @@ function renderCart(){
         setTimeout(()=>{
           sidebar.classList.remove('sidebarClosing');
           sidebar.classList.add('sidebarCollapsed');
-          // Nível "Ultra": a largura da sidebar só desaparece de vez agora
-          // (0 e não mais 200px) — é o instante em que o carrinho ganharia
-          // espaço "do nada". Disfarça com um esticão cartoon em vez de
-          // deixar teleportar pra largura nova.
-          if(nivelUltra && pdvLeft){
-            pdvLeft.classList.remove('pdvLeftShrinkCartoon');
-            pdvLeft.classList.remove('pdvLeftGrowCartoon'); void pdvLeft.offsetWidth;
-            pdvLeft.classList.add('pdvLeftGrowCartoon');
-          }
-        }, 500);
+        }, tempoSidebarMs);
       }
       // O carrinho/painel de Pagamento entram com o "pop" cartoon — mesma
       // animação em qualquer nível de otimização (só o custo de repintura
       // muda por baixo, o visual é o mesmo até no "Ultra otimizado"). Se a
-      // barra lateral estiver fugindo pro lado nesse instante, espera 350ms
-      // (ela já vai estar bem no meio da fuga) antes de entrar, pra virar
-      // uma sequência — sidebar sai, DEPOIS o carrinho/pagamento entram —
-      // em vez de tudo acontecer ao mesmo tempo.
+      // barra lateral estiver fugindo pro lado nesse instante, espera o
+      // "atraso do painel" configurado (Config → Animações → Tempos das
+      // animações) antes de entrar, pra virar uma sequência — sidebar sai,
+      // DEPOIS o carrinho/pagamento entram — em vez de tudo ao mesmo tempo.
       const abrirPainelPagamento = ()=>{
         pdvRight.style.display = 'flex';
         pdvRight.classList.remove('pdvRightPopOut');
@@ -5928,7 +5921,7 @@ function renderCart(){
           pdvCartSection.classList.add('pdvCartPop');
         }
       };
-      if(sidebarVaiFechar) setTimeout(abrirPainelPagamento, 350);
+      if(sidebarVaiFechar) setTimeout(abrirPainelPagamento, tempoPainelDelayMs);
       else abrirPainelPagamento();
     } else if(!deveFicarVisivel && estavaVisivel){
       pdvRight.classList.remove('pdvRightPopIn');
@@ -5941,15 +5934,7 @@ function renderCart(){
         sidebar.classList.remove('sidebarClosing');
         sidebar.classList.remove('sidebarOpening'); void sidebar.offsetWidth;
         sidebar.classList.add('sidebarOpening');
-        // Nível "Ultra": a sidebar já nasce com 200px de largura junto com
-        // essa classe (mesma economia de layout do fechamento) — o carrinho
-        // encolhe "do nada" bem nesse instante, então o esticão entra aqui.
-        if(nivelUltra && pdvLeft){
-          pdvLeft.classList.remove('pdvLeftGrowCartoon');
-          pdvLeft.classList.remove('pdvLeftShrinkCartoon'); void pdvLeft.offsetWidth;
-          pdvLeft.classList.add('pdvLeftShrinkCartoon');
-        }
-        setTimeout(()=>{ sidebar.classList.remove('sidebarOpening'); }, 550);
+        setTimeout(()=>{ sidebar.classList.remove('sidebarOpening'); }, Math.round(tempoSidebarMs*1.1));
       }
     }
   }
@@ -8126,7 +8111,7 @@ function renderEstoqueLista(manerScroll){
       const dataEntradaMostrar = ultimaEntrada ? ultimaEntrada.date : p.dataCadastro;
       const recemAdicionado = p.dataCadastro && (Date.now() - new Date(p.dataCadastro).getTime()) < ESTOQUE_AURA_RECENTE_MS;
       return `<tr class="${recemAdicionado?'recemAdicionadoRow':''}">
-        <td><img class="thumb" src="${p.foto||''}" onerror="this.style.display='none'"></td>
+        <td><img class="thumb" src="${p.foto||''}" loading="lazy" decoding="async" onerror="this.style.display='none'"></td>
         <td title="Cadastrado em ${p.dataCadastro?fmtDateTime(p.dataCadastro):'-'} por ${p.cadastradoPor||'-'}">${p.nome}${recemAdicionado?'<div class="recemAdicionadoTag">🟠 Item adicionado recentemente</div>':''}</td><td>${p.categoria||''}</td><td>${p.tamanho||''} ${p.cor||''}</td>
         <td class="dimSmall">${p.barcode}</td>
         <td ${hideFinance?'style="display:none"':''}>${fmtMoney(p.custo)}</td>
@@ -11241,6 +11226,8 @@ function ensureAnimConfig(){
     });
     // Nível de otimização de fábrica: Ultra otimizado (extremo).
     cfg.otimizacao = (legado && ['nenhuma','leve','maxima','ultra'].includes(legado.otimizacao)) ? legado.otimizacao : 'ultra';
+    cfg.tempoSidebarMs = 500;
+    cfg.tempoPainelDelayMs = 350;
     salvarAnimConfigLocal_(cfg);
   } else {
     // Categorias novas (adicionadas em versões mais recentes) que ainda não
@@ -11250,6 +11237,8 @@ function ensureAnimConfig(){
     ANIM_CATEGORIAS.forEach(it=>{
       if(!(it.key in cfg)){ cfg[it.key] = true; faltouAlguma = true; }
     });
+    if(typeof cfg.tempoSidebarMs !== 'number'){ cfg.tempoSidebarMs = 500; faltouAlguma = true; }
+    if(typeof cfg.tempoPainelDelayMs !== 'number'){ cfg.tempoPainelDelayMs = 350; faltouAlguma = true; }
     if(faltouAlguma) salvarAnimConfigLocal_(cfg);
   }
   // limpeza: some com o campo antigo do objeto sincronizado (se ainda
@@ -11267,6 +11256,7 @@ function aplicarAnimacoesGlobais(){
     document.documentElement.classList.toggle('anim-off-'+it.key, !cfg[it.key]);
   });
   aplicarNivelOtimizacaoAnim();
+  aplicarTemposAnimPdv();
 }
 /* ---------- Nível de otimização das animações (separado dos liga/desliga acima) ----------
    Isso não decide SE uma animação roda, e sim O QUANTO de trabalho pesado
@@ -11293,6 +11283,38 @@ function aplicarNivelOtimizacaoAnim(){
   document.documentElement.classList.toggle('anim-opt-none', nivel==='nenhuma');
   document.documentElement.classList.toggle('anim-opt-max', nivel==='maxima' || nivel==='ultra');
   document.documentElement.classList.toggle('anim-opt-ultra', nivel==='ultra');
+}
+/* ---------- Tempos das animações da sidebar/carrinho (customizáveis) ----------
+   Dois números, em milissegundos, 100% locais a este aparelho:
+   - tempoSidebarMs: quanto tempo a barra lateral leva pra fugir/voltar
+     (a abertura usa esse valor x1.1, pra sobrar aquele respiro do acomodo
+     final). Essa mesma variável também é o que a var CSS --pdv-anim-sidebar-ms
+     usa — então mudar aqui já muda a duração real da animação.
+   - tempoPainelDelayMs: quanto tempo esperar depois que a sidebar começa a
+     fechar antes do carrinho/painel de Pagamento entrarem (a sequência
+     "sidebar sai, DEPOIS carrinho entra" que foi pedida). */
+function lerTempoSidebarMs(){
+  const cfg = ensureAnimConfig();
+  const v = Number(cfg.tempoSidebarMs);
+  return (isFinite(v) && v>=100 && v<=2000) ? v : 500;
+}
+function lerTempoPainelDelayMs(){
+  const cfg = ensureAnimConfig();
+  const v = Number(cfg.tempoPainelDelayMs);
+  return (isFinite(v) && v>=0 && v<=2000) ? v : 350;
+}
+function aplicarTemposAnimPdv(){
+  document.documentElement.style.setProperty('--pdv-anim-sidebar-ms', lerTempoSidebarMs()+'ms');
+}
+function setTempoAnimPdv(campo, valorMs){
+  const cfg = ensureAnimConfig();
+  const v = Math.max(campo==='tempoSidebarMs'?100:0, Math.min(2000, Math.round(Number(valorMs))||0));
+  cfg[campo] = v;
+  salvarAnimConfigLocal_(cfg);
+  aplicarTemposAnimPdv();
+  renderAnimTogglesUI();
+  toast('Tempo de animação atualizado: '+v+'ms (só neste aparelho)', 'ok');
+  log('Tempo de animação "'+campo+'" definido como '+v+'ms — ajuste local, não sincroniza com outros aparelhos');
 }
 function setNivelOtimizacaoAnim(nivel){
   const cfg = ensureAnimConfig();
@@ -11352,6 +11374,20 @@ function renderAnimTogglesUI(){
     html += `<button type="button" class="btn small ${ativo?'':'secondary'}" onclick="setNivelOtimizacaoAnim('${niv.key}')">${ativo?'⚡ ':''}${niv.label}</button>`;
   });
   html += `</div>`;
+  html += `<div class="dimSmall" style="margin:14px 0 6px;font-weight:700;color:var(--text);">⏱️ Tempos das animações (carrinho/sidebar)</div>`;
+  html += `<div class="dimSmall" style="margin-bottom:8px;">Quanto tempo a barra lateral leva pra fugir/voltar, e quanto tempo depois disso o carrinho/pagamento esperam pra entrar. Valores em milissegundos (1000ms = 1s).</div>`;
+  html += `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+    <div class="field" style="margin:0;min-width:180px;">
+      <label>Duração da sidebar (100–2000ms)</label>
+      <input type="number" id="cfg_tempoSidebarMs" min="100" max="2000" step="10" value="${cfg.tempoSidebarMs}"
+        onchange="setTempoAnimPdv('tempoSidebarMs', this.value)">
+    </div>
+    <div class="field" style="margin:0;min-width:180px;">
+      <label>Atraso do carrinho entrar (0–2000ms)</label>
+      <input type="number" id="cfg_tempoPainelDelayMs" min="0" max="2000" step="10" value="${cfg.tempoPainelDelayMs}"
+        onchange="setTempoAnimPdv('tempoPainelDelayMs', this.value)">
+    </div>
+  </div>`;
   html += `<div class="dimSmall" style="margin:14px 0 6px;font-weight:700;color:var(--text);">🎬 Animações do sistema</div>`;
   html += `<div style="display:flex;flex-direction:column;gap:6px;">`;
   ANIM_CATEGORIAS.forEach(it=>{
