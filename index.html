@@ -695,6 +695,28 @@ html.anim-opt-ultra #sidebar.sidebarClosing{
 html.anim-opt-ultra #sidebar.sidebarOpening{
   animation-name:sidebarOpenCartoonUltra !important;width:200px !important;
 }
+/* No nível "Ultra", a largura da sidebar só muda de vez (200px -> 0 ou
+   0 -> 200px) no instante em que a classe sidebarCollapsed é trocada — sem
+   isso, a coluna do carrinho (#pdvLeft, que é flex:1 e cresce sozinha pra
+   preencher o espaço) daria um "teleporte": ficaria parada os ~500ms da
+   sidebar fugindo e, no fim, saltaria de largura de uma vez. Esse "pop"
+   disfarça o salto com um estica-e-assenta (só transform, sem animar
+   width de verdade) — mesmo espírito cartoon do resto, sem o custo de
+   layout que o nível Ultra existe justamente pra evitar. */
+@keyframes pdvLeftGrowCartoon{
+  0%{transform:scaleX(.965);}
+  50%{transform:scaleX(1.012);}
+  100%{transform:scaleX(1);}
+}
+@keyframes pdvLeftShrinkCartoon{
+  0%{transform:scaleX(1.03);}
+  50%{transform:scaleX(.99);}
+  100%{transform:scaleX(1);}
+}
+#pdvLeft.pdvLeftGrowCartoon{animation:pdvLeftGrowCartoon .42s cubic-bezier(.34,1.56,.64,1) both;transform-origin:left center;}
+#pdvLeft.pdvLeftShrinkCartoon{animation:pdvLeftShrinkCartoon .42s cubic-bezier(.34,1.56,.64,1) both;transform-origin:left center;}
+html.anim-off-sidebarToggle #pdvLeft.pdvLeftGrowCartoon,
+html.anim-off-sidebarToggle #pdvLeft.pdvLeftShrinkCartoon{animation:none !important;}
 #sidebar .brand{
   padding:20px 16px 14px;border-bottom:1px solid var(--line);
 }
@@ -5863,6 +5885,8 @@ function renderCart(){
   const pdvRight = document.getElementById('pdvRight');
   const pdvCartSection = document.getElementById('pdvCartSection');
   const sidebar = document.getElementById('sidebar');
+  const pdvLeft = document.getElementById('pdvLeft');
+  const nivelUltra = lerNivelOtimizacaoAnim()==='ultra';
   if(pdvRight){
     const estavaVisivel = pdvRight.style.display === 'flex';
     const deveFicarVisivel = cart.length>0;
@@ -5873,7 +5897,19 @@ function renderCart(){
         sidebar.classList.remove('sidebarOpening');
         sidebar.classList.remove('sidebarClosing'); void sidebar.offsetWidth;
         sidebar.classList.add('sidebarClosing');
-        setTimeout(()=>{ sidebar.classList.remove('sidebarClosing'); sidebar.classList.add('sidebarCollapsed'); }, 500);
+        setTimeout(()=>{
+          sidebar.classList.remove('sidebarClosing');
+          sidebar.classList.add('sidebarCollapsed');
+          // Nível "Ultra": a largura da sidebar só desaparece de vez agora
+          // (0 e não mais 200px) — é o instante em que o carrinho ganharia
+          // espaço "do nada". Disfarça com um esticão cartoon em vez de
+          // deixar teleportar pra largura nova.
+          if(nivelUltra && pdvLeft){
+            pdvLeft.classList.remove('pdvLeftShrinkCartoon');
+            pdvLeft.classList.remove('pdvLeftGrowCartoon'); void pdvLeft.offsetWidth;
+            pdvLeft.classList.add('pdvLeftGrowCartoon');
+          }
+        }, 500);
       }
       // O carrinho/painel de Pagamento entram com o "pop" cartoon — mesma
       // animação em qualquer nível de otimização (só o custo de repintura
@@ -5905,11 +5941,18 @@ function renderCart(){
         sidebar.classList.remove('sidebarClosing');
         sidebar.classList.remove('sidebarOpening'); void sidebar.offsetWidth;
         sidebar.classList.add('sidebarOpening');
+        // Nível "Ultra": a sidebar já nasce com 200px de largura junto com
+        // essa classe (mesma economia de layout do fechamento) — o carrinho
+        // encolhe "do nada" bem nesse instante, então o esticão entra aqui.
+        if(nivelUltra && pdvLeft){
+          pdvLeft.classList.remove('pdvLeftGrowCartoon');
+          pdvLeft.classList.remove('pdvLeftShrinkCartoon'); void pdvLeft.offsetWidth;
+          pdvLeft.classList.add('pdvLeftShrinkCartoon');
+        }
         setTimeout(()=>{ sidebar.classList.remove('sidebarOpening'); }, 550);
       }
     }
   }
-  const pdvLeft = document.getElementById('pdvLeft');
   if(pdvLeft) pdvLeft.classList.toggle('paymentActive', cart.length>0);
   if(cart.length===0){
     el.innerHTML = '<div class="dimSmall">Carrinho vazio. Clique em um produto ou escaneie a etiqueta para começar.</div>';
