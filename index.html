@@ -6341,7 +6341,8 @@ function montarBurstPixQr(){
   b.classList.add('pop');
 }
 function celebrarPixQr(){ montarBurstPixQr(); }
-function openPixQrModal(valor, onConcluir){
+function openPixQrModal(valor, onConcluir, opts){
+  opts = opts || {};
   showModal(`
     <button class="modalClose" onclick="closeModal()">×</button>
     <h3 style="text-align:center;">Pagamento via Pix</h3>
@@ -6372,6 +6373,7 @@ function openPixQrModal(valor, onConcluir){
     <div class="pixQrChaveInfo">Peça para o cliente escanear o QR Code acima com o app do banco.<br>O valor de ${fmtMoney(valor)} já vem preenchido automaticamente.</div>
     <button type="button" class="pixQrCopiaBtn" id="pixQrCopiaBtn" onclick="copiarPixCodigo()">📋 Copiar código Pix</button>
     <button class="btn" id="pixQrConcluirBtn" style="width:100%;margin-top:16px;">✓ Concluir</button>
+    ${opts.onCancelar ? `<button type="button" class="btn secondary" id="pixQrCancelarBtn" style="width:100%;margin-top:8px;">✕ Cancelar</button>` : ''}
   `, {wide:false, extraClass:'pixQrModalBox'});
   document.getElementById('modalBg').classList.add('modalBgScrollable');
   const payload = gerarPixPayload(valor, 'VENDA'+Date.now().toString().slice(-8));
@@ -6390,10 +6392,13 @@ function openPixQrModal(valor, onConcluir){
   setTimeout(celebrarPixQr, 1700);
 
   const concluir = ()=>{ closeModal(); onConcluir(); };
+  const cancelar = ()=>{ closeModal(); if(opts.onCancelar) opts.onCancelar(); };
   document.getElementById('pixQrConcluirBtn').onclick = concluir;
+  const cancelarBtn = document.getElementById('pixQrCancelarBtn');
+  if(cancelarBtn) cancelarBtn.onclick = cancelar;
   _confirmModalKeyHandler = function(e){
     if(e.key==='Enter'){ e.preventDefault(); concluir(); }
-    else if(e.key==='Escape'){ e.preventDefault(); closeModal(); }
+    else if(e.key==='Escape'){ e.preventDefault(); cancelar(); }
   };
   document.addEventListener('keydown', _confirmModalKeyHandler);
 }
@@ -6838,33 +6843,19 @@ function abrirPixAvulso(){
     <div class="dimSmall" style="text-align:center;margin-bottom:10px;">Cobrança pontual em Pix, sem precisar colocar produto no carrinho.</div>
     <div class="field">
       <label>Valor a cobrar (R$)</label>
-      <input id="pixAvulsoValor" type="text" inputmode="decimal" placeholder="0,00" oninput="maskMoneyInput(this);scheduleAutoPixAvulsoQr();" onkeydown="if(event.key==='Enter'){event.preventDefault();event.stopPropagation();confirmarPixAvulso();}">
+      <input id="pixAvulsoValor" type="text" inputmode="decimal" placeholder="0,00" oninput="maskMoneyInput(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();event.stopPropagation();confirmarPixAvulso();}">
     </div>
     <button type="button" class="btn" style="width:100%;margin-top:10px;" onclick="confirmarPixAvulso()">Gerar QR Code Pix (Enter)</button>
   `, {extraClass:'calcPixModalBox'});
   setTimeout(()=>{ const i=document.getElementById('pixAvulsoValor'); if(i){ i.focus(); } }, 50);
 }
-let _pixAvulsoAutoTimer = null;
-/* Segurança extra: se o Enter não disparar (alguns teclados numéricos de
-   celular não mandam o evento certinho), o QR abre sozinho um pouco depois
-   que a pessoa parar de digitar — igual acontece no Pix da tela de venda. */
-function scheduleAutoPixAvulsoQr(){
-  clearTimeout(_pixAvulsoAutoTimer);
-  const val = moneyVal('pixAvulsoValor');
-  if(val<=0.001) return;
-  const delay = getPixQrAutoDelayMs();
-  if(delay<=0) return; // abertura automática desativada nas configurações
-  _pixAvulsoAutoTimer = setTimeout(()=>{
-    const i = document.getElementById('pixAvulsoValor');
-    if(i && isModalOpen()) confirmarPixAvulso();
-  }, delay);
-}
 function confirmarPixAvulso(){
-  clearTimeout(_pixAvulsoAutoTimer);
   const valor = moneyVal('pixAvulsoValor');
   if(valor<=0){ alert('Informe um valor válido.'); return; }
   closeModal();
-  openPixQrModal(valor, ()=>registrarPixAvulso(valor));
+  openPixQrModal(valor, ()=>registrarPixAvulso(valor), {
+    onCancelar: ()=>toast('Pix avulso cancelado — nada foi cobrado.', 'ok')
+  });
 }
 function registrarPixAvulso(valor){
   if(!DB.cashCurrentOpenId){
@@ -11764,7 +11755,6 @@ function showModal(html, opts){
 }
 let _ultimaModalExtraClass = null;
 function closeModal(){
-  clearTimeout(_pixAvulsoAutoTimer);
   document.getElementById('modalBg').classList.remove('active');
   document.getElementById('modalBg').classList.remove('modalBgScrollable');
   const box = document.getElementById('modalBox');
