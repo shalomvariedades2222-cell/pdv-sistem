@@ -3055,8 +3055,15 @@ html.is-mobile .btn::before{ display:none; }
               </div>
             </div>
             <div class="field" style="margin-top:8px;">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                <input type="checkbox" id="cfg_pixQrAutoDisable" data-perm="admin" onchange="saveSettingsLive();toggleCfgPixQrDelayField();" style="width:auto;">
+                Desativar abertura automática do QR
+              </label>
+              <div class="dimSmall" style="margin-bottom:6px;">Quando marcado, o QR do Pix nunca abre sozinho — só abre apertando Enter no campo do valor ou clicando no botão "Gerar QR Code".</div>
+            </div>
+            <div class="field" style="margin-top:8px;" id="cfg_pixQrDelayField">
               <label>Tempo até o QR abrir sozinho (segundos)</label>
-              <div class="dimSmall" style="margin-bottom:6px;">Depois que a pessoa digita o valor do Pix (na tela de Vendas ou no Pix Avulso) e para de digitar, é esse o tempo que o sistema espera antes de abrir o QR Code sozinho. Use 0 para desativar a abertura automática (aí só abre apertando Enter ou clicando no botão).</div>
+              <div class="dimSmall" style="margin-bottom:6px;">Depois que a pessoa digita o valor do Pix (na tela de Vendas ou no Pix Avulso) e para de digitar, é esse o tempo que o sistema espera antes de abrir o QR Code sozinho.</div>
               <input id="cfg_pixQrDelay" type="number" step="0.1" min="0" max="15" data-perm="admin" oninput="saveSettingsLive()">
             </div>
           </div>
@@ -4806,6 +4813,7 @@ function ensureCatalogDefaults(){
   if(typeof DB.settings.pixNome==='undefined') DB.settings.pixNome = '';
   if(typeof DB.settings.pixCidade==='undefined') DB.settings.pixCidade = '';
   if(typeof DB.settings.pixQrAutoDelay==='undefined') DB.settings.pixQrAutoDelay = 1800;
+  if(typeof DB.settings.pixQrAutoDisabled==='undefined') DB.settings.pixQrAutoDisabled = false;
   DB.sales.forEach(s=>{ if(typeof s.cancelled==='undefined') s.cancelled=false; });
   ensureEmployeeDefaults();
   if(typeof DB.settings.metaCrescimentoPct==='undefined') DB.settings.metaCrescimentoPct = 0;
@@ -5994,6 +6002,7 @@ function onPixValorInput(el){
    sozinho — configurável em Configurações. 0 = desativado (só abre no Enter
    ou no botão). Se nunca foi configurado, usa 1800ms de padrão. */
 function getPixQrAutoDelayMs(){
+  if(DB.settings && DB.settings.pixQrAutoDisabled) return 0;
   const v = DB.settings && DB.settings.pixQrAutoDelay;
   return (typeof v==='number' && v>=0) ? v : 1800;
 }
@@ -11008,7 +11017,9 @@ function renderConfig(){
   document.getElementById('cfg_pixChave').value = DB.settings.pixChave || '';
   document.getElementById('cfg_pixNome').value = DB.settings.pixNome || '';
   document.getElementById('cfg_pixCidade').value = DB.settings.pixCidade || '';
-  document.getElementById('cfg_pixQrDelay').value = getPixQrAutoDelayMs()/1000;
+  document.getElementById('cfg_pixQrAutoDisable').checked = !!DB.settings.pixQrAutoDisabled;
+  document.getElementById('cfg_pixQrDelay').value = (typeof DB.settings.pixQrAutoDelay==='number' ? DB.settings.pixQrAutoDelay : 1800)/1000;
+  toggleCfgPixQrDelayField();
   document.getElementById('cfg_impressora').value = DB.settings.impressora;
   document.getElementById('cfg_papel').value = DB.settings.papel;
   document.getElementById('cfg_etiquetaQr').value = DB.settings.etiquetaQr || '';
@@ -11307,6 +11318,7 @@ function saveSettingsLive(){
   DB.settings.pixChave = document.getElementById('cfg_pixChave').value.trim();
   DB.settings.pixNome = document.getElementById('cfg_pixNome').value.trim();
   DB.settings.pixCidade = document.getElementById('cfg_pixCidade').value.trim();
+  DB.settings.pixQrAutoDisabled = document.getElementById('cfg_pixQrAutoDisable').checked;
   const delaySeg = parseFloat(document.getElementById('cfg_pixQrDelay').value.replace(',','.'));
   DB.settings.pixQrAutoDelay = (isFinite(delaySeg) && delaySeg>=0) ? Math.round(delaySeg*1000) : 1800;
   DB.settings.impressora = document.getElementById('cfg_impressora').value;
@@ -11325,6 +11337,11 @@ function saveSettingsLive(){
   }
   document.getElementById('storeNameLabel').textContent = DB.settings.nomeLoja || 'Shalom Variedades';
   flashSaving();
+}
+function toggleCfgPixQrDelayField(){
+  const field = document.getElementById('cfg_pixQrDelayField');
+  const disabled = document.getElementById('cfg_pixQrAutoDisable').checked;
+  if(field) field.style.display = disabled ? 'none' : '';
 }
 function useLogoFabrica(){
   DB.settings.logo = '';
