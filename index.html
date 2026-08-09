@@ -5867,20 +5867,33 @@ function renderCart(){
     const estavaVisivel = pdvRight.style.display === 'flex';
     const deveFicarVisivel = cart.length>0;
     if(deveFicarVisivel && !estavaVisivel){
-      pdvRight.style.display = 'flex';
-      pdvRight.classList.remove('pdvRightPopOut');
-      pdvRight.classList.remove('pdvRightPopIn'); void pdvRight.offsetWidth;
-      pdvRight.classList.add('pdvRightPopIn');
-      if(pdvCartSection){
-        pdvCartSection.classList.remove('pdvCartPop'); void pdvCartSection.offsetWidth;
-        pdvCartSection.classList.add('pdvCartPop');
-      }
+      const sidebarVaiFechar = sidebar && !sidebar.classList.contains('sidebarCollapsed')
+        && !document.documentElement.classList.contains('anim-off-sidebarToggle');
       if(sidebar && !sidebar.classList.contains('sidebarCollapsed')){
         sidebar.classList.remove('sidebarOpening');
         sidebar.classList.remove('sidebarClosing'); void sidebar.offsetWidth;
         sidebar.classList.add('sidebarClosing');
         setTimeout(()=>{ sidebar.classList.remove('sidebarClosing'); sidebar.classList.add('sidebarCollapsed'); }, 500);
       }
+      // O carrinho/painel de Pagamento entram com o "pop" cartoon — mesma
+      // animação em qualquer nível de otimização (só o custo de repintura
+      // muda por baixo, o visual é o mesmo até no "Ultra otimizado"). Se a
+      // barra lateral estiver fugindo pro lado nesse instante, espera 350ms
+      // (ela já vai estar bem no meio da fuga) antes de entrar, pra virar
+      // uma sequência — sidebar sai, DEPOIS o carrinho/pagamento entram —
+      // em vez de tudo acontecer ao mesmo tempo.
+      const abrirPainelPagamento = ()=>{
+        pdvRight.style.display = 'flex';
+        pdvRight.classList.remove('pdvRightPopOut');
+        pdvRight.classList.remove('pdvRightPopIn'); void pdvRight.offsetWidth;
+        pdvRight.classList.add('pdvRightPopIn');
+        if(pdvCartSection){
+          pdvCartSection.classList.remove('pdvCartPop'); void pdvCartSection.offsetWidth;
+          pdvCartSection.classList.add('pdvCartPop');
+        }
+      };
+      if(sidebarVaiFechar) setTimeout(abrirPainelPagamento, 350);
+      else abrirPainelPagamento();
     } else if(!deveFicarVisivel && estavaVisivel){
       pdvRight.classList.remove('pdvRightPopIn');
       pdvRight.classList.add('pdvRightPopOut');
