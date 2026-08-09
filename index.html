@@ -2514,13 +2514,13 @@ html.is-mobile .btn::before{ display:none; }
               <button type="button" class="btn pdvQuickBtn" id="btnPixAvulso" onclick="abrirPixAvulso()" title="Cobrar Pix avulso">
                 <span class="pdvQuickIcon">💠</span><span class="pdvQuickLabel">Pix Avulso</span>
               </button>
-              <button type="button" class="btn pdvQuickBtn" onclick="focarScannerVendas()" title="Focar campo de escanear código">
+              <button type="button" class="btn pdvQuickBtn" id="btnEscanearVendas" onclick="focarScannerVendas()" title="Focar campo de escanear código">
                 <span class="pdvQuickIcon">📷</span><span class="pdvQuickLabel">Escanear</span>
               </button>
-              <button type="button" class="btn pdvQuickBtn" data-perm="estoque" onclick="openQuickProductModal()" title="Cadastrar peça de roupa rapidamente">
+              <button type="button" class="btn pdvQuickBtn" id="btnCadastrarPeca" data-perm="estoque" onclick="openQuickProductModal()" title="Cadastrar peça de roupa rapidamente">
                 <span class="pdvQuickIcon">🧺</span><span class="pdvQuickLabel">Cadastrar Peça</span>
               </button>
-              <button type="button" class="btn pdvQuickBtn" onclick="abrirValorAdicional()" title="Somar um valor extra na venda">
+              <button type="button" class="btn pdvQuickBtn" id="btnValorAdicional" onclick="abrirValorAdicional()" title="Somar um valor extra na venda">
                 <span class="pdvQuickIcon">➕</span><span class="pdvQuickLabel">Valor Adicional</span>
               </button>
             </div>
@@ -3213,6 +3213,11 @@ html.is-mobile .btn::before{ display:none; }
             </div>
           </div>
           <div id="animTogglesWrap" style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px;"></div>
+        </div>
+        <div class="panel" style="max-width:520px;">
+          <h3>⚡ Botões Rápidos da tela de Vendas</h3>
+          <p class="dimSmall" style="margin-top:-6px;">Escolha quais atalhos aparecem embaixo do carrinho, na tela de Vendas. Desativar um botão aqui só esconde o atalho — não apaga nenhuma função do sistema. Vale pra loja inteira (todos os aparelhos).</p>
+          <div id="pdvQuickBtnsCfgWrap" style="display:flex;flex-direction:column;gap:6px;margin-top:6px;"></div>
         </div>
         <div class="panel" style="max-width:520px;">
           <h3>🔔 Notificações e Acesso de Dispositivo</h3>
@@ -4926,6 +4931,10 @@ function ensureCatalogDefaults(){
   if(typeof DB.settings.pixCidade==='undefined') DB.settings.pixCidade = '';
   if(typeof DB.settings.pixQrAutoDelay==='undefined') DB.settings.pixQrAutoDelay = 1800;
   if(typeof DB.settings.pixQrAutoDisabled==='undefined') DB.settings.pixQrAutoDisabled = false;
+  if(!DB.settings.pdvBotoesRapidos || typeof DB.settings.pdvBotoesRapidos!=='object') DB.settings.pdvBotoesRapidos = {};
+  PDV_QUICK_BTNS.forEach(function(it){
+    if(typeof DB.settings.pdvBotoesRapidos[it.key]==='undefined') DB.settings.pdvBotoesRapidos[it.key] = true;
+  });
   DB.sales.forEach(s=>{ if(typeof s.cancelled==='undefined') s.cancelled=false; });
   ensureEmployeeDefaults();
   if(typeof DB.settings.metaCrescimentoPct==='undefined') DB.settings.metaCrescimentoPct = 0;
@@ -11157,6 +11166,7 @@ function renderConfig(){
   updateLogoOptionUI();
   renderVisualConfigUI();
   renderAnimTogglesUI();
+  renderPdvBotoesRapidosCfgUI();
   renderConfigLog();
   renderTelaCheiaBtn();
   renderAutoLoginBtn();
@@ -11230,6 +11240,50 @@ function mudarFundoCor(v){
   salvarVisualConfigLocal_(cfg);
   aplicarVisualConfig();
   toast('Cor de fundo atualizada (só neste aparelho)', 'ok');
+}
+
+/* ================= Botões rápidos da tela de Vendas (liga/desliga) =================
+   Ao contrário das animações (que são 100% locais a cada aparelho), isso fica
+   dentro de DB.settings.pdvBotoesRapidos — ou seja, é enviado/baixado do
+   servidor (Apps Script) e vale pra loja inteira, em todos os aparelhos. Faz
+   sentido assim porque não é uma preferência visual, e sim uma escolha de
+   quais atalhos a equipe pode usar na tela de Vendas. */
+const PDV_QUICK_BTNS = [
+  { key:'calc',           label:'🧮 Calculadora (venda avulsa)', elId:'btnCalcAvulsa' },
+  { key:'pix',             label:'💠 Pix Avulso', elId:'btnPixAvulso' },
+  { key:'scan',            label:'📷 Escanear', elId:'btnEscanearVendas' },
+  { key:'cadastro',        label:'🧺 Cadastrar Peça', elId:'btnCadastrarPeca' },
+  { key:'valorAdicional',  label:'➕ Valor Adicional', elId:'btnValorAdicional' },
+];
+function aplicarPdvBotoesRapidosConfig(){
+  if(!DB.settings || !DB.settings.pdvBotoesRapidos) return;
+  PDV_QUICK_BTNS.forEach(function(it){
+    const el = document.getElementById(it.elId);
+    if(!el) return;
+    const ligado = DB.settings.pdvBotoesRapidos[it.key] !== false;
+    el.style.display = ligado ? '' : 'none';
+  });
+}
+function renderPdvBotoesRapidosCfgUI(){
+  const wrap = document.getElementById('pdvQuickBtnsCfgWrap');
+  if(!wrap || !DB.settings || !DB.settings.pdvBotoesRapidos) return;
+  let html = '';
+  PDV_QUICK_BTNS.forEach(function(it){
+    const on = DB.settings.pdvBotoesRapidos[it.key] !== false;
+    html += `<button type="button" class="btn small ${on?'':'secondary'}" style="justify-content:space-between;display:flex;width:100%;text-align:left;"
+      onclick="togglePdvBotaoRapido('${it.key}')">
+      <span>${it.label}</span><span>${on?'✅ Ativo':'🚫 Oculto'}</span>
+    </button>`;
+  });
+  wrap.innerHTML = html;
+}
+function togglePdvBotaoRapido(key){
+  if(!DB.settings.pdvBotoesRapidos) DB.settings.pdvBotoesRapidos = {};
+  const atual = DB.settings.pdvBotoesRapidos[key] !== false;
+  DB.settings.pdvBotoesRapidos[key] = !atual;
+  aplicarPdvBotoesRapidosConfig();
+  renderPdvBotoesRapidosCfgUI();
+  flashSaving();
 }
 
 /* ================= Controle individual de animações ================= */
@@ -12210,6 +12264,7 @@ function renderAll(){
   renderLivroVendas();
   renderRendimento();
   renderConfig();
+  aplicarPdvBotoesRapidosConfig();
   document.getElementById('storeNameLabel').textContent = DB.settings.nomeLoja || 'Shalom Variedades';
 }
 function tickClock(){
@@ -12228,6 +12283,7 @@ ensureLedgerIds();
 resolverIdsDuplicados();
 fixDuplicateBarcodes();
 ensureCatalogDefaults();
+aplicarPdvBotoesRapidosConfig();
 aplicarAnimacoesGlobais();
 aplicarVisualConfig();
 renderLoginAvatars();
