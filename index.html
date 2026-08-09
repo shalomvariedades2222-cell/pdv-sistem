@@ -2110,6 +2110,15 @@ html.is-mobile .btn::before{ display:none; }
 
   .formGrid{ grid-template-columns:1fr; }
   .panel[style*="max-width"]{ max-width:100% !important; }
+  /* Configurações — Chave Pix: no desktop "Nome do recebedor" e "Cidade" ficam
+     lado a lado, mas no celular os campos ficavam espremidos e se sobrepondo.
+     Aqui (só no celular) eles empilham um embaixo do outro, cada um ocupando
+     a largura toda. */
+  .cfgPixNomeCidadeRow{ flex-direction:column; gap:0; }
+  .cfgPixNomeCidadeRow .field{ width:100%; }
+  #view-config .field input:not([type="checkbox"]),
+  #view-config .field select{ width:100%; }
+  #view-config .field label{ font-size:12.5px; }
   #saveStatus{
     left:12px; right:12px; bottom:80px; max-width:none; min-width:0;
     flex-wrap:wrap; row-gap:6px;
@@ -3044,7 +3053,7 @@ html.is-mobile .btn::before{ display:none; }
             <label>🔑 Chave Pix (recebimento)</label>
             <div class="dimSmall" style="margin-bottom:6px;">Usada para gerar automaticamente o QR Code de pagamento na tela de Vendas sempre que houver um valor no campo "Pix". Pode ser CPF/CNPJ, e-mail, telefone ou chave aleatória.</div>
             <input id="cfg_pixChave" data-perm="admin" placeholder="Ex: 00000000000 ou email@exemplo.com" oninput="saveSettingsLive()">
-            <div style="display:flex;gap:8px;margin-top:8px;">
+            <div class="cfgPixNomeCidadeRow" style="display:flex;gap:8px;margin-top:8px;">
               <div class="field" style="flex:1;margin:0;">
                 <label>Nome do recebedor (como aparece no Pix)</label>
                 <input id="cfg_pixNome" data-perm="admin" placeholder="Ex: Nome da Loja" maxlength="25" oninput="saveSettingsLive()">
