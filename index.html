@@ -1675,6 +1675,12 @@ img.thumb{width:34px;height:34px;object-fit:cover;border-radius:6px;background:#
 .prodTile{
   background:var(--glass-bg-soft);border:1px solid var(--glass-border);border-radius:9px;
   padding:5px;text-align:center;transition:border-color .15s, background .15s;
+  /* Otimização: com catálogos grandes, o navegador só faz o trabalho de layout/pintura
+     dos tiles que estão perto da área visível (o resto fica "congelado" até rolar até
+     ele). contain-intrinsic-size é só uma estimativa de altura pra não pular o scroll
+     quando o tile ainda não foi medido — não muda nada visualmente. */
+  content-visibility:auto;
+  contain-intrinsic-size:120px 150px;
 }
 .prodTile:hover{border-color:var(--orange);cursor:pointer;background:var(--glass-bg);}
 .prodTile img{width:100%;height:48px;object-fit:cover;border-radius:5px;background:#000;margin-bottom:4px;}
@@ -1766,9 +1772,16 @@ html.is-mobile .recentAddsPanel{width:100%;}
 .navBtn.active{animation:navActiveGlow 1s ease;}
 
 @keyframes modalPopIn{0%{opacity:0;transform:scale(.9) translateY(16px);filter:blur(10px);}100%{opacity:1;transform:scale(1) translateY(0);filter:blur(0);}}
-.modalBg.active .modalBox{animation:modalPopIn .3s cubic-bezier(.2,.8,.3,1);}
+.modalBg.active .modalBox{
+  animation:modalPopIn .3s cubic-bezier(.2,.8,.3,1);
+  /* Otimização: avisa o navegador com antecedência que esse popup vai animar
+     (transform/opacity/filter) e que o conteúdo de dentro dele não precisa
+     recalcular o layout da página por trás — deixa o "pop" de abertura mais
+     leve pro navegador processar, sem mudar a animação em si nem o visual. */
+  will-change:transform,opacity,filter;contain:layout style;
+}
 @keyframes modalBgFadeIn{0%{opacity:0;}100%{opacity:1;}}
-.modalBg.active{animation:modalBgFadeIn .2s ease;}
+.modalBg.active{animation:modalBgFadeIn .2s ease;will-change:opacity;}
 
 /* ---------- Animação "cartoon": cai de cima quicando, tipo desenho animado ----------
    Usada nos popups de Calculadora (venda avulsa) e Pix Avulso — sobrepõe a animação
@@ -2409,7 +2422,7 @@ html.is-mobile .btn::before{ display:none; }
         <div id="pdvWrap">
           <div id="pdvLeft">
             <div id="pdvSearchSection">
-              <input id="searchBox" placeholder="Escaneie o código de barras ou digite o nome... (F2)" autofocus oninput="renderSearch()" onkeydown="pdvSearchKey(event)">
+              <input id="searchBox" placeholder="Escaneie o código de barras ou digite o nome... (F2)" autofocus oninput="debouncedCall('searchBox',renderSearch)" onkeydown="pdvSearchKey(event)">
               <div class="searchBarcodeHint">Dica: escaneie a etiqueta ou digite e pressione Enter para adicionar. Na tela de pagamento, pressione Enter para finalizar a venda.</div>
               <div id="searchResults"></div>
               <div id="contasFiadoWrap">
@@ -2426,7 +2439,7 @@ html.is-mobile .btn::before{ display:none; }
                         <line x1="14.8" y1="14.8" x2="20.5" y2="20.5"/>
                       </svg>
                     </button>
-                    <input type="text" id="contasFiadoSearchInput" class="contasFiadoSearchInput" placeholder="Pesquisar cliente..." oninput="renderContasFiadoBox()" onclick="event.stopPropagation()" onkeydown="if(event.key==='Escape'){toggleContasFiadoSearch(event);}">
+                    <input type="text" id="contasFiadoSearchInput" class="contasFiadoSearchInput" placeholder="Pesquisar cliente..." oninput="debouncedCall('contasFiadoSearch',renderContasFiadoBox)" onclick="event.stopPropagation()" onkeydown="if(event.key==='Escape'){toggleContasFiadoSearch(event);}">
                   </div>
                   <div id="contasFiadoList"></div>
                 </div>
@@ -2528,8 +2541,8 @@ html.is-mobile .btn::before{ display:none; }
           <div class="panel" style="flex:1;min-width:280px;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:10px;flex-wrap:wrap;">
               <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                <input id="estoqueFilter" placeholder="Filtrar por nome..." style="width:220px" oninput="renderEstoqueLista()">
-                <input id="estoqueBarcodeFilter" placeholder="🔎 Buscar só por código de barras..." autocomplete="off" style="width:250px" oninput="renderEstoqueLista()" onkeydown="if(event.key==='Enter'){event.preventDefault();buscarProdutoPorCodigoBarras();}">
+                <input id="estoqueFilter" placeholder="Filtrar por nome..." style="width:220px" oninput="debouncedCall('estoqueFilter',renderEstoqueLista)">
+                <input id="estoqueBarcodeFilter" placeholder="🔎 Buscar só por código de barras..." autocomplete="off" style="width:250px" oninput="debouncedCall('estoqueBarcodeFilter',renderEstoqueLista)" onkeydown="if(event.key==='Enter'){event.preventDefault();buscarProdutoPorCodigoBarras();}">
               </div>
               <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;">
                 <div class="dimSmall" id="estoqueTotalStock" style="font-weight:700;color:var(--orange);"></div>
@@ -2767,7 +2780,7 @@ html.is-mobile .btn::before{ display:none; }
         </div>
         <div id="clientesTab-lista">
           <div class="panel">
-            <input id="clienteFilter" placeholder="Buscar cliente..." style="width:280px;margin-bottom:10px;" oninput="renderClientesLista()">
+            <input id="clienteFilter" placeholder="Buscar cliente..." style="width:280px;margin-bottom:10px;" oninput="debouncedCall('clienteFilter',renderClientesLista)">
             <table>
               <thead><tr><th>Nome</th><th>Telefone</th><th>CPF</th><th>Status</th><th>Deve</th><th>Pontos</th><th>Aniversário</th><th></th></tr></thead>
               <tbody id="clientesTableBody"></tbody>
@@ -4795,6 +4808,18 @@ window.addEventListener('online', function(){ notificarConexao('online'); });
    contador E o mesmo sorteio aleatório de ~4,7 trilhões de combinações,
    tudo ao mesmo tempo, em dois aparelhos diferentes. */
 let _uidContador = 0;
+/* ---------------- Otimização: debounce genérico ----------------
+   Vários campos de busca/filtro (produto na tela de Vendas, Estoque,
+   Clientes, Contas a receber) re-renderizam a lista inteira a cada tecla
+   digitada. Isso não muda em NADA o resultado final nem a sensação de uso
+   (o atraso é bem menor do que o tempo entre uma tecla e outra ao digitar
+   normalmente) — só evita recalcular a lista várias vezes por segundo
+   enquanto a pessoa ainda está digitando a palavra. */
+const _debounceTimers = {};
+function debouncedCall(key, fn, wait){
+  clearTimeout(_debounceTimers[key]);
+  _debounceTimers[key] = setTimeout(fn, wait || 120);
+}
 function uid(prefix){
   _uidContador = (_uidContador + 1) % 46656; // 36^3, sempre 3 caracteres em base36
   const tempo = Date.now().toString(36);
