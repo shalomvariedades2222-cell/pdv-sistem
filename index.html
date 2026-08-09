@@ -43,6 +43,26 @@
   }
   applyMobileFlag();
   window.addEventListener('resize', applyMobileFlag);
+
+  /* ---------- Altura real da tela no celular (corrige o bug do 100vh) ----------
+     No celular, "100vh" é calculado contando o espaço da barra de endereço do
+     navegador, mesmo quando ela está visível cobrindo parte da tela — então o
+     app e os popups acham que têm mais altura disponível do que realmente é
+     visível, cortando conteúdo embaixo ou "pulando" de tamanho ao rolar.
+     Aqui a gente guarda a altura real (window.innerHeight, que o navegador
+     sempre atualiza certinho) numa variável CSS e troca os "100vh" do sistema
+     por ela (calc(var(--vh,1vh) * 100)) — nos navegadores modernos que já
+     entendem a unidade "dvh" (altura dinâmica de verdade), essa variável nem
+     chega a ser usada, ela é só o reforço pros navegadores mais antigos/que
+     ainda não suportam. No computador dá exatamente na mesma conta de sempre
+     (não muda nada). */
+  function ajustarAlturaReal(){
+    document.documentElement.style.setProperty('--vh', (window.innerHeight*0.01)+'px');
+  }
+  ajustarAlturaReal();
+  window.addEventListener('resize', ajustarAlturaReal);
+  window.addEventListener('orientationchange', ajustarAlturaReal);
+  if(window.visualViewport){ window.visualViewport.addEventListener('resize', ajustarAlturaReal); }
 })();
 </script>
 <!-- defer: essas libs só são usadas depois (impressão de etiqueta/PDF), então não
@@ -95,6 +115,10 @@ if('serviceWorker' in navigator){
      setTimeout que ficam em sincronia com essa duração — mudar aqui sem
      mudar lá (ou vice-versa) desalinha a sequência das animações. */
   --pdv-anim-sidebar-ms:500ms;
+  /* Duração do "arrasto" cartoon que o #main faz pra compensar o pulo de
+     largura no nível Ultra otimizado (ver mainDragCompensarUltra no CSS e
+     compensarSaltoConteudoUltra no JS). Configurável em Config → Animações. */
+  --pdv-anim-maindrag-ms:450ms;
   /* ---------- Liquid Glass (vidro derretido, tom laranja) ---------- */
   --glass-bg:linear-gradient(160deg, rgba(255,150,80,.09), rgba(36,28,24,.58));
   --glass-bg-strong:linear-gradient(160deg, rgba(255,150,80,.14), rgba(30,23,20,.68));
@@ -113,6 +137,8 @@ body{
   background:var(--bg);
   color:var(--text);
   height:100vh;
+  height:calc(var(--vh, 1vh) * 100);
+  height:100dvh;
   overflow:hidden;
   position:relative;
 }
@@ -617,7 +643,7 @@ html.anim-off-login #connectingScreen *{animation:none !important;}
 }
 
 /* ---------- APP SHELL ---------- */
-#app{display:none;height:100vh;position:relative;z-index:1;}
+#app{display:none;height:100vh;height:calc(var(--vh, 1vh) * 100);height:100dvh;position:relative;z-index:1;}
 #app.active{display:flex;}
 #sidebar{
   width:200px;background:linear-gradient(180deg,rgba(38,28,23,.62),rgba(16,12,10,.72));
@@ -699,6 +725,26 @@ html.anim-opt-ultra #sidebar.sidebarClosing{
 }
 html.anim-opt-ultra #sidebar.sidebarOpening{
   animation-name:sidebarOpenCartoonUltra !important;width:200px !important;
+}
+/* No nível "Ultra" a largura da sidebar não anima gradualmente — ela pula de
+   uma vez (200px<->0) só no instante em que a animação termina — então o
+   #main (que preenche o espaço do lado, flex:1) também pulava junto, seco,
+   sem graça. Esse "arrasto" compensa isso: assim que a sidebar termina de
+   fechar (ou de abrir de novo), o JS (compensarSaltoConteudoUltra) empurra o
+   #main de volta pra onde ele "pulou de lá", na mesma hora do pulo — visto
+   de fora fica igualzinho a antes do pulo — e solta, animando essa
+   volta com uma molinha (mesmo estilo cartoon do resto). O tanto de pixels
+   (--pdv-maindrag-from) é calculado no JS a cada vez, e o sinal dele já
+   inverte a curva sozinho conforme a direção (fechando ou abrindo). */
+@keyframes mainDragCompensarUltra{
+  0%{transform:translateX(var(--pdv-maindrag-from, 0px));}
+  55%{transform:translateX(calc(var(--pdv-maindrag-from, 0px) * -0.08));}
+  78%{transform:translateX(calc(var(--pdv-maindrag-from, 0px) * 0.03));}
+  100%{transform:translateX(0);}
+}
+#main.mainDragCompensarUltra{
+  animation:mainDragCompensarUltra var(--pdv-anim-maindrag-ms, 450ms) cubic-bezier(.34,1.56,.64,1) both;
+  will-change:transform;
 }
 /* No nível "Ultra", a largura da sidebar só muda de vez (200px -> 0 ou
    0 -> 200px) no instante em que a classe sidebarCollapsed é trocada — sem
@@ -1302,7 +1348,7 @@ label{font-size:11.5px;color:var(--text-dim);display:block;margin-bottom:4px;}
 .modalBg.modalBgScrollable{align-items:flex-start;overflow-y:auto;padding:26px 0;}
 .modalBox{
   background:var(--glass-bg-strong);border:1px solid var(--glass-border-strong);border-radius:18px;
-  padding:22px;width:460px;max-width:90vw;max-height:85vh;overflow:auto;position:relative;
+  padding:22px;width:460px;max-width:90vw;max-height:85vh;max-height:calc(var(--vh, 1vh) * 85);max-height:85dvh;overflow:auto;position:relative;
   backdrop-filter:blur(var(--glass-blur-lg)) saturate(160%);
   -webkit-backdrop-filter:blur(var(--glass-blur-lg)) saturate(160%);
   box-shadow:inset 0 1px 0 rgba(255,255,255,.07), 0 25px 60px rgba(0,0,0,.5);
@@ -1422,7 +1468,7 @@ html.anim-off-glow .pixQrFrame{animation:none !important;}
 .pickerEmpty{padding:8px 10px;font-size:12px;color:var(--text-dim);}
 
 /* ---------- PDV ---------- */
-#pdvWrap{display:flex;gap:16px;height:calc(100vh - 150px);align-items:stretch;position:relative;}
+#pdvWrap{display:flex;gap:16px;height:calc(100vh - 150px);height:calc((var(--vh, 1vh) * 100) - 150px);height:calc(100dvh - 150px);align-items:stretch;position:relative;}
 
 /* ---------- Coluna esquerda: busca/grade de produtos + Carrinho ----------
    Quando uma venda está em andamento (carrinho com itens), a busca/grade
@@ -2073,7 +2119,15 @@ html.is-mobile .btn::before{ display:none; }
 ========================================================= */
 @media (max-width:860px){
   :root{ font-size:14px; }
-  body{ height:100vh; overflow:hidden; }
+
+  /* Trava a letra dos campos em 16px só no celular. O Safari do iPhone dá
+     zoom automático na tela toda quando a pessoa toca num campo com letra
+     menor que 16px (pra "ajudar a ler") — e às vezes não volta o zoom certo
+     depois, deixando a janela toda desalinhada. Com !important porque
+     precisa vencer os campos que já têm um font-size próprio definido
+     (ex.: o campo do Pix, que usa 15px). Isso não muda o tamanho no
+     computador, onde essa regra nem existe. */
+  input, select, textarea{ font-size:16px !important; }
 
   #app.active{ flex-direction:column; }
   #sidebar{
@@ -5925,8 +5979,10 @@ function renderCart(){
         sidebar.classList.remove('sidebarClosing'); void sidebar.offsetWidth;
         sidebar.classList.add('sidebarClosing');
         setTimeout(()=>{
-          sidebar.classList.remove('sidebarClosing');
-          sidebar.classList.add('sidebarCollapsed');
+          compensarSaltoConteudoUltra(sidebar, ()=>{
+            sidebar.classList.remove('sidebarClosing');
+            sidebar.classList.add('sidebarCollapsed');
+          });
         }, tempoSidebarMs);
       }
       // O carrinho/painel de Pagamento entram com o "pop" cartoon — mesma
@@ -5955,7 +6011,9 @@ function renderCart(){
         if(cart.length===0){ pdvRight.style.display = 'none'; pdvRight.classList.remove('pdvRightPopOut'); }
       }, 280);
       if(sidebar && sidebar.classList.contains('sidebarCollapsed')){
-        sidebar.classList.remove('sidebarCollapsed');
+        compensarSaltoConteudoUltra(sidebar, ()=>{
+          sidebar.classList.remove('sidebarCollapsed');
+        });
         sidebar.classList.remove('sidebarClosing');
         sidebar.classList.remove('sidebarOpening'); void sidebar.offsetWidth;
         sidebar.classList.add('sidebarOpening');
@@ -11253,6 +11311,7 @@ function ensureAnimConfig(){
     cfg.otimizacao = (legado && ['nenhuma','leve','maxima','ultra'].includes(legado.otimizacao)) ? legado.otimizacao : 'ultra';
     cfg.tempoSidebarMs = 500;
     cfg.tempoPainelDelayMs = 350;
+    cfg.tempoArrastoConteudoMs = 450;
     salvarAnimConfigLocal_(cfg);
   } else {
     // Categorias novas (adicionadas em versões mais recentes) que ainda não
@@ -11264,6 +11323,7 @@ function ensureAnimConfig(){
     });
     if(typeof cfg.tempoSidebarMs !== 'number'){ cfg.tempoSidebarMs = 500; faltouAlguma = true; }
     if(typeof cfg.tempoPainelDelayMs !== 'number'){ cfg.tempoPainelDelayMs = 350; faltouAlguma = true; }
+    if(typeof cfg.tempoArrastoConteudoMs !== 'number'){ cfg.tempoArrastoConteudoMs = 450; faltouAlguma = true; }
     if(faltouAlguma) salvarAnimConfigLocal_(cfg);
   }
   // limpeza: some com o campo antigo do objeto sincronizado (se ainda
@@ -11310,14 +11370,18 @@ function aplicarNivelOtimizacaoAnim(){
   document.documentElement.classList.toggle('anim-opt-ultra', nivel==='ultra');
 }
 /* ---------- Tempos das animações da sidebar/carrinho (customizáveis) ----------
-   Dois números, em milissegundos, 100% locais a este aparelho:
+   Três números, em milissegundos, 100% locais a este aparelho:
    - tempoSidebarMs: quanto tempo a barra lateral leva pra fugir/voltar
      (a abertura usa esse valor x1.1, pra sobrar aquele respiro do acomodo
      final). Essa mesma variável também é o que a var CSS --pdv-anim-sidebar-ms
      usa — então mudar aqui já muda a duração real da animação.
    - tempoPainelDelayMs: quanto tempo esperar depois que a sidebar começa a
      fechar antes do carrinho/painel de Pagamento entrarem (a sequência
-     "sidebar sai, DEPOIS carrinho entra" que foi pedida). */
+     "sidebar sai, DEPOIS carrinho entra" que foi pedida).
+   - tempoArrastoConteudoMs: só vale no nível "Ultra otimizado" — duração da
+     animação de arrasto que o conteúdo principal (#main) faz assim que a
+     sidebar termina de fechar/abrir, pra compensar o pulo de largura que
+     esse nível causa (ver compensarSaltoConteudoUltra). */
 function lerTempoSidebarMs(){
   const cfg = ensureAnimConfig();
   const v = Number(cfg.tempoSidebarMs);
@@ -11328,18 +11392,53 @@ function lerTempoPainelDelayMs(){
   const v = Number(cfg.tempoPainelDelayMs);
   return (isFinite(v) && v>=0 && v<=2000) ? v : 350;
 }
+function lerTempoArrastoConteudoMs(){
+  const cfg = ensureAnimConfig();
+  const v = Number(cfg.tempoArrastoConteudoMs);
+  return (isFinite(v) && v>=100 && v<=2000) ? v : 450;
+}
 function aplicarTemposAnimPdv(){
   document.documentElement.style.setProperty('--pdv-anim-sidebar-ms', lerTempoSidebarMs()+'ms');
+  document.documentElement.style.setProperty('--pdv-anim-maindrag-ms', lerTempoArrastoConteudoMs()+'ms');
 }
 function setTempoAnimPdv(campo, valorMs){
   const cfg = ensureAnimConfig();
-  const v = Math.max(campo==='tempoSidebarMs'?100:0, Math.min(2000, Math.round(Number(valorMs))||0));
+  const v = Math.max(campo==='tempoPainelDelayMs'?0:100, Math.min(2000, Math.round(Number(valorMs))||0));
   cfg[campo] = v;
   salvarAnimConfigLocal_(cfg);
   aplicarTemposAnimPdv();
   renderAnimTogglesUI();
   toast('Tempo de animação atualizado: '+v+'ms (só neste aparelho)', 'ok');
   log('Tempo de animação "'+campo+'" definido como '+v+'ms — ajuste local, não sincroniza com outros aparelhos');
+}
+/* ---------- Compensação do pulo de largura do #main no nível "Ultra" ----------
+   Só nesse nível a sidebar não anima a largura aos poucos (só transform,
+   mais barato) — ela pula de vez (200px<->0) no instante exato em que a
+   classe muda. Sem isso o #main (que cresce/encolhe pra preencher aquele
+   espaço) pulava junto, seco. Aqui mede a largura da sidebar ANTES e DEPOIS
+   da mudança, empurra o #main de volta pra onde ele "pulou de lá" bem nesse
+   instante (por fora parece que nada mudou ainda) e solta com uma animação
+   de molinha — dá a impressão de um arrasto suave, mesmo o pulo real tendo
+   sido instantâneo. `aplicarMudanca` é a função que efetivamente troca a
+   classe (o que causa o pulo de largura). */
+function compensarSaltoConteudoUltra(sidebarEl, aplicarMudanca){
+  const ultraAtivo = document.documentElement.classList.contains('anim-opt-ultra');
+  const semAnimacao = document.documentElement.classList.contains('anim-off-sidebarToggle');
+  const main = document.getElementById('main');
+  const ehMobile = document.documentElement.classList.contains('is-mobile'); // no celular a barra é horizontal (em cima), não lateral — não se aplica
+  if(!ultraAtivo || semAnimacao || !main || !sidebarEl || ehMobile){
+    aplicarMudanca();
+    return;
+  }
+  const antes = sidebarEl.getBoundingClientRect().width;
+  aplicarMudanca();
+  const depois = sidebarEl.getBoundingClientRect().width;
+  const delta = Math.round(antes - depois);
+  if(Math.abs(delta) < 1) return; // largura não mudou de verdade — nada pra compensar
+  main.style.setProperty('--pdv-maindrag-from', delta+'px');
+  main.classList.remove('mainDragCompensarUltra'); void main.offsetWidth;
+  main.classList.add('mainDragCompensarUltra');
+  setTimeout(()=>{ main.classList.remove('mainDragCompensarUltra'); }, lerTempoArrastoConteudoMs()+50);
 }
 function setNivelOtimizacaoAnim(nivel){
   const cfg = ensureAnimConfig();
@@ -11399,6 +11498,18 @@ function renderAnimTogglesUI(){
     html += `<button type="button" class="btn small ${ativo?'':'secondary'}" onclick="setNivelOtimizacaoAnim('${niv.key}')">${ativo?'⚡ ':''}${niv.label}</button>`;
   });
   html += `</div>`;
+  // Só faz sentido regular esse "arrasto" quando o nível Ultra está ativo —
+  // é só nele que o conteúdo precisa dessa compensação (ver CSS/JS
+  // mainDragCompensarUltra / compensarSaltoConteudoUltra). Nos outros
+  // níveis o campo some, pra não confundir com uma opção que não faz nada.
+  if(nivelAtual==='ultra'){
+    html += `<div class="field" style="margin:0 0 14px;max-width:320px;">
+      <label>🧲 Arrasto do conteúdo no Ultra (100–2000ms)</label>
+      <input type="number" id="cfg_tempoArrastoConteudoMs" min="100" max="2000" step="10" value="${cfg.tempoArrastoConteudoMs}"
+        onchange="setTempoAnimPdv('tempoArrastoConteudoMs', this.value)">
+      <div class="dimSmall" style="margin-top:4px;">No Ultra, a tela toda pula de largura de uma vez quando o menu lateral fecha/abre. Esse tempo é quanto dura a animação (estilo cartoon) que arrasta a tela de volta pro lugar em vez de só pular.</div>
+    </div>`;
+  }
   html += `<div class="dimSmall" style="margin:14px 0 6px;font-weight:700;color:var(--text);">⏱️ Tempos das animações (carrinho/sidebar)</div>`;
   html += `<div class="dimSmall" style="margin-bottom:8px;">Quanto tempo a barra lateral leva pra fugir/voltar, e quanto tempo depois disso o carrinho/pagamento esperam pra entrar. Valores em milissegundos (1000ms = 1s).</div>`;
   html += `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
