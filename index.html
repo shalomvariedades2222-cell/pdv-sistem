@@ -114,11 +114,11 @@ if('serviceWorker' in navigator){
      Sistema → "Tempos das animações"). JS lê/grava o mesmo valor em ms nos
      setTimeout que ficam em sincronia com essa duração — mudar aqui sem
      mudar lá (ou vice-versa) desalinha a sequência das animações. */
-  --pdv-anim-sidebar-ms:500ms;
+  --pdv-anim-sidebar-ms:400ms;
   /* Duração do "arrasto" cartoon que o #main faz pra compensar o pulo de
      largura no nível Ultra otimizado (ver mainDragCompensarUltra no CSS e
      compensarSaltoConteudoUltra no JS). Configurável em Config → Animações. */
-  --pdv-anim-maindrag-ms:450ms;
+  --pdv-anim-maindrag-ms:600ms;
   /* ---------- Liquid Glass (vidro derretido, tom laranja) ---------- */
   --glass-bg:linear-gradient(160deg, rgba(255,150,80,.09), rgba(36,28,24,.58));
   --glass-bg-strong:linear-gradient(160deg, rgba(255,150,80,.14), rgba(30,23,20,.68));
@@ -698,8 +698,8 @@ html.anim-off-login #connectingScreen *{animation:none !important;}
   background:linear-gradient(180deg,#26201d,#100c0a) !important;
   will-change:width,transform,opacity;contain:layout style;overflow:hidden;
 }
-#sidebar.sidebarClosing{animation:sidebarCloseCartoon var(--pdv-anim-sidebar-ms, 500ms) cubic-bezier(.34,1.56,.64,1) both;}
-#sidebar.sidebarOpening{animation:sidebarOpenCartoon calc(var(--pdv-anim-sidebar-ms, 500ms) * 1.1) cubic-bezier(.34,1.56,.64,1) both;}
+#sidebar.sidebarClosing{animation:sidebarCloseCartoon var(--pdv-anim-sidebar-ms, 400ms) cubic-bezier(.34,1.56,.64,1) both;}
+#sidebar.sidebarOpening{animation:sidebarOpenCartoon calc(var(--pdv-anim-sidebar-ms, 400ms) * 1.1) cubic-bezier(.34,1.56,.64,1) both;}
 #sidebar.sidebarCollapsed{width:0 !important;min-width:0;border-right:none;opacity:0;pointer-events:none;overflow:hidden;}
 html.anim-off-sidebarToggle #sidebar.sidebarClosing,
 html.anim-off-sidebarToggle #sidebar.sidebarOpening{animation:none !important;}
@@ -743,7 +743,7 @@ html.anim-opt-ultra #sidebar.sidebarOpening{
   100%{transform:translateX(0);}
 }
 #main.mainDragCompensarUltra{
-  animation:mainDragCompensarUltra var(--pdv-anim-maindrag-ms, 450ms) cubic-bezier(.34,1.56,.64,1) both;
+  animation:mainDragCompensarUltra var(--pdv-anim-maindrag-ms, 600ms) cubic-bezier(.34,1.56,.64,1) both;
   will-change:transform;
 }
 /* No nível "Ultra", a largura da sidebar só muda de vez (200px -> 0 ou
@@ -761,7 +761,7 @@ html.anim-opt-ultra #sidebar.sidebarOpening{
    sem exagero cartoon): ele realmente cresce/encolhe aos poucos, tanto
    quando a sidebar some quanto quando o painel de Pagamento aparece. */
 #pdvLeft{
-  transition:width var(--pdv-anim-sidebar-ms, 500ms) cubic-bezier(.3,.9,.25,1);
+  transition:width var(--pdv-anim-sidebar-ms, 400ms) cubic-bezier(.3,.9,.25,1);
 }
 html.anim-off-sidebarToggle #pdvLeft,
 html.anim-off-pdv #pdvLeft{transition:none !important;}
@@ -2172,8 +2172,8 @@ html.is-mobile .btn::before{ display:none; }
     80%{transform:translateY(-2px) scaleY(.96);opacity:1;}
     100%{transform:translateY(0) scaleY(1);opacity:1;}
   }
-  #sidebar.sidebarClosing{animation:sidebarCloseCartoonMobile var(--pdv-anim-sidebar-ms, 500ms) cubic-bezier(.34,1.56,.64,1) both;will-change:height,transform,opacity;contain:layout style;overflow:hidden;width:100%;}
-  #sidebar.sidebarOpening{animation:sidebarOpenCartoonMobile calc(var(--pdv-anim-sidebar-ms, 500ms) * 1.1) cubic-bezier(.34,1.56,.64,1) both;will-change:height,transform,opacity;contain:layout style;overflow:hidden;width:100%;}
+  #sidebar.sidebarClosing{animation:sidebarCloseCartoonMobile var(--pdv-anim-sidebar-ms, 400ms) cubic-bezier(.34,1.56,.64,1) both;will-change:height,transform,opacity;contain:layout style;overflow:hidden;width:100%;}
+  #sidebar.sidebarOpening{animation:sidebarOpenCartoonMobile calc(var(--pdv-anim-sidebar-ms, 400ms) * 1.1) cubic-bezier(.34,1.56,.64,1) both;will-change:height,transform,opacity;contain:layout style;overflow:hidden;width:100%;}
   #sidebar.sidebarCollapsed{width:100%;height:0 !important;min-height:0;border-bottom:none;opacity:0;pointer-events:none;overflow:hidden;}
   html.anim-off-sidebarToggle #sidebar.sidebarClosing,
   html.anim-off-sidebarToggle #sidebar.sidebarOpening{animation:none !important;}
@@ -4933,7 +4933,7 @@ function ensureCatalogDefaults(){
   if(typeof DB.settings.pixQrAutoDisabled==='undefined') DB.settings.pixQrAutoDisabled = false;
   if(!DB.settings.pdvBotoesRapidos || typeof DB.settings.pdvBotoesRapidos!=='object') DB.settings.pdvBotoesRapidos = {};
   PDV_QUICK_BTNS.forEach(function(it){
-    if(typeof DB.settings.pdvBotoesRapidos[it.key]==='undefined') DB.settings.pdvBotoesRapidos[it.key] = true;
+    if(typeof DB.settings.pdvBotoesRapidos[it.key]==='undefined') DB.settings.pdvBotoesRapidos[it.key] = it.defaultOn !== false;
   });
   DB.sales.forEach(s=>{ if(typeof s.cancelled==='undefined') s.cancelled=false; });
   ensureEmployeeDefaults();
@@ -11193,7 +11193,8 @@ function ensureVisualConfig(){
   let cfg = lerVisualConfigLocal_();
   if(!cfg) cfg = {};
   // De fábrica: painéis e fundo começam "Opaco" neste aparelho (visual mais
-  // leve). Se a pessoa já tinha escolhido "vidro derretido" antes, mantém.
+  // leve — fundo "Vidro opaco": sem as manchas animadas). Se a pessoa já
+  // tinha escolhido outra opção antes, mantém.
   if(!['vidro','opaco'].includes(cfg.painelEstilo)) cfg.painelEstilo = 'opaco';
   if(!['vidro','opaco','cor'].includes(cfg.fundoEstilo)) cfg.fundoEstilo = 'opaco';
   if(!cfg.fundoCor) cfg.fundoCor = '#151110';
@@ -11249,11 +11250,11 @@ function mudarFundoCor(v){
    sentido assim porque não é uma preferência visual, e sim uma escolha de
    quais atalhos a equipe pode usar na tela de Vendas. */
 const PDV_QUICK_BTNS = [
-  { key:'calc',           label:'🧮 Calculadora (venda avulsa)', elId:'btnCalcAvulsa' },
-  { key:'pix',             label:'💠 Pix Avulso', elId:'btnPixAvulso' },
-  { key:'scan',            label:'📷 Escanear', elId:'btnEscanearVendas' },
-  { key:'cadastro',        label:'🧺 Cadastrar Peça', elId:'btnCadastrarPeca' },
-  { key:'valorAdicional',  label:'➕ Valor Adicional', elId:'btnValorAdicional' },
+  { key:'calc',           label:'🧮 Calculadora (venda avulsa)', elId:'btnCalcAvulsa', defaultOn:false },
+  { key:'pix',             label:'💠 Pix Avulso', elId:'btnPixAvulso', defaultOn:true },
+  { key:'scan',            label:'📷 Escanear', elId:'btnEscanearVendas', defaultOn:true },
+  { key:'cadastro',        label:'🧺 Cadastrar Peça', elId:'btnCadastrarPeca', defaultOn:true },
+  { key:'valorAdicional',  label:'➕ Valor Adicional', elId:'btnValorAdicional', defaultOn:true },
 ];
 function aplicarPdvBotoesRapidosConfig(){
   if(!DB.settings || !DB.settings.pdvBotoesRapidos) return;
@@ -11315,10 +11316,11 @@ const ANIM_CATEGORIAS = [
    cada aparelho pode ter uma configuração de animação diferente. */
 /* Configuração "de fábrica" (aparelho novo, nunca configurado): valores
    exatos que devem vir pré-marcados assim que alguém abre o sistema pela
-   primeira vez neste aparelho — pulso/detalhe/transição/blur/glow/ambient
-   desligados, o resto ligado. Categoria que não estiver aqui entra ligada. */
+   primeira vez neste aparelho — hover/pulso/detalhe/transição/blur/glow/
+   ambient desligados, o resto ligado. Categoria que não estiver aqui entra
+   ligada. */
 const ANIM_DEFAULTS_FABRICA = {
-  intro:true, login:true, hover:true, glow:false, ripple:true,
+  intro:true, login:true, hover:false, glow:false, ripple:true,
   transitions:false, modal:true, ambient:false, blur:false, toast:true,
   details:false, celebrate:true, sidebarToggle:true, pdv:true,
 };
@@ -11354,9 +11356,9 @@ function ensureAnimConfig(){
     });
     // Nível de otimização de fábrica: Ultra otimizado (extremo).
     cfg.otimizacao = (legado && ['nenhuma','leve','maxima','ultra'].includes(legado.otimizacao)) ? legado.otimizacao : 'ultra';
-    cfg.tempoSidebarMs = 500;
-    cfg.tempoPainelDelayMs = 350;
-    cfg.tempoArrastoConteudoMs = 450;
+    cfg.tempoSidebarMs = 400;
+    cfg.tempoPainelDelayMs = 500;
+    cfg.tempoArrastoConteudoMs = 600;
     salvarAnimConfigLocal_(cfg);
   } else {
     // Categorias novas (adicionadas em versões mais recentes) que ainda não
@@ -11366,9 +11368,9 @@ function ensureAnimConfig(){
     ANIM_CATEGORIAS.forEach(it=>{
       if(!(it.key in cfg)){ cfg[it.key] = true; faltouAlguma = true; }
     });
-    if(typeof cfg.tempoSidebarMs !== 'number'){ cfg.tempoSidebarMs = 500; faltouAlguma = true; }
-    if(typeof cfg.tempoPainelDelayMs !== 'number'){ cfg.tempoPainelDelayMs = 350; faltouAlguma = true; }
-    if(typeof cfg.tempoArrastoConteudoMs !== 'number'){ cfg.tempoArrastoConteudoMs = 450; faltouAlguma = true; }
+    if(typeof cfg.tempoSidebarMs !== 'number'){ cfg.tempoSidebarMs = 400; faltouAlguma = true; }
+    if(typeof cfg.tempoPainelDelayMs !== 'number'){ cfg.tempoPainelDelayMs = 500; faltouAlguma = true; }
+    if(typeof cfg.tempoArrastoConteudoMs !== 'number'){ cfg.tempoArrastoConteudoMs = 600; faltouAlguma = true; }
     if(faltouAlguma) salvarAnimConfigLocal_(cfg);
   }
   // limpeza: some com o campo antigo do objeto sincronizado (se ainda
