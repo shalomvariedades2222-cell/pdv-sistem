@@ -2362,7 +2362,7 @@ html.is-mobile .btn::before{ display:none; }
     <div class="sub">Cole a chave para conectar este dispositivo à sua loja</div>
     <div class="keyInputWrap">
       <span class="keyIcon">🔑</span>
-      <input id="ghToken" type="password" placeholder="Chave de acesso" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();cloudLogin();}">
+      <input id="ghToken" type="password" placeholder="Chave de acesso" autocomplete="off" data-lpignore="true" data-1p-ignore data-form-type="other" onkeydown="if(event.key==='Enter'){event.preventDefault();cloudLogin();}">
     </div>
     <label class="rememberRow">
       <input type="checkbox" id="ghRemember"> Lembrar neste dispositivo
@@ -2478,7 +2478,7 @@ html.is-mobile .btn::before{ display:none; }
         <span class="avatarName" id="selectedAvatarName"></span>
       </div>
       <div class="loginHint" id="loginTestPassHint" style="display:none;color:var(--yellow);"></div>
-      <input id="loginPass" type="password" placeholder="Senha" autocomplete="current-password" onkeydown="if(event.key==='Enter'){event.preventDefault();doLogin();}">
+      <input id="loginPass" type="password" placeholder="Senha" autocomplete="off" data-lpignore="true" data-1p-ignore data-form-type="other" onkeydown="if(event.key==='Enter'){event.preventDefault();doLogin();}">
       <div class="field" style="display:flex;align-items:center;gap:8px;margin-top:4px;">
         <input type="checkbox" id="loginManterConectado" style="width:auto;margin:0;">
         <label style="margin:0;font-size:12.5px;" for="loginManterConectado">Manter conectado neste aparelho</label>
@@ -2491,9 +2491,9 @@ html.is-mobile .btn::before{ display:none; }
       </div>
       <div id="forgotPassBox" class="forgotBox" style="display:none;">
         <label>Chave de acesso (a mesma configurada no Google, do 1º uso)</label>
-        <input id="forgotKey" type="password" placeholder="Chave de acesso" autocomplete="off">
+        <input id="forgotKey" type="password" placeholder="Chave de acesso" autocomplete="off" data-lpignore="true" data-1p-ignore data-form-type="other">
         <label>Nova senha</label>
-        <input id="forgotNewPass" type="password" placeholder="Nova senha" autocomplete="new-password">
+        <input id="forgotNewPass" type="password" placeholder="Nova senha" autocomplete="off" data-lpignore="true" data-1p-ignore data-form-type="other">
         <div id="forgotMsg" class="forgotErr"></div>
         <div style="display:flex;gap:8px;">
           <button class="btn" style="margin-top:0;" onclick="submitForgotPassword()">Trocar senha</button>
@@ -4180,7 +4180,7 @@ function lerImagemComoBase64(file, callback, opts){
     img.onerror = ()=>{ callback(original); }; // não deu pra processar como imagem: usa o arquivo original mesmo
     img.src = original;
   };
-  reader.onerror = ()=>{ console.error('Falha ao ler arquivo de imagem.'); alert('Não foi possível ler essa imagem.'); };
+  reader.onerror = ()=>{ console.error('Falha ao ler arquivo de imagem.'); alertModal('Não foi possível ler essa imagem.'); };
   reader.readAsDataURL(file);
 }
 
@@ -4398,11 +4398,11 @@ async function saveToGitHubNow(){
 ------------------------------------------------------------ */
 async function backupCompletoNuvem(){
   if(modoTeste){
-    alert('Você está no modo teste — não existe nuvem pra fazer backup aqui. Os dados somem ao recarregar a página.');
+    alertModal('Você está no modo teste — não existe nuvem pra fazer backup aqui. Os dados somem ao recarregar a página.');
     return;
   }
   if(!hasCloudCredential()){
-    alert('Este aparelho ainda não está conectado à nuvem. Entre com a chave ou aguarde a autorização do dispositivo antes de usar o backup de contingência.');
+    alertModal('Este aparelho ainda não está conectado à nuvem. Entre com a chave ou aguarde a autorização do dispositivo antes de usar o backup de contingência.');
     return;
   }
   const btn = document.getElementById('btnBackupContingencia');
@@ -4435,16 +4435,16 @@ async function backupCompletoNuvem(){
     if(Object.keys(_fotosPendentes).length>0){
       // fotos que falharam ficam na fila e se reenviam sozinhas (agendarSalvarFotos) — avisa sem travar o fluxo
       legenda.textContent = 'Dados enviados. Algumas fotos ainda estão na fila.';
-      alert('Dados enviados com sucesso! Algumas fotos ainda serão reenviadas automaticamente assim que possível.');
+      alertModal('Dados enviados com sucesso! Algumas fotos ainda serão reenviadas automaticamente assim que possível.');
     } else {
       legenda.textContent = 'Concluído!';
-      alert('Backup em nuvem concluído com sucesso!');
+      alertModal('Backup em nuvem concluído com sucesso!');
     }
     log('Backup de contingência (manual) enviado com sucesso.');
   }catch(err){
     console.error('Falha no backup de contingência:', err);
     legenda.textContent = 'Falha no envio.';
-    alert('Não foi possível concluir o backup em nuvem agora. Fique tranquilo: seus dados continuam salvos neste aparelho e você pode tentar novamente quando a conexão voltar.');
+    alertModal('Não foi possível concluir o backup em nuvem agora. Fique tranquilo: seus dados continuam salvos neste aparelho e você pode tentar novamente quando a conexão voltar.');
   }finally{
     btn.disabled = false;
     setTimeout(function(){ wrap.style.display = 'none'; }, 1400);
@@ -5132,7 +5132,7 @@ function getPerms(){
   };
 }
 function requirePerm(ok){
-  if(!ok){ alert('Você não tem permissão para fazer isso com o seu perfil de acesso.'); }
+  if(!ok){ alertModal('Você não tem permissão para fazer isso com o seu perfil de acesso.'); }
   return ok;
 }
 function fmtMoney(v){ return 'R$ ' + (Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
@@ -5371,11 +5371,12 @@ function limparCacheLocal(){
   const aviso = haAlteracaoPendente
     ? 'Este aparelho pode ter alterações que ainda não foram enviadas ao servidor. Limpar o cache agora vai APAGAR essas alterações. Deseja continuar mesmo assim?'
     : 'Isso vai apagar os dados salvos neste aparelho (o cache usado quando fica sem internet). Deseja continuar?';
-  if(!confirm(aviso)) return;
-  try{ localStorage.removeItem('slmsys_db'); }catch(e){}
-  limparAlteracaoPendente();
-  renderCacheInfo();
-  alert('Cache local apagado. Os dados voltarão a ser baixados do servidor na próxima vez que o app conectar à internet.');
+  confirmModal(aviso, function(){
+    try{ localStorage.removeItem('slmsys_db'); }catch(e){}
+    limparAlteracaoPendente();
+    renderCacheInfo();
+    alertModal('Cache local apagado. Os dados voltarão a ser baixados do servidor na próxima vez que o app conectar à internet.');
+  });
 }
 
 /* ---------------- autoSaveToFile: stub inofensivo ----------------
@@ -5514,17 +5515,19 @@ function doLogout(){
    e ligado de novo. Só cai na tela de senha se o login automático estiver
    desligado neste aparelho. */
 function reiniciarApp(){
-  if(!confirm('Reiniciar o aplicativo agora?')) return;
-  location.reload();
+  confirmModal('Reiniciar o aplicativo agora?', function(){
+    location.reload();
+  });
 }
 /* Botão "Reiniciar site" do menu de cima — só aparece no celular (ver CSS
    .navBtnRestartMobile). Reinicia a página 3 vezes seguidas sozinho (a
    contagem quem controla é o bloco no topo do script, guardado no
    sessionStorage pra sobreviver a cada reload). */
 function reiniciarAppTresVezesMobile(){
-  if(!confirm('Reiniciar o site 3 vezes seguidas agora?')) return;
-  try{ sessionStorage.setItem('reinicio3xContagem','1'); }catch(e){}
-  location.reload();
+  confirmModal('Reiniciar o site 3 vezes seguidas agora?', function(){
+    try{ sessionStorage.setItem('reinicio3xContagem','1'); }catch(e){}
+    location.reload();
+  });
 }
 
 /* =========================================================
@@ -5634,7 +5637,7 @@ function showView(name){
   /* Modo teste: a tela de Configurações fica bloqueada — a configuração real já
      está feita no sistema (Google), então não tem por que mexer nela aqui. */
   if(modoTeste && name==='config'){
-    alert('No modo teste a tela de Configurações fica bloqueada. A configuração da loja já está pronta no sistema real.');
+    alertModal('No modo teste a tela de Configurações fica bloqueada. A configuração da loja já está pronta no sistema real.');
     name = 'vendas';
   }
   /* "Testador" de internet fica liberado mesmo pro acesso restrito — é só
@@ -6034,7 +6037,7 @@ function confirmarEstoqueRapidoStep(productId){
   const btn = document.getElementById('btnConfirmEstoqueRapido');
   const hint = document.getElementById('estoqueRapidoHint');
   const qtd = Number(document.getElementById('qtdEstoqueRapido').value)||0;
-  if(qtd<=0){ alert('Informe uma quantidade válida.'); return; }
+  if(qtd<=0){ alertModal('Informe uma quantidade válida.'); return; }
   if(!window._estoqueRapidoArmed){
     window._estoqueRapidoArmed = true;
     if(btn) btn.textContent = 'Confirmar novamente para aplicar';
@@ -6331,9 +6334,9 @@ function closeQuickCustomerModal(){
 function quickSaveCustomer(){
   if(!requirePerm(getPerms().canSell)) return;
   const nome = document.getElementById('qc_nome').value.trim();
-  if(!nome){ alert('Informe o nome.'); return; }
+  if(!nome){ alertModal('Informe o nome.'); return; }
   const qcCpf = document.getElementById('qc_cpf').value.trim();
-  if(qcCpf && !validarCPF(qcCpf)){ alert('O CPF informado é inválido. Confira os números ou deixe o campo em branco.'); return; }
+  if(qcCpf && !validarCPF(qcCpf)){ alertModal('O CPF informado é inválido. Confira os números ou deixe o campo em branco.'); return; }
   const c = {id:uid('cli'), nome, telefone:document.getElementById('qc_telefone').value.trim(), cpf:qcCpf, endereco:'', aniversario:'', pontos:0, debts:[]};
   DB.customers.push(c);
   log('Cliente cadastrado: '+nome);
@@ -6364,9 +6367,9 @@ function openQuickProductModal(){
 function quickSaveProduct(){
   if(!requirePerm(getPerms().canEditStock)) return;
   const nome = document.getElementById('qp_nome').value.trim();
-  if(!nome){ alert('Informe o nome da peça.'); return; }
+  if(!nome){ alertModal('Informe o nome da peça.'); return; }
   const venda = moneyVal('qp_venda');
-  if(venda<=0){ alert('Informe o preço da peça.'); return; }
+  if(venda<=0){ alertModal('Informe o preço da peça.'); return; }
   // adiciona ao catálogo de nomes, se ainda não existir (mesmo catálogo usado no cadastro completo)
   if(!DB.productNames.some(n=>n.nome.toLowerCase()===nome.toLowerCase())){
     DB.productNames.push({id:uid('pn'), nome});
@@ -6612,10 +6615,10 @@ function fiadoPopProsseguir(){
 
 function finalizeSale(){
   if(!requirePerm(getPerms().canSell)) return;
-  if(cart.length===0){ alert('Carrinho vazio.'); return; }
+  if(cart.length===0){ alertModal('Carrinho vazio.'); return; }
   if(!DB.cashCurrentOpenId){
-    if(getPerms().isTotal){ alert('Abra o caixa antes de realizar vendas.'); showView('caixa'); }
-    else { alert('O caixa ainda não foi aberto hoje. Peça para um responsável abrir o caixa antes de vender.'); }
+    if(getPerms().isTotal){ alertModal('Abra o caixa antes de realizar vendas.'); showView('caixa'); }
+    else { alertModal('O caixa ainda não foi aberto hoje. Peça para um responsável abrir o caixa antes de vender.'); }
     return;
   }
   clearTimeout(_pixAutoQrTimer); // evita o QR automático abrir "por baixo" ao mesmo tempo que o clique manual
@@ -6627,7 +6630,7 @@ function saleFlowPixStep(){
     if(!DB.settings.pixChave){
       // Sem chave cadastrada não dá pra gerar QR: trava a venda aqui (não deixa
       // salvar "por baixo" sem o cliente ter pago) até a loja configurar a chave.
-      alert('Cadastre a chave Pix da loja em Configurações antes de vender no Pix — sem ela não é possível gerar o QR Code de pagamento.');
+      alertModal('Cadastre a chave Pix da loja em Configurações antes de vender no Pix — sem ela não é possível gerar o QR Code de pagamento.');
       return;
     }
     if(pixConfirmedValue === pixVal){
@@ -6709,7 +6712,7 @@ function doFinalizeSale(){
   let customerId = null;
   if(diff < -0.001){
     customerId = document.getElementById('fiadoCustomerSelect').value;
-    if(!customerId){ alert('Selecione ou cadastre um cliente para a Venda Fiado.'); return; }
+    if(!customerId){ alertModal('Selecione ou cadastre um cliente para a Venda Fiado.'); return; }
   }
   const sale = {
     id: uid('venda'),
@@ -6797,9 +6800,9 @@ function celebrarVenda(valorTotal, troco){
 function cancelSale(){
   if(!requirePerm(getPerms().canSell)) return;
   if(cart.length===0) return;
-  if(confirm('Cancelar a venda atual (limpar carrinho)?')){
+  confirmModal('Cancelar a venda atual (limpar carrinho)?', function(){
     cart=[]; pixConfirmedValue = 0; renderCart();
-  }
+  });
 }
 
 /* =========================================================
@@ -6817,8 +6820,8 @@ let calcAvulsaExpr = '';
 function abrirCalculadoraVenda(){
   if(!requirePerm(getPerms().canSell)) return;
   if(!DB.cashCurrentOpenId){
-    if(getPerms().isTotal){ alert('Abra o caixa antes de realizar vendas.'); showView('caixa'); }
-    else { alert('O caixa ainda não foi aberto hoje. Peça para um responsável abrir o caixa antes de vender.'); }
+    if(getPerms().isTotal){ alertModal('Abra o caixa antes de realizar vendas.'); showView('caixa'); }
+    else { alertModal('O caixa ainda não foi aberto hoje. Peça para um responsável abrir o caixa antes de vender.'); }
     return;
   }
   calcAvulsaExpr = '';
@@ -6926,7 +6929,7 @@ function abrirValorAdicional(){
 }
 function confirmarValorAdicional(){
   const valor = moneyVal('valorAdicionalInput');
-  if(valor<=0){ alert('Informe um valor válido.'); return; }
+  if(valor<=0){ alertModal('Informe um valor válido.'); return; }
   closeModal();
   addAvulsoToCart(valor, 'Valor adicional');
 }
@@ -6935,11 +6938,11 @@ function confirmarValorAdicional(){
 function abrirPixAvulso(){
   if(!requirePerm(getPerms().canSell)) return;
   if(!DB.cashCurrentOpenId){
-    if(getPerms().isTotal){ alert('Abra o caixa antes de gerar um Pix.'); showView('caixa'); }
-    else { alert('O caixa ainda não foi aberto hoje. Peça para um responsável abrir o caixa antes de vender.'); }
+    if(getPerms().isTotal){ alertModal('Abra o caixa antes de gerar um Pix.'); showView('caixa'); }
+    else { alertModal('O caixa ainda não foi aberto hoje. Peça para um responsável abrir o caixa antes de vender.'); }
     return;
   }
-  if(!DB.settings.pixChave){ alert('Cadastre a chave Pix em Configurações antes de gerar o QR Code.'); return; }
+  if(!DB.settings.pixChave){ alertModal('Cadastre a chave Pix em Configurações antes de gerar o QR Code.'); return; }
   showModal(`
     <button class="modalClose" onclick="closeModal()">×</button>
     <h3 style="text-align:center;">Pix Avulso</h3>
@@ -6954,7 +6957,7 @@ function abrirPixAvulso(){
 }
 function confirmarPixAvulso(){
   const valor = moneyVal('pixAvulsoValor');
-  if(valor<=0){ alert('Informe um valor válido.'); return; }
+  if(valor<=0){ alertModal('Informe um valor válido.'); return; }
   closeModal();
   openPixQrModal(valor, ()=>registrarPixAvulso(valor), {
     onCancelar: ()=>toast('Pix avulso cancelado — nada foi cobrado.', 'ok')
@@ -6993,7 +6996,7 @@ function setEstoqueTab(tab){
   /* Modo teste: as abas "Cadastrar" e "Escanear Código" ficam bloqueadas — os itens de teste
      já vêm pré-configurados, não é preciso (nem deve) cadastrar produto novo aqui. */
   if(modoTeste && (tab==='novo' || tab==='scanner')){
-    alert('No modo teste o cadastro de produtos fica bloqueado. Os itens de teste já vêm pré-configurados.');
+    alertModal('No modo teste o cadastro de produtos fica bloqueado. Os itens de teste já vêm pré-configurados.');
     tab = 'lista';
   }
   /* Funcionário sem acesso total não pode abrir as abas de estoque completo
@@ -7234,16 +7237,16 @@ function renderRecentAdds(){
   });
 }
 function saveNewProduct(imprimirDireto){
-  if(modoTeste){ alert('No modo teste o cadastro de produtos fica bloqueado. Os itens de teste já vêm pré-configurados.'); return; }
+  if(modoTeste){ alertModal('No modo teste o cadastro de produtos fica bloqueado. Os itens de teste já vêm pré-configurados.'); return; }
   if(!requirePerm(getPerms().canEditStock)) return;
   const nome = document.getElementById('p_nome').value.trim();
-  if(!nome){ alert('Informe o nome do produto.'); return; }
+  if(!nome){ alertModal('Informe o nome do produto.'); return; }
   const custo = moneyVal('p_custo');
   const venda = moneyVal('p_venda');
   let barcode = document.getElementById('p_barcode').value.trim();
   if(!barcode) barcode = genBarcode();
   else if(DB.products.some(x=>produtoTemBarcode(x, barcode))){
-    alert('Esse código de barras já pertence a outro produto. Um novo código foi gerado automaticamente.');
+    alertModal('Esse código de barras já pertence a outro produto. Um novo código foi gerado automaticamente.');
     barcode = genBarcode();
   }
   const qtdEtiquetas = Math.max(1, parseInt(document.getElementById('p_qtdEtiquetas').value,10) || 1);
@@ -7309,10 +7312,10 @@ function saveNewProduct(imprimirDireto){
    etiquetas sai na hora, sem perguntar de novo.
 ========================================================= */
 function abrirPopupQtdEImprimir(){
-  if(modoTeste){ alert('No modo teste o cadastro de produtos fica bloqueado. Os itens de teste já vêm pré-configurados.'); return; }
+  if(modoTeste){ alertModal('No modo teste o cadastro de produtos fica bloqueado. Os itens de teste já vêm pré-configurados.'); return; }
   if(!requirePerm(getPerms().canEditStock)) return;
   const nome = document.getElementById('p_nome').value.trim();
-  if(!nome){ alert('Informe o nome do produto.'); return; }
+  if(!nome){ alertModal('Informe o nome do produto.'); return; }
   const atual = Math.max(1, parseInt(document.getElementById('p_qtdEtiquetas').value,10) || 1);
   showModal(`
     <button class="modalClose" onclick="closeModal()">×</button>
@@ -7630,16 +7633,16 @@ function scannerRenderBatchCard(b, idx){
   `;
 }
 function scannerCommitAll(){
-  if(modoTeste){ alert('No modo teste o cadastro de produtos fica bloqueado. Os itens de teste já vêm pré-configurados.'); return; }
+  if(modoTeste){ alertModal('No modo teste o cadastro de produtos fica bloqueado. Os itens de teste já vêm pré-configurados.'); return; }
   if(!requirePerm(getPerms().canEditStock)) return;
   const gruposComItens = scannerBatches.filter(b=>b.items.length>0);
-  if(!gruposComItens.length){ alert('Nenhum código escaneado para jogar no estoque.'); return; }
+  if(!gruposComItens.length){ alertModal('Nenhum código escaneado para jogar no estoque.'); return; }
 
   // Validação: todo grupo com itens precisa de nome definido.
   for(const b of gruposComItens){
     const nome = (b.nome||'').trim();
     if(!nome){
-      alert('Informe o nome do produto no grupo com o código '+b.items[0].barcode+' antes de despejar no estoque.');
+      alertModal('Informe o nome do produto no grupo com o código '+b.items[0].barcode+' antes de despejar no estoque.');
       const i = document.getElementById('sb_nome_'+b.id); if(i) i.focus();
       return;
     }
@@ -7862,7 +7865,7 @@ function scannerLookupProcessCode(){
   setTimeout(function(){ const n=document.getElementById('scannerQuickNome'); if(n) n.focus(); },40);
 }
 function scannerQuickRegister(code){
-  if(modoTeste){ alert('No modo teste o cadastro de produtos fica bloqueado.'); return; }
+  if(modoTeste){ alertModal('No modo teste o cadastro de produtos fica bloqueado.'); return; }
   if(!requirePerm(getPerms().canEditStock)) return;
   if(DB.products.some(function(p){ return String(p.barcode||'')===String(code); })){
     toast('Esse código acabou de ser cadastrado em outro lugar.', 'erro');
@@ -7910,7 +7913,7 @@ function scannerSetMode(mode){
 }
 function scannerModeAddClick(){
   if(!requirePerm(getPerms().canEditStock)) return;
-  if(modoTeste){ alert('No modo teste a alteração de estoque fica bloqueada.'); return; }
+  if(modoTeste){ alertModal('No modo teste a alteração de estoque fica bloqueada.'); return; }
   pedirCodigoConfirmacaoAddEstoque();
 }
 function pedirCodigoConfirmacaoAddEstoque(){
@@ -7966,7 +7969,7 @@ function addEstoqueProcessCode(){
   }
 
   if(!requirePerm(getPerms().canEditStock)){ input.focus(); return; }
-  if(modoTeste){ alert('No modo teste a alteração de estoque fica bloqueada.'); input.focus(); return; }
+  if(modoTeste){ alertModal('No modo teste a alteração de estoque fica bloqueada.'); input.focus(); return; }
 
   prod.estoque = (Number(prod.estoque)||0) + 1;
   DB.incomingStock.push({id:uid('inc'), date:todayISO(), productId:prod.id, productName:prod.nome, fornecedor:'Escaneamento de código de barras', qtd:1});
@@ -8012,7 +8015,7 @@ function saveBatchProducts(){
   });
   log(`Cadastro em lote: ${count} produtos adicionados`);
   document.getElementById('loteTextarea').value='';
-  alert(count+' produtos cadastrados.');
+  alertModal(count+' produtos cadastrados.');
   setEstoqueTab('lista');
 }
 function applyBulkPriceAdjust(){
@@ -8032,7 +8035,7 @@ function applyBulkPriceAdjust(){
     count++;
   });
   log(`Ajuste de preço em massa aplicado a ${count} produtos`);
-  alert(count+' produtos atualizados.');
+  alertModal(count+' produtos atualizados.');
   renderEstoqueLista();
 }
 document.getElementById('ajusteAlvo')?.addEventListener?.('change', ()=>{});
@@ -8043,8 +8046,8 @@ document.getElementById('ajusteAlvo')?.addEventListener?.('change', ()=>{});
 function saveCategoryGroup(){
   if(!requirePerm(getPerms().canEditStock)) return;
   const nome = document.getElementById('grp_nome').value.trim();
-  if(!nome){ alert('Informe o nome do grupo.'); return; }
-  if(DB.categoryGroups.some(g=>g.nome.toLowerCase()===nome.toLowerCase())){ alert('Esse grupo já existe.'); return; }
+  if(!nome){ alertModal('Informe o nome do grupo.'); return; }
+  if(DB.categoryGroups.some(g=>g.nome.toLowerCase()===nome.toLowerCase())){ alertModal('Esse grupo já existe.'); return; }
   DB.categoryGroups.push({id:uid('grp'), nome});
   log('Grupo de categoria cadastrado: '+nome);
   document.getElementById('grp_nome').value='';
@@ -8054,19 +8057,20 @@ function removeCategoryGroup(id){
   if(!requirePerm(getPerms().isTotal)) return;
   const g = DB.categoryGroups.find(x=>x.id===id);
   if(!g) return;
-  if(!confirm('Remover o grupo "'+g.nome+'"? As categorias desse grupo ficarão sem grupo.')) return;
-  DB.categoryGroups = DB.categoryGroups.filter(x=>x.id!==id);
-  marcarExcluido('categoryGroups', id);
-  DB.categories.forEach(c=>{ if(c.groupId===id) c.groupId=''; });
-  log('Grupo de categoria removido: '+g.nome);
-  renderCategoriasTab();
+  confirmModal('Remover o grupo "'+g.nome+'"? As categorias desse grupo ficarão sem grupo.', function(){
+    DB.categoryGroups = DB.categoryGroups.filter(x=>x.id!==id);
+    marcarExcluido('categoryGroups', id);
+    DB.categories.forEach(c=>{ if(c.groupId===id) c.groupId=''; });
+    log('Grupo de categoria removido: '+g.nome);
+    renderCategoriasTab();
+  });
 }
 function saveCategory(){
   if(!requirePerm(getPerms().canEditStock)) return;
   const nome = document.getElementById('cat_nome').value.trim();
   const groupId = document.getElementById('cat_grupo').value;
-  if(!nome){ alert('Informe o nome da categoria.'); return; }
-  if(DB.categories.some(c=>c.nome.toLowerCase()===nome.toLowerCase())){ alert('Essa categoria já existe.'); return; }
+  if(!nome){ alertModal('Informe o nome da categoria.'); return; }
+  if(DB.categories.some(c=>c.nome.toLowerCase()===nome.toLowerCase())){ alertModal('Essa categoria já existe.'); return; }
   DB.categories.push({id:uid('cat'), nome, groupId});
   log('Categoria cadastrada: '+nome);
   document.getElementById('cat_nome').value='';
@@ -8076,17 +8080,18 @@ function removeCategory(id){
   if(!requirePerm(getPerms().isTotal)) return;
   const c = DB.categories.find(x=>x.id===id);
   if(!c) return;
-  if(!confirm('Remover a categoria "'+c.nome+'"? Peças já cadastradas com essa categoria não serão alteradas.')) return;
-  DB.categories = DB.categories.filter(x=>x.id!==id);
-  marcarExcluido('categories', id);
-  log('Categoria removida: '+c.nome);
-  renderCategoriasTab();
+  confirmModal('Remover a categoria "'+c.nome+'"? Peças já cadastradas com essa categoria não serão alteradas.', function(){
+    DB.categories = DB.categories.filter(x=>x.id!==id);
+    marcarExcluido('categories', id);
+    log('Categoria removida: '+c.nome);
+    renderCategoriasTab();
+  });
 }
 function saveProductName(){
   if(!requirePerm(getPerms().canEditStock)) return;
   const nome = document.getElementById('pn_nome').value.trim();
-  if(!nome){ alert('Informe o nome da peça.'); return; }
-  if(DB.productNames.some(n=>n.nome.toLowerCase()===nome.toLowerCase())){ alert('Esse nome já está cadastrado.'); return; }
+  if(!nome){ alertModal('Informe o nome da peça.'); return; }
+  if(DB.productNames.some(n=>n.nome.toLowerCase()===nome.toLowerCase())){ alertModal('Esse nome já está cadastrado.'); return; }
   DB.productNames.push({id:uid('pn'), nome});
   log('Nome de peça cadastrado no catálogo: '+nome);
   document.getElementById('pn_nome').value='';
@@ -8096,11 +8101,12 @@ function removeProductName(id){
   if(!requirePerm(getPerms().isTotal)) return;
   const n = DB.productNames.find(x=>x.id===id);
   if(!n) return;
-  if(!confirm('Remover "'+n.nome+'" do catálogo de nomes?')) return;
-  DB.productNames = DB.productNames.filter(x=>x.id!==id);
-  marcarExcluido('productNames', id);
-  log('Nome de peça removido do catálogo: '+n.nome);
-  renderCategoriasTab();
+  confirmModal('Remover "'+n.nome+'" do catálogo de nomes?', function(){
+    DB.productNames = DB.productNames.filter(x=>x.id!==id);
+    marcarExcluido('productNames', id);
+    log('Nome de peça removido do catálogo: '+n.nome);
+    renderCategoriasTab();
+  });
 }
 function renderCategoriasTab(){
   const perm = getPerms();
@@ -8196,7 +8202,7 @@ function selectPickerItem(inputId, value){
 function pickerAddNew(inputId, type){
   const newInp = document.getElementById(inputId+'_newVal');
   const val = (newInp?newInp.value:'').trim();
-  if(!val){ alert('Digite um nome para cadastrar.'); return; }
+  if(!val){ alertModal('Digite um nome para cadastrar.'); return; }
   pickerAddItem(type, val);
   const inp = document.getElementById(inputId);
   if(inp) inp.value = val;
@@ -8534,7 +8540,7 @@ function openLabelPicker(productId){
   }
 }
 function previewEtiquetaConfig(){
-  if(!DB.products.length){ alert('Cadastre pelo menos um produto para pré-visualizar a etiqueta.'); return; }
+  if(!DB.products.length){ alertModal('Cadastre pelo menos um produto para pré-visualizar a etiqueta.'); return; }
   openLabelPicker(DB.products[0].id);
 }
 function showModeloPickerModal(){
@@ -8666,7 +8672,7 @@ function baixarEtiquetaPDF(){
   salvarModeloSeMarcado();
   const el = document.querySelector('#etqPreviewBox .etq');
   if(!el || typeof html2canvas==='undefined' || !window.jspdf){
-    alert('Não foi possível gerar o PDF (recurso indisponível).');
+    alertModal('Não foi possível gerar o PDF (recurso indisponível).');
     return;
   }
   const dims = dimsDoModeloEscolhido_();
@@ -8680,7 +8686,7 @@ function baixarEtiquetaPDF(){
     log('Etiqueta em PDF gerada: ' + p.nome);
   }).catch(err=>{
     console.error('Erro ao gerar PDF:', err);
-    alert('Erro ao gerar o PDF da etiqueta.');
+    alertModal('Erro ao gerar o PDF da etiqueta.');
   });
 }
 /* =========================================================
@@ -9387,10 +9393,11 @@ function atualizarElementoNoCanvas(el){
 
 /* -------- restaurar / salvar -------- */
 function restaurarLayoutEtiquetaPadrao(){
-  if(!confirm('Restaurar o layout padrão? Isso apaga as posições e elementos atuais do editor.')) return;
-  DB.settings.etiquetaLayout = defaultEtiquetaLayout();
-  _etqEditState.selectedId = null;
-  renderEditorCanvas();
+  confirmModal('Restaurar o layout padrão? Isso apaga as posições e elementos atuais do editor.', function(){
+    DB.settings.etiquetaLayout = defaultEtiquetaLayout();
+    _etqEditState.selectedId = null;
+    renderEditorCanvas();
+  });
 }
 function salvarEditorEtiqueta(){
   const nomeInput = document.getElementById('etqModeloNomeInput');
@@ -9539,12 +9546,12 @@ function saveEditedProduct(id){
   const p = DB.products.find(x=>x.id===id);
   if(!p) return;
   const nome = document.getElementById('e_nome').value.trim();
-  if(!nome){ alert('Informe o nome do produto.'); return; }
+  if(!nome){ alertModal('Informe o nome do produto.'); return; }
   let barcode = document.getElementById('e_barcode').value.trim() || genBarcode();
   const collides = DB.products.some(x=>x.id!==id && produtoTemBarcode(x, barcode));
   if(collides){
     barcode = genBarcode();
-    alert('Esse código de barras já pertence a outro produto. Um novo código foi gerado automaticamente.');
+    alertModal('Esse código de barras já pertence a outro produto. Um novo código foi gerado automaticamente.');
   }
   p.nome = nome;
   p.categoria = document.getElementById('e_categoria').value.trim();
@@ -9666,7 +9673,7 @@ function confirmarAddEstoqueProduto(productId){
   const p = DB.products.find(x=>x.id===productId);
   if(!p) return;
   const qtd = Number(document.getElementById('addEstoqueQtd').value)||0;
-  if(qtd<=0){ alert('Informe uma quantidade válida.'); return; }
+  if(qtd<=0){ alertModal('Informe uma quantidade válida.'); return; }
   p.estoque += qtd;
   DB.incomingStock.push({id:uid('inc'), date:todayISO(), productId, productName:p.nome, fornecedor:'Adição manual (Estoque)', qtd});
   log(`Estoque adicionado: ${qtd}x ${p.nome} (agora: ${p.estoque})`);
@@ -9701,7 +9708,7 @@ function confirmarRemoveEstoqueProduto(productId){
   if(!p) return;
   const qtd = Number(document.getElementById('removeEstoqueQtd').value)||0;
   const motivo = document.getElementById('removeEstoqueMotivo').value.trim();
-  if(qtd<=0){ alert('Informe uma quantidade válida.'); return; }
+  if(qtd<=0){ alertModal('Informe uma quantidade válida.'); return; }
   p.estoque = Math.max(0, p.estoque - qtd);
   DB.outgoingStock.push({id:uid('out'), date:todayISO(), productId, productName:p.nome, motivo, qtd});
   log(`Baixa manual de estoque: ${qtd}x ${p.nome} (agora: ${p.estoque})${motivo?' — motivo: '+motivo:''}`);
@@ -9981,7 +9988,7 @@ function saveEntrada(){
   const productId = document.getElementById('entradaProduto').value;
   const qtd = Number(document.getElementById('entradaQtd').value)||0;
   const fornecedor = document.getElementById('entradaFornecedor').value.trim();
-  if(!productId || qtd<=0){ alert('Selecione o produto e informe a quantidade.'); return; }
+  if(!productId || qtd<=0){ alertModal('Selecione o produto e informe a quantidade.'); return; }
   const p = DB.products.find(x=>x.id===productId);
   p.estoque += qtd;
   DB.incomingStock.push({id:uid('inc'), date:todayISO(), productId, productName:p.nome, fornecedor, qtd});
@@ -10042,21 +10049,25 @@ function saveSaida(){
   const productId = document.getElementById('saidaProduto').value;
   const qtd = Number(document.getElementById('saidaQtd').value)||0;
   const motivo = document.getElementById('saidaMotivo').value.trim();
-  if(!productId || qtd<=0){ alert('Selecione o produto e informe a quantidade.'); return; }
+  if(!productId || qtd<=0){ alertModal('Selecione o produto e informe a quantidade.'); return; }
   const p = DB.products.find(x=>x.id===productId);
   if(!p) return;
+  const continuarSaida = function(){
+    p.estoque = Math.max(0, p.estoque - qtd);
+    DB.outgoingStock.push({id:uid('out'), date:todayISO(), productId, productName:p.nome, motivo, qtd});
+    log(`Saída de estoque: ${qtd}x ${p.nome} (agora: ${p.estoque})${motivo?' — motivo: '+motivo:''}`);
+    flashSaving();
+    document.getElementById('saidaQtd').value='';
+    document.getElementById('saidaMotivo').value='';
+    renderEstoqueLista();
+    renderSaidaHist();
+    toast(`Estoque de "${p.nome}" atualizado: -${qtd} (agora ${p.estoque})`);
+  };
   if(qtd > p.estoque){
-    if(!confirm(`O estoque atual de "${p.nome}" é ${p.estoque}. Ainda assim registrar uma saída de ${qtd}? O estoque ficará zerado (não fica negativo).`)) return;
+    confirmModal(`O estoque atual de "${p.nome}" é ${p.estoque}. Ainda assim registrar uma saída de ${qtd}? O estoque ficará zerado (não fica negativo).`, continuarSaida);
+  } else {
+    continuarSaida();
   }
-  p.estoque = Math.max(0, p.estoque - qtd);
-  DB.outgoingStock.push({id:uid('out'), date:todayISO(), productId, productName:p.nome, motivo, qtd});
-  log(`Saída de estoque: ${qtd}x ${p.nome} (agora: ${p.estoque})${motivo?' — motivo: '+motivo:''}`);
-  flashSaving();
-  document.getElementById('saidaQtd').value='';
-  document.getElementById('saidaMotivo').value='';
-  renderEstoqueLista();
-  renderSaidaHist();
-  toast(`Estoque de "${p.nome}" atualizado: -${qtd} (agora ${p.estoque})`);
 }
 function renderSaidaHist(){
   const perm = getPerms();
@@ -10075,7 +10086,7 @@ function saveKit(){
   const nome = document.getElementById('kit_nome').value.trim();
   const sel = Array.from(document.getElementById('kit_produtos').selectedOptions).map(o=>o.value);
   const preco = moneyVal('kit_preco');
-  if(!nome||sel.length===0){ alert('Informe o nome e selecione ao menos um produto.'); return; }
+  if(!nome||sel.length===0){ alertModal('Informe o nome e selecione ao menos um produto.'); return; }
   DB.kits.push({id:uid('kit'), nome, produtos:sel, preco});
   log('Kit cadastrado: '+nome);
   document.getElementById('kit_nome').value=''; document.getElementById('kit_preco').value='';
@@ -10111,9 +10122,9 @@ function setClientesTab(tab){
 function saveNewCustomer(){
   if(!requirePerm(getPerms().canEditClientes)) return;
   const nome = document.getElementById('c_nome').value.trim();
-  if(!nome){ alert('Informe o nome.'); return; }
+  if(!nome){ alertModal('Informe o nome.'); return; }
   const cpf = document.getElementById('c_cpf').value.trim();
-  if(cpf && !validarCPF(cpf)){ alert('O CPF informado é inválido. Confira os números ou deixe o campo em branco.'); return; }
+  if(cpf && !validarCPF(cpf)){ alertModal('O CPF informado é inválido. Confira os números ou deixe o campo em branco.'); return; }
   DB.customers.push({
     id:uid('cli'), nome,
     telefone: document.getElementById('c_telefone').value.trim(),
@@ -10172,9 +10183,9 @@ function saveEditedCustomer(id){
   const c = DB.customers.find(x=>x.id===id);
   if(!c) return;
   const nome = document.getElementById('ec_nome').value.trim();
-  if(!nome){ alert('Informe o nome.'); return; }
+  if(!nome){ alertModal('Informe o nome.'); return; }
   const ecCpf = document.getElementById('ec_cpf').value.trim();
-  if(ecCpf && !validarCPF(ecCpf)){ alert('O CPF informado é inválido. Confira os números ou deixe o campo em branco.'); return; }
+  if(ecCpf && !validarCPF(ecCpf)){ alertModal('O CPF informado é inválido. Confira os números ou deixe o campo em branco.'); return; }
   c.nome = nome;
   c.telefone = document.getElementById('ec_telefone').value.trim();
   c.cpf = ecCpf;
@@ -10190,17 +10201,18 @@ function deleteCustomer(id){
   const c = DB.customers.find(x=>x.id===id);
   if(!c) return;
   if(customerDebtTotal(c) > 0.001){
-    alert('Não é possível excluir "'+c.nome+'": esse cliente ainda tem fiado em aberto. Quite ou cancele o fiado antes de excluir.');
+    alertModal('Não é possível excluir "'+c.nome+'": esse cliente ainda tem fiado em aberto. Quite ou cancele o fiado antes de excluir.');
     return;
   }
-  if(!confirm('Excluir o cliente "'+c.nome+'"? Essa ação não pode ser desfeita. O histórico de vendas já realizadas será mantido, mas deixará de estar vinculado a ele.')) return;
-  DB.customers = DB.customers.filter(x=>x.id!==id);
-  marcarExcluido('customers', id);
-  log('Cliente excluído: '+c.nome);
-  flashSaving();
-  closeModal();
-  renderClientesLista();
-  renderFiadoOverview();
+  confirmModal('Excluir o cliente "'+c.nome+'"? Essa ação não pode ser desfeita. O histórico de vendas já realizadas será mantido, mas deixará de estar vinculado a ele.', function(){
+    DB.customers = DB.customers.filter(x=>x.id!==id);
+    marcarExcluido('customers', id);
+    log('Cliente excluído: '+c.nome);
+    flashSaving();
+    closeModal();
+    renderClientesLista();
+    renderFiadoOverview();
+  });
 }
 function openCustomerDetail(id){
   const c = DB.customers.find(x=>x.id===id);
@@ -10303,7 +10315,7 @@ function confirmCancelSale(saleId){
   log(`Venda cancelada: #${sale.id.slice(-5)} (${fmtMoney(sale.total)}) — autorizado por ${admin.nome}. Estoque estornado e fiado removido.`);
   closeModal();
   renderAll();
-  alert('Venda cancelada. Estoque, fiado e relatórios já foram atualizados.');
+  alertModal('Venda cancelada. Estoque, fiado e relatórios já foram atualizados.');
 }
 /* ---------- Cancelamento de UMA ÚNICA PEÇA dentro de uma compra com
    vários produtos (grupo do Livro de Vendas). Estorna só o estoque
@@ -10404,7 +10416,7 @@ function confirmCancelItem(saleId, itemIndex){
   log(`Peça cancelada na compra #${sale.id.slice(-5)}: ${it.name} x${it.qty} (${fmtMoney(itemNet)}) — autorizado por ${admin.nome}.`);
   closeModal();
   renderAll();
-  alert('Peça cancelada. Estoque, fiado e relatórios já foram atualizados.');
+  alertModal('Peça cancelada. Estoque, fiado e relatórios já foram atualizados.');
 }
 function renderFiadoOverview(){
   const withDebt = DB.customers.filter(c=>customerDebtTotal(c)>0.001);
@@ -10550,7 +10562,7 @@ function addConta(){
   const valor = moneyVal('contaValor');
   const tipo = document.getElementById('contaTipo').value;
   const data = document.getElementById('contaData').value;
-  if(!desc||valor<=0){ alert('Preencha descrição e valor.'); return; }
+  if(!desc||valor<=0){ alertModal('Preencha descrição e valor.'); return; }
   DB.contas.push({id:uid('conta'), desc, valor, tipo, data, paga:false});
   log(`Conta ${tipo==='pagar'?'a pagar':'a receber'} adicionada: ${desc}`);
   document.getElementById('contaDesc').value=''; document.getElementById('contaValor').value='';
@@ -10738,8 +10750,8 @@ function saveEmployee(){
   const nome = document.getElementById('f_nome').value.trim();
   const usuario = document.getElementById('f_usuario').value.trim();
   const senha = document.getElementById('f_senha').value;
-  if(!nome||!usuario||!senha){ alert('Preencha todos os campos.'); return; }
-  if(DB.employees.some(e=>e.usuario===usuario)){ alert('Usuário já existe.'); return; }
+  if(!nome||!usuario||!senha){ alertModal('Preencha todos os campos.'); return; }
+  if(DB.employees.some(e=>e.usuario===usuario)){ alertModal('Usuário já existe.'); return; }
   const novo = {id:uid('emp'), nome, usuario, senha, perfil:document.getElementById('f_perfil').value, comissao:Number(document.getElementById('f_comissao').value)||0, foto: novoFuncionarioFoto || ''};
   DB.employees.push(novo);
   if(novo.foto) marcarFotoAlterada(chaveFotoFuncionario(novo.id), novo.foto);
@@ -10763,12 +10775,13 @@ function renderEmployees(){
 function removeEmployee(id){
   if(!requirePerm(getPerms().isTotal)) return;
   const e = DB.employees.find(x=>x.id===id);
-  if(!confirm('Remover '+e.nome+'?')) return;
-  DB.employees = DB.employees.filter(x=>x.id!==id);
-  marcarExcluido('employees', id);
-  if(e.foto) marcarFotoAlterada(chaveFotoFuncionario(e.id), null);
-  log('Funcionário removido: '+e.nome);
-  renderEmployees();
+  confirmModal('Remover '+e.nome+'?', function(){
+    DB.employees = DB.employees.filter(x=>x.id!==id);
+    marcarExcluido('employees', id);
+    if(e.foto) marcarFotoAlterada(chaveFotoFuncionario(e.id), null);
+    log('Funcionário removido: '+e.nome);
+    renderEmployees();
+  });
 }
 function editEmployee(id){
   if(!requirePerm(getPerms().isTotal)) return;
@@ -10789,7 +10802,7 @@ function editEmployee(id){
     <div class="formGrid">
       <div class="field"><label>Nome</label><input id="edit_nome" value="${e.nome.replace(/"/g,'&quot;')}"></div>
       <div class="field"><label>Usuário (login)</label><input id="edit_usuario" value="${e.usuario.replace(/"/g,'&quot;')}"></div>
-      <div class="field"><label>Nova senha (deixe em branco para não mudar)</label><input id="edit_senha" type="password" placeholder="••••••••" autocomplete="new-password"></div>
+      <div class="field"><label>Nova senha (deixe em branco para não mudar)</label><input id="edit_senha" type="password" placeholder="••••••••" autocomplete="off" data-lpignore="true" data-1p-ignore data-form-type="other"></div>
       <div class="field"><label>Perfil</label>
         <select id="edit_perfil">
           <option value="total">Acesso total</option>
@@ -10970,7 +10983,7 @@ function salvarPonto(){
   const data = document.getElementById('pontoData').value;
   const entrada = document.getElementById('pontoEntrada').value;
   const saida = document.getElementById('pontoSaida').value;
-  if(!data || !entrada || !saida){ alert('Preencha data, entrada e saída.'); return; }
+  if(!data || !entrada || !saida){ alertModal('Preencha data, entrada e saída.'); return; }
   if(!Array.isArray(emp.pontos)) emp.pontos = [];
   emp.pontos.push({id:uid('ponto'), data, entrada, saida});
   emp.pontos.sort((a,b)=> a.data<b.data?1:(a.data>b.data?-1:0));
@@ -11887,11 +11900,11 @@ function importFotosFile(file){
       autoSaveLocal();
       autoSaveToFile();
       log(`Fotos importadas: ${count} item(ns)`);
-      alert(count+' fotos importadas.');
+      alertModal(count+' fotos importadas.');
       renderEstoqueLista();
       renderEmployees();
     }catch(err){
-      alert('Arquivo de fotos inválido.');
+      alertModal('Arquivo de fotos inválido.');
     }
   };
   reader.readAsText(file);
@@ -11912,10 +11925,10 @@ function importBackupFile(file){
       aplicarAnimacoesGlobais();
       autoSaveLocal();
       autoSaveToFile();
-      alert('Backup importado com sucesso!');
+      alertModal('Backup importado com sucesso!');
       if(currentUser){ renderAll(); } else { renderLoginAvatars(); }
     }catch(err){
-      alert('Arquivo de backup inválido.');
+      alertModal('Arquivo de backup inválido.');
     }
   };
   reader.readAsText(file);
@@ -11943,7 +11956,7 @@ function importProductsCSV(file){
       count++;
     });
     log(`Importação CSV: ${count} produtos adicionados`);
-    alert(count+' produtos importados.');
+    alertModal(count+' produtos importados.');
     renderEstoqueLista();
   };
   reader.readAsText(file);
@@ -11970,6 +11983,42 @@ function closeModal(){
   document.removeEventListener('keydown', _confirmModalKeyHandler);
 }
 document.getElementById('modalBg').addEventListener('click', e=>{ if(e.target.id==='modalBg') closeModal(); });
+
+/* ---------------- Popup de aviso (substitui o alertModal() nativo) ----------------
+   Igual ao confirmModal, mas só com um botão "OK" — usado em todo lugar que
+   antes chamava alertModal() do navegador. Como o alertModal() nativo trava a página
+   até a pessoa clicar OK, e este popup não trava, ele aceita um "onOk"
+   opcional pra rodar algo só depois que a pessoa fechar o aviso, mas na
+   imensa maioria das vezes o alertModal() era só um aviso final (sem nada
+   importante rodando depois), então na prática o comportamento visível é
+   o mesmo de antes. */
+function alertModal(mensagem, onOk, opts){
+  opts = opts || {};
+  const titulo = opts.titulo || 'Aviso';
+  showModal(`
+    <button class="modalClose" onclick="closeModal()">×</button>
+    <h3>${titulo}</h3>
+    <div style="margin:2px 0 18px;color:var(--text);line-height:1.5;">${mensagem}</div>
+    <div class="dimSmall" style="margin-bottom:14px;">Pressione <b>Enter</b> ou clique fora para fechar.</div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn" id="alertModalOkBtn" style="flex:1;">OK</button>
+    </div>
+  `);
+  const okBtn = document.getElementById('alertModalOkBtn');
+  const run = ()=>{ closeModal(); if(typeof onOk==='function') onOk(); };
+  okBtn.onclick = run;
+  okBtn.focus();
+  _confirmModalKeyHandler = function(e){
+    if(e.key==='Enter' || e.key==='Escape'){ e.preventDefault(); run(); }
+  };
+  document.addEventListener('keydown', _confirmModalKeyHandler);
+}
+document.getElementById('modalBg').addEventListener('click', function(e){
+  if(e.target.id==='modalBg' && document.getElementById('alertModalOkBtn')){
+    const btn = document.getElementById('alertModalOkBtn');
+    if(typeof btn.onclick==='function') btn.onclick();
+  }
+});
 
 /* ---------------- Popup de confirmação (substitui o confirm() nativo) ---------------- */
 let _confirmModalKeyHandler = null;
@@ -12080,17 +12129,17 @@ function atualizarVisibilidadeBotaoInstalar(){
   });
 }
 function instalarApp(){
-  if(isStandaloneApp()){ alert('O app já está instalado neste dispositivo.'); return; }
+  if(isStandaloneApp()){ alertModal('O app já está instalado neste dispositivo.'); return; }
   if(deferredInstallPrompt){
     deferredInstallPrompt.prompt();
     deferredInstallPrompt.userChoice.finally(function(){ deferredInstallPrompt = null; });
     return;
   }
   if(isIOSDevice()){
-    alert('Para instalar no iPhone/iPad:\\n\\n1. Toque no ícone de Compartilhar (⬆️) na barra do Safari\\n2. Escolha "Adicionar à Tela de Início"\\n3. Toque em "Adicionar"');
+    alertModal('Para instalar no iPhone/iPad:\\n\\n1. Toque no ícone de Compartilhar (⬆️) na barra do Safari\\n2. Escolha "Adicionar à Tela de Início"\\n3. Toque em "Adicionar"');
     return;
   }
-  alert('Para instalar o app:\\n\\n1. Abra o menu do navegador (⋮ ou ...)\\n2. Escolha "Instalar app" ou "Adicionar à tela inicial"\\n\\nEm alguns navegadores esse ícone de instalação também aparece direto na barra de endereço.');
+  alertModal('Para instalar o app:\\n\\n1. Abra o menu do navegador (⋮ ou ...)\\n2. Escolha "Instalar app" ou "Adicionar à tela inicial"\\n\\nEm alguns navegadores esse ícone de instalação também aparece direto na barra de endereço.');
 }
 atualizarVisibilidadeBotaoInstalar();
 window.matchMedia('(display-mode: standalone)').addEventListener('change', atualizarVisibilidadeBotaoInstalar);
@@ -12442,6 +12491,39 @@ aplicarVisualConfig();
 renderLoginAvatars();
 tentarLoginAutomatico();
 
+/* =========================================================
+   BLOQUEIO DO MENU DE CONTEXTO (clique com o botão direito)
+   O PDV não tem nenhuma função escondida atrás do botão direito, então o
+   menu do navegador (Copiar/Inspecionar/Salvar imagem como...) só atrapalha
+   o uso em loja — bloqueado em toda a página, sem exceção. */
+document.addEventListener('contextmenu', function(e){ e.preventDefault(); }, false);
+
+/* =========================================================
+   MITIGAÇÃO DE POPUPS NATIVOS DO NAVEGADOR
+   Alguns avisos são desenhados pelo próprio navegador (não pela página) e
+   por isso NÃO podem ser removidos 100% por script — é uma trava de
+   segurança do navegador contra sites maliciosos, nenhum site consegue
+   contornar isso de verdade. O que dá pra fazer, e o que está feito aqui:
+   - "Salvar senha?": os campos de senha do sistema já usam autocomplete="off"
+     + data-lpignore/data-1p-ignore (pede pra gerenciadores de senha tipo
+     LastPass/1Password ignorarem o campo) e não ficam dentro de um <form>
+     com envio de verdade — isso reduz bastante a chance do navegador
+     oferecer salvar a senha, mas alguns navegadores (principalmente Chrome)
+     ainda podem oferecer por conta própria mesmo assim, pois a decisão final
+     de mostrar esse popup é sempre do navegador, não da página.
+   - "Sair da tela cheia?": o sistema já força a volta pra tela cheia
+     automaticamente (ver TELA CHEIA AUTOMÁTICA acima) assim que detecta que
+     saiu. O aviso rápido "Pressione Esc para sair da tela cheia" que alguns
+     navegadores mostram por cima da tela ao entrar em tela cheia é desenhado
+     pelo próprio navegador por fora da página (assim como o aviso de
+     gravação de tela) — não existe permissão de JavaScript pra remover ou
+     personalizar esse aviso específico, é proposital, pra impedir que um
+     site "prenda" a pessoa em tela cheia escondendo esse aviso.
+   - Todas as confirmações e avisos que são DECISÃO do PDV (excluir produto,
+     cancelar venda, limpar cache etc.) não usam mais o confirm()/alert()
+     nativos do navegador — foram todos trocados pelos popups
+     confirmModal()/alertModal() com a cara do sistema (ver mais abaixo). */
+
 /* ---------------- Efeito: luz que acompanha o mouse (spotlight) ---------------- */
 document.addEventListener('mousemove', function(e){
   if(document.documentElement.classList.contains('anim-off-glow')) return;
@@ -12481,33 +12563,40 @@ document.addEventListener('click', function(e){
   aplicarConfigCursor();
 
   let mouseX = window.innerWidth/2, mouseY = window.innerHeight/2;
-  let curX = mouseX, curY = mouseY;
-  let started = false;
+  let prevMouseX = mouseX, prevMouseY = mouseY;
+  // "tiltEase" só suaviza a INCLINAÇÃO do desenho (efeito cartoon de correr),
+  // nunca a posição — a posição do cursor precisa ficar sempre grudada em
+  // cima da ponta do dedo com o ponteiro real, sem nenhum atraso, senão a
+  // pessoa tem que "alcançar" o desenho com o botão em vez do contrário
+  // (é exatamente esse atraso que fazia parecer que precisava encostar o
+  // corpo inteiro no botão em vez de só a ponta do dedo).
+  let tiltAtual = 0;
 
   document.addEventListener('mousemove', function(e){
+    prevMouseX = mouseX; prevMouseY = mouseY;
     mouseX = e.clientX; mouseY = e.clientY;
-    if(!started){ curX = mouseX; curY = mouseY; started = true; }
   });
 
   function loop(){
-    // Segue o mouse com um pequeno "atraso elástico" (efeito cartoon de
-    // arrasto) em vez de grudar instantaneamente na posição real. A força
-    // desse atraso é a "sensibilidade" configurável (window.CURSOR_EASE).
-    const ease = document.documentElement.classList.contains('anim-off-cursor') ? 1 : (window.CURSOR_EASE || 0.25);
-    const prevX = curX;
-    curX += (mouseX-curX)*ease;
-    curY += (mouseY-curY)*ease;
-    cursorEl.style.left = curX+'px';
-    cursorEl.style.top = curY+'px';
+    // A ponta do dedo (ponto de ancoragem do desenho, ver margin/transform-
+    // origin no CSS de #customCursor) fica exatamente em cima da posição
+    // real do ponteiro em todo frame — é ali, e só ali, que o clique
+    // realmente acontece, então é ali que o desenho tem que estar.
+    cursorEl.style.left = mouseX+'px';
+    cursorEl.style.top = mouseY+'px';
     // Inclina a camiseta na direção do movimento horizontal, tipo um
-    // personagem de desenho correndo — mais rápido, mais inclinado.
-    // No modo "campo de texto" (letrinha "I"), não inclina — fica reto,
-    // como um cursor de texto de verdade.
+    // personagem de desenho correndo — mais rápido, mais inclinado. Isso é
+    // só um efeito visual de "personalidade" (rotação em torno da própria
+    // ponta do dedo, que não muda), então pode continuar suavizado/com
+    // atraso sem prejudicar a precisão do clique.
     if(!document.documentElement.classList.contains('anim-off-cursor') && !cursorImg.classList.contains('cursorTextMode')){
-      const vx = curX-prevX;
-      const tilt = Math.max(-24, Math.min(24, vx*3.2));
-      cursorImg.style.rotate = tilt+'deg';
+      const tiltEase = window.CURSOR_EASE || 0.25;
+      const vx = mouseX-prevMouseX;
+      const tiltAlvo = Math.max(-24, Math.min(24, vx*3.2));
+      tiltAtual += (tiltAlvo-tiltAtual)*tiltEase;
+      cursorImg.style.rotate = tiltAtual+'deg';
     } else {
+      tiltAtual = 0;
       cursorImg.style.rotate = '0deg';
     }
     requestAnimationFrame(loop);
