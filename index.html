@@ -65,15 +65,74 @@
   if(window.visualViewport){ window.visualViewport.addEventListener('resize', ajustarAlturaReal); }
 })();
 </script>
-<!-- defer: essas libs só são usadas depois (impressão de etiqueta/PDF), então não
-     precisam travar o carregamento do resto da página esperando o CDN responder.
-     Sem isso, se o CDN demorar ou estiver bloqueado na rede do servidor, o app
-     inteiro fica parado na tela de carregamento (sem nenhum erro no console). -->
-<script defer src="https://cdnjs.cloudflare.com/ajax/libs/JsBarcode/3.11.6/JsBarcode.all.min.js" onerror="this.onerror=null;var s=document.createElement('script');s.defer=true;s.src='https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js';document.head.appendChild(s);"></script>
-<script defer src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js" onerror="this.onerror=null;var s=document.createElement('script');s.defer=true;s.src='https://cdn.jsdelivr.net/npm/qrious@4.0.2/dist/qrious.min.js';document.head.appendChild(s);"></script>
-<script defer src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" onerror="this.onerror=null;var s=document.createElement('script');s.defer=true;s.src='https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';document.head.appendChild(s);"></script>
-<script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" onerror="this.onerror=null;var s=document.createElement('script');s.defer=true;s.src='https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js';document.head.appendChild(s);"></script>
+<!-- lazy-load: essas libs (código de barras, QR, geração de PDF de etiqueta) só são
+     baixadas na hora em que a loja realmente usa uma tela que precisa delas — ver
+     função carregarLibExterna() mais abaixo no bloco de script principal. Isso poupa esse
+     download (e o tempo de processar/interpretar o arquivo) em toda sessão que não
+     chega a imprimir etiqueta nem gerar QR do Pix, sem mudar nada visualmente nem
+     no funcionamento — quando a função é usada, ela é baixada e usada exatamente
+     como antes. -->
 <script>
+
+/* ==========================================================================
+   CARREGAMENTO SOB DEMANDA (lazy-load) DE BIBLIOTECAS EXTERNAS
+   JsBarcode (código de barras), QRious (QR code), html2canvas e jsPDF
+   (geração de PDF da etiqueta) só são baixadas na primeira vez que a loja
+   realmente usa uma tela que precisa delas (imprimir/gerar etiqueta, gerar
+   QR do Pix) — não mais sempre no carregamento inicial do app. O resultado
+   final pro usuário é idêntico ao de antes (mesmas funções, mesmo visual,
+   mesmo comportamento); só muda O MOMENTO em que cada arquivo é baixado.
+   Cada "garantirX()" devolve uma Promise que resolve assim que a biblioteca
+   estiver pronta pra usar (ou na hora, se ela já tiver sido carregada antes
+   nesta mesma sessão) — mesmo esquema de CDN principal + alternativo
+   (jsdelivr) que já existia nas tags <script> originais. */
+const _libsExternasCarregando = {};
+function carregarLibExterna(chave, urlPrincipal, urlFallback, jaCarregada){
+  if(jaCarregada()) return Promise.resolve();
+  if(_libsExternasCarregando[chave]) return _libsExternasCarregando[chave];
+  _libsExternasCarregando[chave] = new Promise(function(resolve){
+    const s = document.createElement('script');
+    s.src = urlPrincipal;
+    s.onload = resolve;
+    s.onerror = function(){
+      const s2 = document.createElement('script');
+      s2.src = urlFallback;
+      s2.onload = resolve;
+      // se até o CDN alternativo falhar, resolve mesmo assim (não deixa quem
+      // chamou esperando pra sempre) — as funções que usam a lib já sabem
+      // lidar com "typeof X === 'undefined'" e avisar a pessoa nesse caso.
+      s2.onerror = resolve;
+      document.head.appendChild(s2);
+    };
+    document.head.appendChild(s);
+  });
+  return _libsExternasCarregando[chave];
+}
+function garantirJsBarcode(){
+  return carregarLibExterna('jsbarcode',
+    'https://cdnjs.cloudflare.com/ajax/libs/JsBarcode/3.11.6/JsBarcode.all.min.js',
+    'https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js',
+    function(){ return typeof JsBarcode!=='undefined'; });
+}
+function garantirQRious(){
+  return carregarLibExterna('qrious',
+    'https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js',
+    'https://cdn.jsdelivr.net/npm/qrious@4.0.2/dist/qrious.min.js',
+    function(){ return typeof QRious!=='undefined'; });
+}
+function garantirHtml2Canvas(){
+  return carregarLibExterna('html2canvas',
+    'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
+    'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js',
+    function(){ return typeof html2canvas!=='undefined'; });
+}
+function garantirJsPDF(){
+  return carregarLibExterna('jspdf',
+    'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+    'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js',
+    function(){ return !!window.jspdf; });
+}
+
 /* ==========================================================================
    SERVICE WORKER — é isso que permite abrir o app/site MESMO SEM INTERNET
    (desde que o aparelho já tenha aberto o site pelo menos uma vez com
@@ -6499,12 +6558,17 @@ function openPixQrModal(valor, onConcluir, opts){
   const payload = gerarPixPayload(valor, 'VENDA'+Date.now().toString().slice(-8));
   window._pixQrPayload = payload;
 
-  setTimeout(()=>{
+  // Dispara o carregamento da lib de QR code assim que o modal abre (se ainda não tiver
+  // sido carregada nesta sessão) e só desenha o QR quando ela estiver garantidamente
+  // pronta — em vez de só checar uma vez depois de 30ms e desistir se não tiver dado tempo.
+  garantirQRious().then(()=>{
     document.querySelectorAll('#pixQrStage .pixQrCanvasEl').forEach(canvas=>{
       if(payload && typeof QRious!=='undefined'){
         new QRious({element:canvas, value:payload, size:410, level:'M'});
       }
     });
+  });
+  setTimeout(()=>{
     const btn = document.getElementById('pixQrConcluirBtn');
     if(btn) btn.focus();
   }, 30);
@@ -8453,7 +8517,7 @@ function renderEtiquetaInto(container, p, modelo, sfx, barcodeValue){
 }
 function desenharBarcodeComRetry(sfx, valor, tentativa){
   if(typeof JsBarcode === 'undefined'){
-    // a lib pode ainda estar carregando (CDN principal falhou e o fallback foi disparado agora mesmo)
+    garantirJsBarcode(); // dispara o download sob demanda (só baixa 1x por sessão)
     if(tentativa < 4){ setTimeout(()=>desenharBarcodeComRetry(sfx, valor, tentativa+1), 400); return; }
     toast('Não foi possível gerar o código de barras (sem conexão com a biblioteca externa). Verifique sua internet.', 'erro');
     return;
@@ -8513,6 +8577,7 @@ function desenharBarcodeComRetry(sfx, valor, tentativa){
 }
 function desenharQrComRetry(sfx, tentativa){
   if(typeof QRious === 'undefined'){
+    garantirQRious();
     if(tentativa < 4){ setTimeout(()=>desenharQrComRetry(sfx, tentativa+1), 400); return; }
     toast('Não foi possível gerar o QR code (sem conexão com a biblioteca externa).', 'erro');
     return;
@@ -8685,22 +8750,28 @@ function baixarEtiquetaPDF(){
   if(!p) return;
   salvarModeloSeMarcado();
   const el = document.querySelector('#etqPreviewBox .etq');
-  if(!el || typeof html2canvas==='undefined' || !window.jspdf){
+  if(!el){
     alertModal('Não foi possível gerar o PDF (recurso indisponível).');
     return;
   }
-  const dims = dimsDoModeloEscolhido_();
-  html2canvas(el, {scale:8, backgroundColor:'#ffffff'}).then(canvas=>{
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({orientation: dims.w>=dims.h?'landscape':'portrait', unit:'mm', format:[dims.w,dims.h]});
-    const img = canvas.toDataURL('image/png');
-    doc.addImage(img, 'PNG', 0, 0, dims.w, dims.h);
-    const nomeArq = (p.nome||'etiqueta').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
-    doc.save(`etiqueta-${nomeArq||p.barcode}.pdf`);
-    log('Etiqueta em PDF gerada: ' + p.nome);
-  }).catch(err=>{
-    console.error('Erro ao gerar PDF:', err);
-    alertModal('Erro ao gerar o PDF da etiqueta.');
+  Promise.all([garantirHtml2Canvas(), garantirJsPDF()]).then(function(){
+    if(typeof html2canvas==='undefined' || !window.jspdf){
+      alertModal('Não foi possível gerar o PDF (recurso indisponível). Verifique sua internet e tente novamente.');
+      return;
+    }
+    const dims = dimsDoModeloEscolhido_();
+    html2canvas(el, {scale:8, backgroundColor:'#ffffff'}).then(canvas=>{
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({orientation: dims.w>=dims.h?'landscape':'portrait', unit:'mm', format:[dims.w,dims.h]});
+      const img = canvas.toDataURL('image/png');
+      doc.addImage(img, 'PNG', 0, 0, dims.w, dims.h);
+      const nomeArq = (p.nome||'etiqueta').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
+      doc.save(`etiqueta-${nomeArq||p.barcode}.pdf`);
+      log('Etiqueta em PDF gerada: ' + p.nome);
+    }).catch(err=>{
+      console.error('Erro ao gerar PDF:', err);
+      alertModal('Erro ao gerar o PDF da etiqueta.');
+    });
   });
 }
 /* =========================================================
@@ -9053,6 +9124,7 @@ function preencherConteudoElemento(box, el, p, sfx){
 function desenharBarcodeEmCanvas(canvasId, valor, cor, mostrarNumero, textoPosicao, larguraPct, tentativa){
   tentativa = tentativa||0;
   if(typeof JsBarcode==='undefined'){
+    garantirJsBarcode();
     if(tentativa<4){ setTimeout(()=>desenharBarcodeEmCanvas(canvasId,valor,cor,mostrarNumero,textoPosicao,larguraPct,tentativa+1), 400); return; }
     return;
   }
@@ -9115,6 +9187,7 @@ function desenharBarcodeEmCanvas(canvasId, valor, cor, mostrarNumero, textoPosic
 function desenharQrEmCanvas(canvasId, tentativa){
   tentativa = tentativa||0;
   if(typeof QRious==='undefined'){
+    garantirQRious();
     if(tentativa<4){ setTimeout(()=>desenharQrEmCanvas(canvasId,tentativa+1), 400); return; }
     return;
   }
