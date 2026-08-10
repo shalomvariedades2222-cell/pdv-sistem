@@ -915,6 +915,20 @@ html.is-mobile .navBtnRestartMobile{display:flex;}
 .wifiIcon.offline .wBar1,.wifiIcon.offline .wBar2,.wifiIcon.offline .wBar3{opacity:.12;}
 .wifiIcon.offline .wDot{opacity:.25;}
 
+/* ---------- Popup do clique com o botão direito (mostra só o status de conexão) ---------- */
+#ctxStatusPopup{
+  position:fixed;z-index:100000;min-width:230px;max-width:280px;
+  background:var(--glass-bg-strong);border:1px solid var(--glass-border-strong);border-radius:12px;
+  padding:12px 14px;box-shadow:0 16px 40px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.06);
+  backdrop-filter:blur(var(--glass-blur-lg)) saturate(150%);-webkit-backdrop-filter:blur(var(--glass-blur-lg)) saturate(150%);
+  opacity:0;transform:scale(.94);transition:opacity .14s ease,transform .14s ease;pointer-events:none;
+}
+#ctxStatusPopup.show{opacity:1;transform:scale(1);pointer-events:auto;}
+#ctxStatusPopup .ctxStatusTitulo{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;color:var(--text);margin-bottom:8px;}
+#ctxStatusPopup .ctxStatusLinha{display:flex;justify-content:space-between;gap:10px;font-size:11.5px;color:var(--text-dim);padding:3px 0;border-top:1px solid var(--line);}
+#ctxStatusPopup .ctxStatusLinha:first-of-type{border-top:none;}
+#ctxStatusPopup .ctxStatusLinha b{color:var(--text);font-weight:600;}
+
 /* ---------- NOTIFICAÇÕES (TOASTS) ---------- */
 #toastStack{
   position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:600;
@@ -12492,11 +12506,74 @@ renderLoginAvatars();
 tentarLoginAutomatico();
 
 /* =========================================================
-   BLOQUEIO DO MENU DE CONTEXTO (clique com o botão direito)
-   O PDV não tem nenhuma função escondida atrás do botão direito, então o
-   menu do navegador (Copiar/Inspecionar/Salvar imagem como...) só atrapalha
-   o uso em loja — bloqueado em toda a página, sem exceção. */
-document.addEventListener('contextmenu', function(e){ e.preventDefault(); }, false);
+   BOTÃO DIREITO DO MOUSE
+   O menu padrão do navegador (Copiar/Inspecionar/Salvar imagem como...) fica
+   bloqueado sempre — o PDV não usa nada disso. No lugar dele, o botão
+   direito mostra um popup pequeno, no estilo do sistema, só com o status
+   da conexão (bom pra loja conferir rápido se está tudo certo sem precisar
+   abrir Configurações). Fecha sozinho ao clicar em qualquer lugar, apertar
+   Esc, ou depois de alguns segundos. */
+document.addEventListener('contextmenu', function(e){
+  e.preventDefault();
+  mostrarStatusConexaoPopup(e.clientX, e.clientY);
+}, false);
+let _ctxStatusTimeout = null;
+function fecharStatusConexaoPopup(){
+  const pop = document.getElementById('ctxStatusPopup');
+  if(pop){ pop.classList.remove('show'); }
+  clearTimeout(_ctxStatusTimeout);
+  document.removeEventListener('click', fecharStatusConexaoPopup, true);
+  document.removeEventListener('contextmenu', fecharStatusConexaoPopup, true);
+  document.removeEventListener('keydown', _ctxStatusEscHandler, true);
+}
+function _ctxStatusEscHandler(e){ if(e.key==='Escape') fecharStatusConexaoPopup(); }
+function mostrarStatusConexaoPopup(x, y){
+  let pop = document.getElementById('ctxStatusPopup');
+  if(!pop){
+    pop = document.createElement('div');
+    pop.id = 'ctxStatusPopup';
+    document.body.appendChild(pop);
+  }
+  const nivel = navigator.onLine ? (conexaoUltimoNivel || (navigator.onLine ? 'boa' : 'offline')) : 'offline';
+  const conectadoNuvem = hasCloudCredential();
+  const modoTesteAtivo = (typeof modoTeste !== 'undefined') && modoTeste;
+  pop.innerHTML = `
+    <div class="ctxStatusTitulo">
+      <div class="wifiIcon" style="width:16px;height:16px;">
+        <svg viewBox="0 0 24 24" fill="none">
+          <path class="wBar wBar3" d="M2 8.5a14.5 14.5 0 0 1 20 0"/>
+          <path class="wBar wBar2" d="M5.5 12.5a9.5 9.5 0 0 1 13 0"/>
+          <path class="wBar wBar1" d="M9 16.5a4.7 4.7 0 0 1 6 0"/>
+          <circle class="wDot" cx="12" cy="20" r="1.6"/>
+          <line class="wSlash" x1="3" y1="3" x2="21" y2="21"/>
+        </svg>
+      </div>
+      Status de conexão
+    </div>
+    <div class="ctxStatusLinha"><span>Internet</span><b style="color:${corParaNivelConexao(nivel)}">${textoParaNivelConexao(nivel)}</b></div>
+    <div class="ctxStatusLinha"><span>Nuvem</span><b>${modoTesteAtivo ? 'Modo teste' : (conectadoNuvem ? 'Conectado' : 'Não conectado')}</b></div>
+    <div class="ctxStatusLinha"><span>Versão dos dados</span><b>${driveVersion!=null ? driveVersion : '—'}</b></div>
+  `;
+  pop.querySelector('.wifiIcon').className = 'wifiIcon ' + nivel;
+  const margem = 10;
+  const larguraEstimativa = 280, alturaEstimativa = 130;
+  let left = x, top = y;
+  if(left + larguraEstimativa + margem > window.innerWidth) left = window.innerWidth - larguraEstimativa - margem;
+  if(top + alturaEstimativa + margem > window.innerHeight) top = window.innerHeight - alturaEstimativa - margem;
+  pop.style.left = Math.max(margem,left)+'px';
+  pop.style.top = Math.max(margem,top)+'px';
+  requestAnimationFrame(function(){ pop.classList.add('show'); });
+  clearTimeout(_ctxStatusTimeout);
+  _ctxStatusTimeout = setTimeout(fecharStatusConexaoPopup, 6000);
+  document.removeEventListener('click', fecharStatusConexaoPopup, true);
+  document.removeEventListener('contextmenu', fecharStatusConexaoPopup, true);
+  document.removeEventListener('keydown', _ctxStatusEscHandler, true);
+  setTimeout(function(){
+    document.addEventListener('click', fecharStatusConexaoPopup, true);
+    document.addEventListener('contextmenu', fecharStatusConexaoPopup, true);
+    document.addEventListener('keydown', _ctxStatusEscHandler, true);
+  }, 0);
+}
 
 /* =========================================================
    MITIGAÇÃO DE POPUPS NATIVOS DO NAVEGADOR
