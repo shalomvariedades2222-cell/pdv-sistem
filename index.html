@@ -3490,8 +3490,8 @@ html.is-mobile .btn::before{ display:none; }
           <table><thead><tr><th>Data/Hora</th><th>Evento</th><th></th></tr></thead><tbody id="configLogBody"></tbody></table>
         </div>
         <div class="panel" style="max-width:560px;border:1px solid var(--red);">
-          <h3 style="color:var(--red);">⚠️ Zona de Perigo — Apagar Tudo do PDV</h3>
-          <p class="dimSmall" style="margin-top:-6px;">Apaga produtos, clientes, vendas, caixa, contas, estoque, kits, categorias, pedidos e o log de alterações deste sistema. Os logins dos funcionários nunca são apagados por aqui, pra ninguém ficar sem conseguir entrar. Essa ação não pode ser desfeita. Área protegida: é preciso digitar a senha do administrador duas vezes para acessar.</p>
+          <h3 style="color:var(--red);">⚠️ Zona de Perigo — Apagar Dados do PDV</h3>
+          <p class="dimSmall" style="margin-top:-6px;">Escolha exatamente o que quer apagar (estoque, produtos, clientes, vendas/relatórios, caixa, etc.) — o que ficar marcado como "manter" continua intacto. Os logins dos funcionários nunca são apagados por aqui, pra ninguém ficar sem conseguir entrar. Essa ação não pode ser desfeita. Área protegida: é preciso digitar a senha do administrador duas vezes para acessar.</p>
           <div id="apagarTudoWrap"></div>
         </div>
       </div>
@@ -11980,7 +11980,35 @@ function renderApagarTudoUI(){
 
   if(apagarTudoEtapa===2){
     wrap.innerHTML = `
-      <div class="dimSmall" style="margin-bottom:10px;">✅ Desbloqueado. Marque abaixo o que você quer <b>MANTER</b> — tudo o que não estiver marcado será apagado.</div>
+      <div class="dimSmall" style="margin-bottom:10px;">✅ Desbloqueado. Marque abaixo o que você quer <b>MANTER</b> — tudo o que NÃO estiver marcado será apagado. Por padrão, nada fica marcado (ou seja, tudo seria apagado) — selecione com cuidado o que deve permanecer.</div>
+
+      <div class="dimSmall" style="margin:14px 0 6px;font-weight:700;color:var(--text);">Dados do sistema</div>
+      <div class="field" style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" id="apagarTudoManterProdutos" style="width:auto;margin:0;">
+        <label style="margin:0;">Manter Produtos (catálogo, categorias, grupos, nomes e kits)</label>
+      </div>
+      <div class="field" style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" id="apagarTudoManterEstoqueMov" style="width:auto;margin:0;">
+        <label style="margin:0;">Manter Estoque (histórico de entradas e saídas)</label>
+      </div>
+      <div class="field" style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" id="apagarTudoManterClientes" style="width:auto;margin:0;">
+        <label style="margin:0;">Manter Clientes (e fiado)</label>
+      </div>
+      <div class="field" style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" id="apagarTudoManterVendas" style="width:auto;margin:0;">
+        <label style="margin:0;">Manter Vendas / Relatórios</label>
+      </div>
+      <div class="field" style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" id="apagarTudoManterCaixa" style="width:auto;margin:0;">
+        <label style="margin:0;">Manter Caixa / Financeiro (sessões de caixa e contas a pagar/receber)</label>
+      </div>
+      <div class="field" style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" id="apagarTudoManterSolicitacoes" style="width:auto;margin:0;">
+        <label style="margin:0;">Manter Solicitações (pedidos de estoque e de acesso)</label>
+      </div>
+
+      <div class="dimSmall" style="margin:14px 0 6px;font-weight:700;color:var(--text);">Configurações</div>
       <div class="field" style="display:flex;align-items:center;gap:8px;">
         <input type="checkbox" id="apagarTudoManterLoja" style="width:auto;margin:0;">
         <label style="margin:0;">Manter dados da loja (nome, contato, logo, impressora, Pix)</label>
@@ -11993,8 +12021,9 @@ function renderApagarTudoUI(){
         <input type="checkbox" id="apagarTudoManterLink" style="width:auto;margin:0;">
         <label style="margin:0;">Manter o link do QR code da etiqueta</label>
       </div>
-      <p class="dimSmall" style="margin:10px 0;">Serão apagados: produtos, clientes, vendas, caixa, contas, entradas/saídas de estoque, kits, categorias, grupos, nomes de produtos, pedidos e o log de alterações. Os logins dos funcionários (usuário/senha) não são afetados.</p>
-      <button type="button" class="btn danger" onclick="apagarTudoPedirConfirmacaoFinal()">🗑️ Apagar tudo agora</button>
+
+      <p class="dimSmall" style="margin:10px 0;">O log de alterações é sempre apagado (e passa a registrar só a partir desta ação). Os logins dos funcionários (usuário/senha) nunca são afetados por aqui.</p>
+      <button type="button" class="btn danger" onclick="apagarTudoPedirConfirmacaoFinal()">🗑️ Apagar o que não foi marcado</button>
       <button type="button" class="btn secondary small" style="margin-left:8px;" onclick="apagarTudoCancelar()">Cancelar</button>
     `;
     return;
@@ -12066,6 +12095,12 @@ function apagarTudoExecutar(){
   const manterLoja = !!document.getElementById('apagarTudoManterLoja') && document.getElementById('apagarTudoManterLoja').checked;
   const manterEtiqueta = !!document.getElementById('apagarTudoManterEtiqueta') && document.getElementById('apagarTudoManterEtiqueta').checked;
   const manterLink = !!document.getElementById('apagarTudoManterLink') && document.getElementById('apagarTudoManterLink').checked;
+  const manterProdutos = !!document.getElementById('apagarTudoManterProdutos') && document.getElementById('apagarTudoManterProdutos').checked;
+  const manterEstoqueMov = !!document.getElementById('apagarTudoManterEstoqueMov') && document.getElementById('apagarTudoManterEstoqueMov').checked;
+  const manterClientes = !!document.getElementById('apagarTudoManterClientes') && document.getElementById('apagarTudoManterClientes').checked;
+  const manterVendas = !!document.getElementById('apagarTudoManterVendas') && document.getElementById('apagarTudoManterVendas').checked;
+  const manterCaixa = !!document.getElementById('apagarTudoManterCaixa') && document.getElementById('apagarTudoManterCaixa').checked;
+  const manterSolicitacoes = !!document.getElementById('apagarTudoManterSolicitacoes') && document.getElementById('apagarTudoManterSolicitacoes').checked;
 
   const settingsAntigos = DB.settings || {};
   const novoSettings = {
@@ -12093,33 +12128,52 @@ function apagarTudoExecutar(){
   // que estão sendo apagadas.
   const funcionariosPreservados = (DB.employees||[]).map(e=>Object.assign({}, e, {metaVendas:0, pontos:[]}));
 
-  DB.products = [];
-  DB.customers = [];
-  DB.sales = [];
-  DB.cashSessions = [];
-  DB.cashCurrentOpenId = null;
-  DB.ledger = [];
-  DB.contas = [];
-  DB.incomingStock = [];
-  DB.outgoingStock = [];
-  DB.kits = [];
-  DB.stockRequests = [];
-  DB.accessRequests = [];
-  DB.categoryGroups = [];
-  DB.categories = [];
-  DB.productNames = [];
+  if(!manterProdutos){
+    DB.products = [];
+    DB.trashProducts = [];
+    DB.kits = [];
+    DB.categoryGroups = [];
+    DB.categories = [];
+    DB.productNames = [];
+  }
+  if(!manterEstoqueMov){
+    DB.incomingStock = [];
+    DB.outgoingStock = [];
+  }
+  if(!manterClientes) DB.customers = [];
+  if(!manterVendas) DB.sales = [];
+  if(!manterCaixa){
+    DB.cashSessions = [];
+    DB.cashCurrentOpenId = null;
+    DB.ledger = [];
+    DB.contas = [];
+  }
+  if(!manterSolicitacoes){
+    DB.stockRequests = [];
+    DB.accessRequests = [];
+  }
   DB.employees = funcionariosPreservados;
   DB.settings = novoSettings;
   DB.logs = [];
 
   ensureCatalogDefaults();
-  log('⚠️ TODOS os dados do PDV foram apagados (dados da loja: '+(manterLoja?'mantidos':'apagados')+', etiqueta personalizada: '+(manterEtiqueta?'mantida':'apagada')+', link do QR da etiqueta: '+(manterLink?'mantido':'apagado')+').');
+  const mantidos = [];
+  if(manterProdutos) mantidos.push('produtos');
+  if(manterEstoqueMov) mantidos.push('estoque (entradas/saídas)');
+  if(manterClientes) mantidos.push('clientes');
+  if(manterVendas) mantidos.push('vendas/relatórios');
+  if(manterCaixa) mantidos.push('caixa/financeiro');
+  if(manterSolicitacoes) mantidos.push('solicitações');
+  if(manterLoja) mantidos.push('dados da loja');
+  if(manterEtiqueta) mantidos.push('etiqueta personalizada');
+  if(manterLink) mantidos.push('link do QR da etiqueta');
+  log('⚠️ Dados do PDV apagados. Mantido: '+(mantidos.length?mantidos.join(', '):'nada — tudo foi apagado')+'.');
   flashSaving();
 
   apagarTudoEtapa = 0;
   apagarTudoCodigo = '';
 
-  alertModal('Tudo foi apagado do PDV. O app vai recarregar agora.', function(){
+  alertModal('Os dados marcados foram apagados. O app vai recarregar agora.', function(){
     location.reload();
   });
 }
