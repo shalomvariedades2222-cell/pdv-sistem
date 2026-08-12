@@ -3489,6 +3489,11 @@ html.is-mobile .btn::before{ display:none; }
           <h3>Log de Alterações</h3>
           <table><thead><tr><th>Data/Hora</th><th>Evento</th><th></th></tr></thead><tbody id="configLogBody"></tbody></table>
         </div>
+        <div class="panel" style="max-width:560px;border:1px solid var(--red);">
+          <h3 style="color:var(--red);">⚠️ Zona de Perigo — Apagar Tudo do PDV</h3>
+          <p class="dimSmall" style="margin-top:-6px;">Apaga produtos, clientes, vendas, caixa, contas, estoque, kits, categorias, pedidos e o log de alterações deste sistema. Os logins dos funcionários nunca são apagados por aqui, pra ninguém ficar sem conseguir entrar. Essa ação não pode ser desfeita. Área protegida: é preciso digitar a senha do administrador duas vezes para acessar.</p>
+          <div id="apagarTudoWrap"></div>
+        </div>
       </div>
 
       <!-- ============ TESTADOR DE INTERNET (mobile) ============ -->
@@ -11362,6 +11367,7 @@ function renderConfig(){
   renderAnimTogglesUI();
   renderPdvBotoesRapidosCfgUI();
   renderConfigLog();
+  renderApagarTudoUI();
   renderTelaCheiaBtn();
   renderAutoLoginBtn();
   renderAutostartBtn();
@@ -11926,6 +11932,196 @@ function excluirLogEntry(index){
     renderConfigLog();
     flashSaving(); // salva a remoção no servidor, sem criar uma nova entrada de log pra isso
   }, {textoBtn:'Excluir'});
+}
+/* ==========================================================================
+   ZONA DE PERIGO — APAGAR TUDO DO PDV
+   Área protegida por DUAS confirmações seguidas da senha de um usuário com
+   Acesso total (perfil 'total'), igual ao padrão já usado no painel de
+   Animações (ver desbloquearAnimPanel), só que aqui pede a senha 2 vezes
+   em vez de 1, por ser uma ação destrutiva. Depois de desbloqueada, a
+   pessoa escolhe quais dados quer MANTER (o resto é apagado) e, ao clicar
+   em apagar, ainda precisa digitar um código aleatório mostrado na tela
+   antes da exclusão realmente acontecer — assim não tem como apagar tudo
+   sem querer só de clicar duas vezes rápido demais.
+   Tudo isso fica só na memória (variáveis abaixo): sai do ar sozinho ao
+   recarregar a página, igual ao painel de Animações.
+========================================================================== */
+let apagarTudoEtapa = 0; // 0 = pede 1ª senha | 1 = pede 2ª senha | 2 = desbloqueado (escolher o que manter) | 3 = confirmação final (código aleatório)
+let apagarTudoCodigo = '';
+function renderApagarTudoUI(){
+  const wrap = document.getElementById('apagarTudoWrap');
+  if(!wrap) return;
+
+  if(apagarTudoEtapa===0){
+    wrap.innerHTML = `
+      <div class="dimSmall" style="margin-bottom:10px;">🔒 Área protegida. Digite a senha de um usuário com Acesso total (1ª de 2 vezes).</div>
+      <div class="field"><label>Senha do administrador</label>
+        <input id="apagarTudoPass1" type="password" placeholder="Senha" autocomplete="off" data-lpignore="true" data-1p-ignore data-form-type="other" onkeydown="if(event.key==='Enter'){event.preventDefault();apagarTudoVerificarSenha1();}">
+      </div>
+      <div id="apagarTudoErr" class="dimSmall" style="color:var(--red);margin-bottom:8px;"></div>
+      <button type="button" class="btn secondary small" onclick="apagarTudoVerificarSenha1()">🔓 Continuar</button>
+    `;
+    return;
+  }
+
+  if(apagarTudoEtapa===1){
+    wrap.innerHTML = `
+      <div class="dimSmall" style="margin-bottom:10px;">🔒 Senha confirmada. Agora digite a senha do administrador PELA 2ª vez para desbloquear.</div>
+      <div class="field"><label>Senha do administrador (confirme novamente)</label>
+        <input id="apagarTudoPass2" type="password" placeholder="Senha" autocomplete="off" data-lpignore="true" data-1p-ignore data-form-type="other" onkeydown="if(event.key==='Enter'){event.preventDefault();apagarTudoVerificarSenha2();}">
+      </div>
+      <div id="apagarTudoErr" class="dimSmall" style="color:var(--red);margin-bottom:8px;"></div>
+      <button type="button" class="btn secondary small" onclick="apagarTudoVerificarSenha2()">🔓 Desbloquear</button>
+    `;
+    const inp = document.getElementById('apagarTudoPass2');
+    if(inp) inp.focus();
+    return;
+  }
+
+  if(apagarTudoEtapa===2){
+    wrap.innerHTML = `
+      <div class="dimSmall" style="margin-bottom:10px;">✅ Desbloqueado. Marque abaixo o que você quer <b>MANTER</b> — tudo o que não estiver marcado será apagado.</div>
+      <div class="field" style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" id="apagarTudoManterLoja" style="width:auto;margin:0;">
+        <label style="margin:0;">Manter dados da loja (nome, contato, logo, impressora, Pix)</label>
+      </div>
+      <div class="field" style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" id="apagarTudoManterEtiqueta" style="width:auto;margin:0;">
+        <label style="margin:0;">Manter etiqueta personalizada (modelos e layout do editor)</label>
+      </div>
+      <div class="field" style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" id="apagarTudoManterLink" style="width:auto;margin:0;">
+        <label style="margin:0;">Manter o link do QR code da etiqueta</label>
+      </div>
+      <p class="dimSmall" style="margin:10px 0;">Serão apagados: produtos, clientes, vendas, caixa, contas, entradas/saídas de estoque, kits, categorias, grupos, nomes de produtos, pedidos e o log de alterações. Os logins dos funcionários (usuário/senha) não são afetados.</p>
+      <button type="button" class="btn danger" onclick="apagarTudoPedirConfirmacaoFinal()">🗑️ Apagar tudo agora</button>
+      <button type="button" class="btn secondary small" style="margin-left:8px;" onclick="apagarTudoCancelar()">Cancelar</button>
+    `;
+    return;
+  }
+
+  if(apagarTudoEtapa===3){
+    wrap.innerHTML = `
+      <div class="dimSmall" style="margin-bottom:10px;color:var(--red);font-weight:700;">⚠️ Última confirmação — essa ação não pode ser desfeita.</div>
+      <div class="dimSmall" style="margin-bottom:10px;">Para confirmar, digite exatamente o código abaixo no campo:</div>
+      <div style="font-size:20px;font-weight:800;letter-spacing:2px;background:var(--panel2);border:1px dashed var(--red);border-radius:8px;padding:10px;text-align:center;margin-bottom:10px;user-select:all;">${apagarTudoCodigo}</div>
+      <div class="field"><label>Digite o código acima</label>
+        <input id="apagarTudoCodigoInput" type="text" autocomplete="off" placeholder="Digite aqui" onkeydown="if(event.key==='Enter'){event.preventDefault();apagarTudoExecutar();}">
+      </div>
+      <div id="apagarTudoErr" class="dimSmall" style="color:var(--red);margin-bottom:8px;"></div>
+      <button type="button" class="btn danger" onclick="apagarTudoExecutar()">🗑️ Excluir definitivamente</button>
+      <button type="button" class="btn secondary small" style="margin-left:8px;" onclick="apagarTudoCancelar()">Cancelar</button>
+    `;
+    const inp = document.getElementById('apagarTudoCodigoInput');
+    if(inp) inp.focus();
+    return;
+  }
+}
+function apagarTudoVerificarSenha1(){
+  const inp = document.getElementById('apagarTudoPass1');
+  const pass = inp ? inp.value : '';
+  const admin = DB.employees.find(e=>e.perfil==='total' && e.senha===pass);
+  if(!admin){
+    const err = document.getElementById('apagarTudoErr');
+    if(err) err.textContent = 'Senha incorreta.';
+    return;
+  }
+  apagarTudoEtapa = 1;
+  renderApagarTudoUI();
+}
+function apagarTudoVerificarSenha2(){
+  const inp = document.getElementById('apagarTudoPass2');
+  const pass = inp ? inp.value : '';
+  const admin = DB.employees.find(e=>e.perfil==='total' && e.senha===pass);
+  if(!admin){
+    const err = document.getElementById('apagarTudoErr');
+    if(err) err.textContent = 'Senha incorreta.';
+    return;
+  }
+  apagarTudoEtapa = 2;
+  log('Área "Apagar tudo do PDV" desbloqueada por '+admin.nome);
+  renderApagarTudoUI();
+}
+function apagarTudoCancelar(){
+  apagarTudoEtapa = 0;
+  apagarTudoCodigo = '';
+  renderApagarTudoUI();
+}
+function apagarTudoPedirConfirmacaoFinal(){
+  const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // sem 0/O/1/I pra não confundir na hora de digitar
+  let codigo = '';
+  for(let i=0;i<6;i++) codigo += CHARS[Math.floor(Math.random()*CHARS.length)];
+  apagarTudoCodigo = codigo;
+  apagarTudoEtapa = 3;
+  renderApagarTudoUI();
+}
+function apagarTudoExecutar(){
+  const inp = document.getElementById('apagarTudoCodigoInput');
+  const digitado = (inp ? inp.value : '').trim().toUpperCase();
+  if(digitado !== apagarTudoCodigo){
+    const err = document.getElementById('apagarTudoErr');
+    if(err) err.textContent = 'O código digitado não confere. Tente novamente.';
+    return;
+  }
+  const manterLoja = !!document.getElementById('apagarTudoManterLoja') && document.getElementById('apagarTudoManterLoja').checked;
+  const manterEtiqueta = !!document.getElementById('apagarTudoManterEtiqueta') && document.getElementById('apagarTudoManterEtiqueta').checked;
+  const manterLink = !!document.getElementById('apagarTudoManterLink') && document.getElementById('apagarTudoManterLink').checked;
+
+  const settingsAntigos = DB.settings || {};
+  const novoSettings = {
+    nomeLoja:'Shalom Variedades', contato:'', logo:'', impressora:'', papel:'80mm',
+    etiquetaQr:'', etiquetaMostrarQr:true, pixChave:'', pixNome:'', pixCidade:''
+  };
+  if(manterLoja){
+    ['nomeLoja','contato','logo','impressora','papel','pixChave','pixNome','pixCidade'].forEach(k=>{
+      if(typeof settingsAntigos[k]!=='undefined') novoSettings[k] = settingsAntigos[k];
+    });
+  }
+  if(manterEtiqueta){
+    ['etiquetaModelos','etiquetaLayout','etiquetaOrientacao','etiquetaModoCustom','etiquetaMostrarBarras','etiquetaMostrarFoto','etiquetaFonte','etiquetaTamanho','etiquetaCor'].forEach(k=>{
+      if(typeof settingsAntigos[k]!=='undefined') novoSettings[k] = settingsAntigos[k];
+    });
+  }
+  if(manterLink){
+    ['etiquetaQr','etiquetaMostrarQr'].forEach(k=>{
+      if(typeof settingsAntigos[k]!=='undefined') novoSettings[k] = settingsAntigos[k];
+    });
+  }
+
+  // Funcionários (logins) nunca são apagados aqui — só zera o histórico de
+  // pontos/meta de vendas de cada um, já que isso é derivado das vendas
+  // que estão sendo apagadas.
+  const funcionariosPreservados = (DB.employees||[]).map(e=>Object.assign({}, e, {metaVendas:0, pontos:[]}));
+
+  DB.products = [];
+  DB.customers = [];
+  DB.sales = [];
+  DB.cashSessions = [];
+  DB.cashCurrentOpenId = null;
+  DB.ledger = [];
+  DB.contas = [];
+  DB.incomingStock = [];
+  DB.outgoingStock = [];
+  DB.kits = [];
+  DB.stockRequests = [];
+  DB.accessRequests = [];
+  DB.categoryGroups = [];
+  DB.categories = [];
+  DB.productNames = [];
+  DB.employees = funcionariosPreservados;
+  DB.settings = novoSettings;
+  DB.logs = [];
+
+  ensureCatalogDefaults();
+  log('⚠️ TODOS os dados do PDV foram apagados (dados da loja: '+(manterLoja?'mantidos':'apagados')+', etiqueta personalizada: '+(manterEtiqueta?'mantida':'apagada')+', link do QR da etiqueta: '+(manterLink?'mantido':'apagado')+').');
+  flashSaving();
+
+  apagarTudoEtapa = 0;
+  apagarTudoCodigo = '';
+
+  alertModal('Tudo foi apagado do PDV. O app vai recarregar agora.', function(){
+    location.reload();
+  });
 }
 function exportBackup(){
   if(!requirePerm(getPerms().isTotal)) return;
