@@ -12038,8 +12038,8 @@ function renderApagarTudoUI(){
         <input id="apagarTudoCodigoInput" type="text" autocomplete="off" placeholder="Digite aqui" onkeydown="if(event.key==='Enter'){event.preventDefault();apagarTudoExecutar();}">
       </div>
       <div id="apagarTudoErr" class="dimSmall" style="color:var(--red);margin-bottom:8px;"></div>
-      <button type="button" class="btn danger" onclick="apagarTudoExecutar()">🗑️ Excluir definitivamente</button>
-      <button type="button" class="btn secondary small" style="margin-left:8px;" onclick="apagarTudoCancelar()">Cancelar</button>
+      <button type="button" class="btn danger" id="apagarTudoBtnExcluir" onclick="apagarTudoExecutar()">🗑️ Excluir definitivamente</button>
+      <button type="button" class="btn secondary small" id="apagarTudoBtnCancelar" style="margin-left:8px;" onclick="apagarTudoCancelar()">Cancelar</button>
     `;
     const inp = document.getElementById('apagarTudoCodigoInput');
     if(inp) inp.focus();
@@ -12084,7 +12084,7 @@ function apagarTudoPedirConfirmacaoFinal(){
   apagarTudoEtapa = 3;
   renderApagarTudoUI();
 }
-function apagarTudoExecutar(){
+async function apagarTudoExecutar(){
   const inp = document.getElementById('apagarTudoCodigoInput');
   const digitado = (inp ? inp.value : '').trim().toUpperCase();
   if(digitado !== apagarTudoCodigo){
@@ -12168,14 +12168,38 @@ function apagarTudoExecutar(){
   if(manterEtiqueta) mantidos.push('etiqueta personalizada');
   if(manterLink) mantidos.push('link do QR da etiqueta');
   log('⚠️ Dados do PDV apagados. Mantido: '+(mantidos.length?mantidos.join(', '):'nada — tudo foi apagado')+'.');
-  flashSaving();
+
+  // Antes: flashSaving() só AGENDAVA o envio ao servidor (0,5s de espera) e o
+  // modal seguinte recarregava a página assim que o usuário clicava OK/Enter
+  // — quase sempre ANTES do salvamento terminar (ou até começar). Como o app
+  // busca os dados do zero no servidor ao recarregar, a exclusão "sumia" e
+  // parecia que o botão não funcionava. Agora esperamos a confirmação real
+  // do servidor antes de recarregar, do mesmo jeito que o backup de
+  // contingência já faz em outro lugar do app.
+  const btnExcluir = document.getElementById('apagarTudoBtnExcluir');
+  const btnCancelar = document.getElementById('apagarTudoBtnCancelar');
+  if(btnExcluir){ btnExcluir.disabled = true; btnExcluir.textContent = '⏳ Salvando no servidor...'; }
+  if(btnCancelar) btnCancelar.disabled = true;
+
+  marcarAlteracaoPendente();
+  autoSaveLocal(); // garante que o cache deste aparelho já reflete a exclusão, mesmo se o envio ao servidor falhar
 
   apagarTudoEtapa = 0;
   apagarTudoCodigo = '';
 
-  alertModal('Os dados marcados foram apagados. O app vai recarregar agora.', function(){
-    location.reload();
-  });
+  let salvouNoServidor = true;
+  if(hasCloudCredential() && !modoTeste){
+    try{ salvouNoServidor = await saveToGitHubNow(); }
+    catch(e){ salvouNoServidor = false; }
+  }
+
+  if(salvouNoServidor){
+    alertModal('Os dados marcados foram apagados. O app vai recarregar agora.', function(){
+      location.reload();
+    });
+  } else {
+    alertModal('Os dados foram apagados neste aparelho, mas ainda NÃO foi possível confirmar o envio ao servidor (sem internet ou falha na conexão). Não recarregue nem feche o app agora — assim que a conexão voltar, o envio será tentado de novo automaticamente. Você pode continuar usando o sistema normalmente enquanto isso.');
+  }
 }
 function exportBackup(){
   if(!requirePerm(getPerms().isTotal)) return;
