@@ -3464,15 +3464,27 @@ html.is-mobile .btn::before{ display:none; }
               <option value="bluetooth">Bluetooth direto (sem caixa de impressão)</option>
             </select>
           </div>
+          <div class="field" id="cfg_etiquetaProtocoloWrap">
+            <label>Protocolo da impressora</label>
+            <select id="cfg_etiquetaProtocolo" data-perm="admin" onchange="mudarProtocoloImpressaoEtiqueta(this.value)">
+              <option value="tspl">TSPL (Zebra, Argox, TSC, Elgin/Bematech em "modo etiqueta")</option>
+              <option value="escpos">ESC/POS (impressoras térmicas comuns — Elgin i9/i7, Bematech, cupom adaptado p/ etiqueta)</option>
+            </select>
+            <div class="dimSmall" style="margin-top:4px;">Se não souber qual é a sua, comece em TSPL (padrão de impressora de etiqueta de verdade). Se ao imprimir sair um monte de letra sem sentido sem parar, é sinal de que a impressora não entende TSPL — troque para ESC/POS aqui. Use o botão "🧪 Testar impressão" abaixo pra confirmar sem gastar etiqueta boa.</div>
+          </div>
           <div class="field" id="cfg_etiquetaGapWrap">
             <label>Espaço entre etiquetas no rolo (gap, mm)</label>
             <input id="cfg_etiquetaGapMm" type="number" min="0" max="10" step="0.5" data-perm="admin" oninput="saveSettingsLive()">
-            <div class="dimSmall" style="margin-top:4px;">Só vale pra impressão direta (USB/Bluetooth). É o espacinho em branco entre uma etiqueta e outra do rolo adesivo — a impressora usa o sensor dela pra encontrar esse espaço e alinhar o desenho certinho dentro de cada etiqueta, evitando que o conteúdo "escorregue" e saia dividido entre duas etiquetas. 2mm é o mais comum; se o desenho continuar saindo desalinhado, meça o espaço real do seu rolo e ajuste aqui.</div>
+            <div class="dimSmall" style="margin-top:4px;">Só vale pro protocolo TSPL. É o espacinho em branco entre uma etiqueta e outra do rolo adesivo — a impressora usa o sensor dela pra encontrar esse espaço e alinhar o desenho certinho dentro de cada etiqueta a cada impressão (recalibra sozinha toda vez, então se trocar o rolo por um com tubo/posição diferente ela se ajusta automaticamente). 2mm é o mais comum; se o desenho continuar saindo desalinhado, meça o espaço real do seu rolo e ajuste aqui.</div>
+          </div>
+          <div class="field" id="cfg_etiquetaEscposAvisoWrap" style="display:none;">
+            <div class="dimSmall">No modo ESC/POS não existe um comando padrão de mercado pra pedir que a impressora recalibre pelo sensor de gap/marca preta a cada etiqueta — isso depende da própria impressora (normalmente segurando o botão FEED com a impressora ligada faz ela recalibrar sozinha, ou existe uma opção disso no menu dela, se tiver visor). Faça essa calibração física uma vez ao trocar o rolo.</div>
           </div>
           <div class="field" style="margin-top:8px;">
             <div id="impressoraEtiquetaStatus" class="dimSmall" style="margin-bottom:8px;">⏳ Nenhum aparelho conectado nesta sessão</div>
             <button type="button" class="btn secondary small" id="btnConectarImpressoraUSB" style="display:none;" onclick="conectarImpressoraUSB()">🔌 Conectar impressora USB</button>
             <button type="button" class="btn secondary small" id="btnConectarImpressoraBT" style="display:none;" onclick="conectarImpressoraBluetooth()">📶 Conectar impressora Bluetooth</button>
+            <button type="button" class="btn secondary small" id="btnTestarImpressora" style="display:none;" onclick="testarImpressoraDireta()">🧪 Testar impressão</button>
             <button type="button" class="btn secondary small" id="btnDesconectarImpressora" style="display:none;" onclick="desconectarImpressoraDireta()">✖ Desconectar</button>
           </div>
           <p class="dimSmall">USB só funciona no Chrome/Edge do computador, e só se a impressora aparecer como porta serial/COM. Bluetooth só funciona com impressoras Bluetooth LE — a maioria das térmicas baratas usa Bluetooth clássico (SPP), que nenhum navegador consegue acessar direto; se sua impressora não aparecer na lista, use USB ou "Caixa do sistema". A conexão direta vale só para este aparelho e esta sessão — feche e reconecte se fechar o navegador.</p>
@@ -5156,6 +5168,7 @@ function ensureCatalogDefaults(){
   if(!DB.settings.etiquetaAlturaMm) DB.settings.etiquetaAlturaMm = 30;
   if(!DB.settings.etiquetaModoImpressao) DB.settings.etiquetaModoImpressao = 'sistema'; // 'sistema' (PDF+caixa de impressão), 'usb' (Web Serial) ou 'bluetooth' (Web Bluetooth)
   if(!DB.settings.etiquetaGapMm) DB.settings.etiquetaGapMm = 2; // espaço (mm) entre uma etiqueta e outra no rolo — usado na impressão direta (TSPL) pra impressora calibrar pelo sensor de gap
+  if(!DB.settings.etiquetaProtocolo) DB.settings.etiquetaProtocolo = 'tspl'; // 'tspl' (Zebra/Argox/TSC/Elgin em "modo etiqueta") ou 'escpos' (impressoras térmicas comuns — Elgin i9/i7, Bematech etc., a maioria das baratas) — usado só na impressão direta (USB/Bluetooth)
   // migração: quem já tinha um layout personalizado solto (versão antiga, sem nome/lista)
   // vira automaticamente o primeiro modelo salvo, pra não perder o trabalho já feito
   if(!DB.settings.etiquetaModelos.length && DB.settings.etiquetaLayout.length){
@@ -8936,9 +8949,26 @@ function baixarEtiquetaPDF(){
    Bluetooth (Web Bluetooth), sem passar pela caixa de impressão do
    sistema/navegador (o "Ctrl+P"). O sistema converte a própria etiqueta já
    desenhada em uma imagem (o mesmo html2canvas usado no PDF) e manda os
-   bytes crus, no formato ESC/POS de imagem (comando "GS v 0"), direto pro
-   aparelho escolhido — funciona com a maioria das impressoras térmicas de
-   etiqueta (Elgin, Bematech, Zebra em modo ESC/POS, entre outras).
+   bytes crus, no protocolo escolhido em Configurações → Impressora de
+   Etiquetas → "Protocolo da impressora" (DB.settings.etiquetaProtocolo):
+   - TSPL (gerarComandoTSPL_): impressora de etiqueta "de verdade" (Zebra,
+     Argox, TSC, e Elgin/Bematech quando estão no "modo etiqueta"). Manda
+     SIZE+GAP antes do desenho — é o comando GAP que faz a própria
+     impressora usar o sensor dela pra achar o espaço entre etiquetas e
+     recalibrar sozinha A CADA impressão, então se o rolo for trocado por
+     um com posição/tubo diferente ela se ajusta automaticamente sem
+     precisar mexer em nada no app.
+   - ESC/POS (gerarComandoESCPOS_): impressoras térmicas comuns (a maioria
+     das baratas tipo Elgin i9/i7, Bematech). Não existe um comando padrão
+     de mercado equivalente ao GAP do TSPL nesse protocolo — a calibração
+     pelo sensor de gap/marca preta nessas impressoras é feita fisicamente
+     (segurando o botão FEED com a impressora ligada, ou pelo menu dela se
+     tiver visor), uma vez a cada troca de rolo.
+   IMPORTANTE: mandar comando do protocolo errado pra impressora (ex.: TSPL
+   pra uma impressora que só entende ESC/POS) é a causa mais comum de
+   "imprimir um monte de letra sem sentido sem parar" — a impressora não
+   reconhece o comando, imprime ele como texto puro, e como nunca chega o
+   fim que ela espera, ela não para de puxar papel.
 
    LIMITAÇÕES REAIS DO NAVEGADOR (importante deixar claro pra loja):
    - USB (Web Serial): só funciona em Chrome/Edge no computador, e só se a
@@ -9067,8 +9097,12 @@ async function desconectarImpressoraDireta_semLimparUI_(){
 // etiqueta e outra do rolo, e alinhar o desenho certinho dentro de cada etiqueta
 // física — sem isso, a impressora só empurra papel "no escuro" e o desenho vai
 // desalinhando aos poucos, exatamente o problema relatado.
-function gerarComandoTSPL_(canvas, dimsMm, gapMm){
-  const DOTS_POR_MM = 8; // 203dpi — padrão de praticamente toda impressora de etiqueta térmica
+// Fotografa o canvas em preto-e-branco puro (1 bit por ponto), no tamanho físico
+// da etiqueta a 203dpi (8 pontos/mm — padrão de quase toda impressora térmica).
+// Devolve o bitmap monocromático cru + as medidas em pontos; é a mesma "foto"
+// que tanto o TSPL quanto o ESC/POS usam, cada um só empacota diferente.
+function gerarBitmapMonocromatico_(canvas, dimsMm){
+  const DOTS_POR_MM = 8; // 203dpi
   const larguraPontos = Math.max(8, Math.round(dimsMm.w * DOTS_POR_MM / 8) * 8); // múltiplo de 8 (1 byte = 8 pontos)
   const alturaPontos = Math.round(dimsMm.h * DOTS_POR_MM);
   const off = document.createElement('canvas');
@@ -9089,6 +9123,19 @@ function gerarComandoTSPL_(canvas, dimsMm, gapMm){
       }
     }
   }
+  return { bitmap, bytesPorLinha, larguraPontos, alturaPontos };
+}
+// Converte um canvas (já desenhado pelo html2canvas) em um comando TSPL completo
+// (protocolo padrão das impressoras térmicas de ETIQUETA ADESIVA — TSC, Zebra,
+// Argox e a imensa maioria das Elgin/Bematech em "modo etiqueta" — diferente do
+// ESC/POS usado em bobina contínua de cupom). O comando inclui SIZE + GAP: é
+// exatamente esse GAP que faz a própria impressora usar o sensor dela (o mesmo
+// sensor que o app do celular usa) pra achar o espacinho em branco entre uma
+// etiqueta e outra do rolo, e alinhar o desenho certinho dentro de cada etiqueta
+// física — sem isso, a impressora só empurra papel "no escuro" e o desenho vai
+// desalinhando aos poucos, exatamente o problema relatado.
+function gerarComandoTSPL_(canvas, dimsMm, gapMm){
+  const { bitmap, bytesPorLinha, alturaPontos } = gerarBitmapMonocromatico_(canvas, dimsMm);
   // Cabeçalho TSPL em texto puro (ASCII) — SIZE/GAP dizem o tamanho físico da
   // etiqueta e o espaço entre elas; CLS limpa o buffer; BITMAP manda o desenho;
   // PRINT dispara a impressão de fato (a calibração pelo sensor acontece aqui).
@@ -9107,6 +9154,40 @@ function gerarComandoTSPL_(canvas, dimsMm, gapMm){
   saida.set(bitmap, partCabecalho.length);
   saida.set(partRodape, partCabecalho.length + bitmap.length);
   return saida;
+}
+// Converte um canvas em um comando ESC/POS completo (protocolo das impressoras
+// térmicas comuns — a maioria das baratas, tipo Elgin i9/i7, Bematech etc.).
+// Usa o comando de imagem raster "GS v 0" (que imprime o bitmap inteiro de uma
+// vez), precedido de "ESC @" (reset/inicializa a impressora — limpa qualquer
+// coisa que tenha ficado pendente de uma tentativa anterior, o que ajuda a
+// sair de um estado "travado" imprimindo lixo sem parar). Diferente do TSPL,
+// o ESC/POS não tem um comando padrão de mercado pra pedir recalibração pelo
+// sensor de gap/marca preta a cada etiqueta — isso é feito fisicamente na
+// impressora (segurando o FEED ligada, ou pelo menu dela).
+function gerarComandoESCPOS_(canvas, dimsMm){
+  const { bitmap, bytesPorLinha, larguraPontos, alturaPontos } = gerarBitmapMonocromatico_(canvas, dimsMm);
+  const ESC = 0x1B, GS = 0x1D;
+  const inicializa = new Uint8Array([ESC, 0x40]); // ESC @
+  // GS v 0 m xL xH yL yH d1...dk — m=0 (normal); xL/xH = bytes por linha (16 bits);
+  // yL/yH = altura em pontos (16 bits), depois vem o bitmap cru linha a linha.
+  const xL = bytesPorLinha & 0xFF, xH = (bytesPorLinha >> 8) & 0xFF;
+  const yL = alturaPontos & 0xFF, yH = (alturaPontos >> 8) & 0xFF;
+  const cabecalhoRaster = new Uint8Array([GS, 0x76, 0x30, 0x00, xL, xH, yL, yH]);
+  const alimentaEfimBloco = new Uint8Array([0x0A, 0x0A, 0x0A]); // avança papel pro fim da etiqueta (não corta — a maioria das impressoras de etiqueta não tem faca)
+  const saida = new Uint8Array(inicializa.length + cabecalhoRaster.length + bitmap.length + alimentaEfimBloco.length);
+  let pos = 0;
+  saida.set(inicializa, pos); pos += inicializa.length;
+  saida.set(cabecalhoRaster, pos); pos += cabecalhoRaster.length;
+  saida.set(bitmap, pos); pos += bitmap.length;
+  saida.set(alimentaEfimBloco, pos);
+  return saida;
+}
+// Monta o comando certo pro protocolo configurado em Configurações → Impressora
+// de Etiquetas → "Protocolo da impressora" — é o único lugar que decide isso,
+// pra nunca ter chance de mandar TSPL pra impressora ESC/POS (ou vice-versa).
+function gerarComandoImpressora_(canvas, dimsMm, gapMm){
+  const protocolo = DB.settings.etiquetaProtocolo || 'tspl';
+  return protocolo === 'escpos' ? gerarComandoESCPOS_(canvas, dimsMm) : gerarComandoTSPL_(canvas, dimsMm, gapMm);
 }
 // Manda os bytes pro canal certo (USB serial ou Bluetooth), em pedaços pequenos no
 // caso do Bluetooth (a maioria dos módulos BLE só aceita ~180-240 bytes por vez).
@@ -9145,7 +9226,7 @@ function imprimirEtiquetasViaImpressoraDireta_(itensEtiquetas, dims){
     itensEtiquetas.forEach(function(item){
       cadeia = cadeia.then(function(){
         return html2canvas(item, {scale:4, backgroundColor:'#ffffff'}).then(function(canvas){
-          const comando = gerarComandoTSPL_(canvas, dims, gapMm);
+          const comando = gerarComandoImpressora_(canvas, dims, gapMm);
           return enviarBytesImpressoraDireta_(comando);
         });
       });
@@ -9155,22 +9236,70 @@ function imprimirEtiquetasViaImpressoraDireta_(itensEtiquetas, dims){
     });
   });
 }
+// Imprime uma etiqueta de teste pequena e simples (não usa dados de nenhum produto),
+// só pra confirmar se o protocolo escolhido (TSPL/ESC-POS) e a posição/gap do rolo
+// estão certos, sem gastar etiqueta de verdade em caso de erro. Desenha um retângulo
+// com borda até a beirada + o texto "TESTE OK" — se sair alinhado e legível, o
+// protocolo está certo; se sair um monte de letra sem sentido sem parar, é sinal de
+// que o protocolo configurado é o errado pra essa impressora (troque em Configurações).
+async function testarImpressoraDireta(){
+  if(!impressoraDiretaDisponivel_()){
+    alertModal('Conecte a impressora primeiro.');
+    return;
+  }
+  const dims = dimsDoModeloEscolhido_ ? dimsDoModeloEscolhido_() : {w:40,h:30};
+  const el = document.createElement('div');
+  el.style.cssText = `position:fixed;left:-10000px;top:0;width:${dims.w}mm;height:${dims.h}mm;background:#fff;box-sizing:border-box;border:0.6mm solid #000;display:flex;align-items:center;justify-content:center;font-family:Arial,sans-serif;font-weight:bold;color:#000;`;
+  el.style.fontSize = Math.max(6, Math.min(dims.w, dims.h) * 0.22) + 'mm';
+  el.textContent = 'TESTE OK';
+  document.body.appendChild(el);
+  try{
+    await garantirHtml2Canvas();
+    if(typeof html2canvas==='undefined'){
+      alertModal('Não foi possível preparar o teste (recurso indisponível).');
+      return;
+    }
+    const canvas = await html2canvas(el, {scale:4, backgroundColor:'#ffffff'});
+    const gapMm = Number(DB.settings.etiquetaGapMm) || 2;
+    const comando = gerarComandoImpressora_(canvas, dims, gapMm);
+    await enviarBytesImpressoraDireta_(comando);
+    log('Etiqueta de teste enviada (' + (DB.settings.etiquetaProtocolo==='escpos'?'ESC/POS':'TSPL') + ').');
+  }catch(err){
+    console.error('Erro ao testar impressora:', err);
+    alertModal('Não foi possível enviar o teste para a impressora. Verifique a conexão e tente novamente.');
+  }finally{
+    el.remove();
+  }
+}
 function renderImpressoraEtiquetaUI(){
   const wrap = document.getElementById('impressoraEtiquetaStatus');
   if(!wrap) return;
   wrap.textContent = statusImpressoraDiretaTexto_();
   const modo = DB.settings.etiquetaModoImpressao || 'sistema';
+  const protocolo = DB.settings.etiquetaProtocolo || 'tspl';
   const btnUsb = document.getElementById('btnConectarImpressoraUSB');
   const btnBt = document.getElementById('btnConectarImpressoraBT');
   const btnDesc = document.getElementById('btnDesconectarImpressora');
+  const btnTestar = document.getElementById('btnTestarImpressora');
   if(btnUsb) btnUsb.style.display = modo==='usb' ? '' : 'none';
   if(btnBt) btnBt.style.display = modo==='bluetooth' ? '' : 'none';
-  if(btnDesc) btnDesc.style.display = (modo!=='sistema' && (_impressoraDireta.writer || _impressoraDireta.bleChar)) ? '' : 'none';
+  const conectada = !!(_impressoraDireta.writer || _impressoraDireta.bleChar);
+  if(btnDesc) btnDesc.style.display = (modo!=='sistema' && conectada) ? '' : 'none';
+  if(btnTestar) btnTestar.style.display = (modo!=='sistema' && conectada) ? '' : 'none';
   const gapWrap = document.getElementById('cfg_etiquetaGapWrap');
-  if(gapWrap) gapWrap.style.display = modo==='sistema' ? 'none' : '';
+  if(gapWrap) gapWrap.style.display = (modo==='sistema' || protocolo!=='tspl') ? 'none' : '';
+  const protocoloWrap = document.getElementById('cfg_etiquetaProtocoloWrap');
+  if(protocoloWrap) protocoloWrap.style.display = modo==='sistema' ? 'none' : '';
+  const escposAvisoWrap = document.getElementById('cfg_etiquetaEscposAvisoWrap');
+  if(escposAvisoWrap) escposAvisoWrap.style.display = (modo==='sistema' || protocolo!=='escpos') ? 'none' : '';
 }
 function mudarModoImpressaoEtiqueta(valor){
   DB.settings.etiquetaModoImpressao = valor;
+  saveSettingsLive();
+  renderImpressoraEtiquetaUI();
+}
+function mudarProtocoloImpressaoEtiqueta(valor){
+  DB.settings.etiquetaProtocolo = valor;
   saveSettingsLive();
   renderImpressoraEtiquetaUI();
 }
@@ -11782,6 +11911,7 @@ function renderConfig(){
   document.getElementById('cfg_etiquetaAlturaMm').value = DB.settings.etiquetaAlturaMm || 30;
   document.getElementById('cfg_etiquetaModoImpressao').value = DB.settings.etiquetaModoImpressao || 'sistema';
   document.getElementById('cfg_etiquetaGapMm').value = (typeof DB.settings.etiquetaGapMm==='number') ? DB.settings.etiquetaGapMm : 2;
+  document.getElementById('cfg_etiquetaProtocolo').value = DB.settings.etiquetaProtocolo || 'tspl';
   renderImpressoraEtiquetaUI();
   updateLogoOptionUI();
   renderVisualConfigUI();
@@ -12302,6 +12432,10 @@ function saveSettingsLive(){
     const gapMm = parseFloat(gapMmInp.value);
     DB.settings.etiquetaGapMm = (isFinite(gapMm) && gapMm>=0) ? gapMm : 2;
   }
+  const protocoloSel = document.getElementById('cfg_etiquetaProtocolo');
+  if(protocoloSel){
+    DB.settings.etiquetaProtocolo = protocoloSel.value === 'escpos' ? 'escpos' : 'tspl';
+  }
   const notifCheckbox = document.getElementById('cfg_enableDeviceAcceptNotif');
   if(notifCheckbox){
     setDeviceAcceptNotifEnabled(notifCheckbox.checked);
@@ -12543,7 +12677,7 @@ async function apagarTudoExecutar(){
     });
   }
   if(manterEtiqueta){
-    ['etiquetaModelos','etiquetaLayout','etiquetaOrientacao','etiquetaModoCustom','etiquetaMostrarBarras','etiquetaMostrarFoto','etiquetaFonte','etiquetaTamanho','etiquetaCor','etiquetaLarguraMm','etiquetaAlturaMm','etiquetaModoImpressao','etiquetaGapMm'].forEach(k=>{
+    ['etiquetaModelos','etiquetaLayout','etiquetaOrientacao','etiquetaModoCustom','etiquetaMostrarBarras','etiquetaMostrarFoto','etiquetaFonte','etiquetaTamanho','etiquetaCor','etiquetaLarguraMm','etiquetaAlturaMm','etiquetaModoImpressao','etiquetaGapMm','etiquetaProtocolo'].forEach(k=>{
       if(typeof settingsAntigos[k]!=='undefined') novoSettings[k] = settingsAntigos[k];
     });
   }
