@@ -3464,6 +3464,11 @@ html.is-mobile .btn::before{ display:none; }
               <option value="bluetooth">Bluetooth direto (sem caixa de impressão)</option>
             </select>
           </div>
+          <div class="field" id="cfg_etiquetaGapWrap">
+            <label>Espaço entre etiquetas no rolo (gap, mm)</label>
+            <input id="cfg_etiquetaGapMm" type="number" min="0" max="10" step="0.5" data-perm="admin" oninput="saveSettingsLive()">
+            <div class="dimSmall" style="margin-top:4px;">Só vale pra impressão direta (USB/Bluetooth). É o espacinho em branco entre uma etiqueta e outra do rolo adesivo — a impressora usa o sensor dela pra encontrar esse espaço e alinhar o desenho certinho dentro de cada etiqueta, evitando que o conteúdo "escorregue" e saia dividido entre duas etiquetas. 2mm é o mais comum; se o desenho continuar saindo desalinhado, meça o espaço real do seu rolo e ajuste aqui.</div>
+          </div>
           <div class="field" style="margin-top:8px;">
             <div id="impressoraEtiquetaStatus" class="dimSmall" style="margin-bottom:8px;">⏳ Nenhum aparelho conectado nesta sessão</div>
             <button type="button" class="btn secondary small" id="btnConectarImpressoraUSB" style="display:none;" onclick="conectarImpressoraUSB()">🔌 Conectar impressora USB</button>
@@ -5150,6 +5155,7 @@ function ensureCatalogDefaults(){
   if(!DB.settings.etiquetaLarguraMm) DB.settings.etiquetaLarguraMm = 40;
   if(!DB.settings.etiquetaAlturaMm) DB.settings.etiquetaAlturaMm = 30;
   if(!DB.settings.etiquetaModoImpressao) DB.settings.etiquetaModoImpressao = 'sistema'; // 'sistema' (PDF+caixa de impressão), 'usb' (Web Serial) ou 'bluetooth' (Web Bluetooth)
+  if(!DB.settings.etiquetaGapMm) DB.settings.etiquetaGapMm = 2; // espaço (mm) entre uma etiqueta e outra no rolo — usado na impressão direta (TSPL) pra impressora calibrar pelo sensor de gap
   // migração: quem já tinha um layout personalizado solto (versão antiga, sem nome/lista)
   // vira automaticamente o primeiro modelo salvo, pra não perder o trabalho já feito
   if(!DB.settings.etiquetaModelos.length && DB.settings.etiquetaLayout.length){
@@ -9000,7 +9006,9 @@ async function conectarImpressoraUSB(){
 const BLE_PRINTER_SERVICES = [
   '000018f0-0000-1000-8000-00805f9b34fb',
   '49535343-fe7d-4ae5-8fa9-9fafd205e455',
-  'e7810a71-73ae-499d-8c15-faa9aef0c3f2'
+  'e7810a71-73ae-499d-8c15-faa9aef0c3f2',
+  '0000ffe0-0000-1000-8000-00805f9b34fb', // módulo HM-10/HM-11 (muito comum em adaptadores BLE genéricos)
+  '6e400001-b5a3-f393-e0a9-e50e24dcca9e'  // Nordic UART Service (NUS) — outro padrão comum de "serial por BLE"
 ];
 async function conectarImpressoraBluetooth(){
   if(!('bluetooth' in navigator)){
@@ -9050,14 +9058,19 @@ async function desconectarImpressoraDireta_semLimparUI_(){
     }
   }catch(e){}
 }
-// Converte um canvas (já desenhado pelo html2canvas) em bytes ESC/POS de imagem
-// ("GS v 0"), em preto e branco puro (limiar de cinza), redimensionado pra caber
-// exatamente na largura física da etiqueta configurada, a 203dpi (padrão da
-// imensa maioria das térmicas — ~8 pontos por mm).
-function canvasParaRasterEscPos_(canvas, larguraMm){
-  const DOTS_POR_MM = 8; // 203dpi
-  const larguraPontos = Math.max(8, Math.round(larguraMm * DOTS_POR_MM / 8) * 8); // múltiplo de 8 (1 byte = 8 pontos)
-  const alturaPontos = Math.round(canvas.height * (larguraPontos / canvas.width));
+// Converte um canvas (já desenhado pelo html2canvas) em um comando TSPL completo
+// (protocolo padrão das impressoras térmicas de ETIQUETA ADESIVA — TSC, Zebra,
+// Argox e a imensa maioria das Elgin/Bematech em "modo etiqueta" — diferente do
+// ESC/POS usado em bobina contínua de cupom). O comando inclui SIZE + GAP: é
+// exatamente esse GAP que faz a própria impressora usar o sensor dela (o mesmo
+// sensor que o app do celular usa) pra achar o espacinho em branco entre uma
+// etiqueta e outra do rolo, e alinhar o desenho certinho dentro de cada etiqueta
+// física — sem isso, a impressora só empurra papel "no escuro" e o desenho vai
+// desalinhando aos poucos, exatamente o problema relatado.
+function gerarComandoTSPL_(canvas, dimsMm, gapMm){
+  const DOTS_POR_MM = 8; // 203dpi — padrão de praticamente toda impressora de etiqueta térmica
+  const larguraPontos = Math.max(8, Math.round(dimsMm.w * DOTS_POR_MM / 8) * 8); // múltiplo de 8 (1 byte = 8 pontos)
+  const alturaPontos = Math.round(dimsMm.h * DOTS_POR_MM);
   const off = document.createElement('canvas');
   off.width = larguraPontos; off.height = alturaPontos;
   const ctx = off.getContext('2d');
@@ -9065,25 +9078,34 @@ function canvasParaRasterEscPos_(canvas, larguraMm){
   ctx.drawImage(canvas, 0, 0, larguraPontos, alturaPontos);
   const img = ctx.getImageData(0,0,larguraPontos,alturaPontos).data;
   const bytesPorLinha = larguraPontos/8;
-  const raster = new Uint8Array(bytesPorLinha * alturaPontos);
+  const bitmap = new Uint8Array(bytesPorLinha * alturaPontos);
   for(let y=0; y<alturaPontos; y++){
     for(let x=0; x<larguraPontos; x++){
       const i = (y*larguraPontos + x)*4;
       const cinza = (img[i]*0.299 + img[i+1]*0.587 + img[i+2]*0.114);
       const preto = cinza < 170 ? 1 : 0; // limiar simples de preto/branco
       if(preto){
-        raster[y*bytesPorLinha + (x>>3)] |= (0x80 >> (x % 8));
+        bitmap[y*bytesPorLinha + (x>>3)] |= (0x80 >> (x % 8));
       }
     }
   }
-  const cabecalho = new Uint8Array([
-    0x1D, 0x76, 0x30, 0x00,           // GS v 0 m  (m=0: modo normal)
-    bytesPorLinha & 0xFF, (bytesPorLinha>>8) & 0xFF,   // xL xH (bytes por linha)
-    alturaPontos & 0xFF, (alturaPontos>>8) & 0xFF       // yL yH (linhas)
-  ]);
-  const saida = new Uint8Array(cabecalho.length + raster.length);
-  saida.set(cabecalho, 0);
-  saida.set(raster, cabecalho.length);
+  // Cabeçalho TSPL em texto puro (ASCII) — SIZE/GAP dizem o tamanho físico da
+  // etiqueta e o espaço entre elas; CLS limpa o buffer; BITMAP manda o desenho;
+  // PRINT dispara a impressão de fato (a calibração pelo sensor acontece aqui).
+  const cabecalhoTexto =
+    `SIZE ${dimsMm.w} mm,${dimsMm.h} mm\r\n` +
+    `GAP ${gapMm} mm,0 mm\r\n` +
+    `DIRECTION 0\r\n` +
+    `REFERENCE 0,0\r\n` +
+    `CLS\r\n` +
+    `BITMAP 0,0,${bytesPorLinha},${alturaPontos},0,`;
+  const rodapeTexto = `\r\nPRINT 1,1\r\n`;
+  const partCabecalho = new TextEncoder().encode(cabecalhoTexto);
+  const partRodape = new TextEncoder().encode(rodapeTexto);
+  const saida = new Uint8Array(partCabecalho.length + bitmap.length + partRodape.length);
+  saida.set(partCabecalho, 0);
+  saida.set(bitmap, partCabecalho.length);
+  saida.set(partRodape, partCabecalho.length + bitmap.length);
   return saida;
 }
 // Manda os bytes pro canal certo (USB serial ou Bluetooth), em pedaços pequenos no
@@ -9109,11 +9131,12 @@ async function enviarBytesImpressoraDireta_(bytes){
   throw new Error('Nenhuma impressora direta conectada.');
 }
 // Imprime a lista de itens (elementos .etqPrintItem já renderizados) direto na
-// impressora conectada — uma foto (html2canvas) + um comando de imagem ESC/POS por
-// etiqueta, com um avanço de papel entre elas (sem corte automático, que varia
-// demais de impressora pra impressora — a maioria das térmicas de etiqueta com
-// sensor de gap já corta/para sozinha no fim de cada etiqueta física).
+// impressora conectada — um comando TSPL completo (SIZE+GAP+BITMAP+PRINT) por
+// etiqueta. Cada "PRINT" já faz a impressora recalibrar pelo sensor de gap antes
+// de imprimir aquela etiqueta específica, então elas saem alinhadas uma a uma,
+// sem acumular desvio ao longo do rolo.
 function imprimirEtiquetasViaImpressoraDireta_(itensEtiquetas, dims){
+  const gapMm = Number(DB.settings.etiquetaGapMm) || 2;
   return garantirHtml2Canvas().then(function(){
     if(typeof html2canvas==='undefined'){
       throw new Error('html2canvas indisponível');
@@ -9122,11 +9145,8 @@ function imprimirEtiquetasViaImpressoraDireta_(itensEtiquetas, dims){
     itensEtiquetas.forEach(function(item){
       cadeia = cadeia.then(function(){
         return html2canvas(item, {scale:4, backgroundColor:'#ffffff'}).then(function(canvas){
-          const bytes = canvasParaRasterEscPos_(canvas, dims.w);
-          const avancoPapel = new Uint8Array([0x1B,0x4A,24]); // ESC J 24 — avança ~24/180" de papel
-          const pacote = new Uint8Array(bytes.length + avancoPapel.length);
-          pacote.set(bytes,0); pacote.set(avancoPapel, bytes.length);
-          return enviarBytesImpressoraDireta_(pacote);
+          const comando = gerarComandoTSPL_(canvas, dims, gapMm);
+          return enviarBytesImpressoraDireta_(comando);
         });
       });
     });
@@ -9146,6 +9166,8 @@ function renderImpressoraEtiquetaUI(){
   if(btnUsb) btnUsb.style.display = modo==='usb' ? '' : 'none';
   if(btnBt) btnBt.style.display = modo==='bluetooth' ? '' : 'none';
   if(btnDesc) btnDesc.style.display = (modo!=='sistema' && (_impressoraDireta.writer || _impressoraDireta.bleChar)) ? '' : 'none';
+  const gapWrap = document.getElementById('cfg_etiquetaGapWrap');
+  if(gapWrap) gapWrap.style.display = modo==='sistema' ? 'none' : '';
 }
 function mudarModoImpressaoEtiqueta(valor){
   DB.settings.etiquetaModoImpressao = valor;
@@ -11759,6 +11781,7 @@ function renderConfig(){
   document.getElementById('cfg_etiquetaLarguraMm').value = DB.settings.etiquetaLarguraMm || 40;
   document.getElementById('cfg_etiquetaAlturaMm').value = DB.settings.etiquetaAlturaMm || 30;
   document.getElementById('cfg_etiquetaModoImpressao').value = DB.settings.etiquetaModoImpressao || 'sistema';
+  document.getElementById('cfg_etiquetaGapMm').value = (typeof DB.settings.etiquetaGapMm==='number') ? DB.settings.etiquetaGapMm : 2;
   renderImpressoraEtiquetaUI();
   updateLogoOptionUI();
   renderVisualConfigUI();
@@ -12274,6 +12297,11 @@ function saveSettingsLive(){
   const altMm = parseFloat(document.getElementById('cfg_etiquetaAlturaMm').value);
   DB.settings.etiquetaLarguraMm = (isFinite(largMm) && largMm>0) ? largMm : 40;
   DB.settings.etiquetaAlturaMm = (isFinite(altMm) && altMm>0) ? altMm : 30;
+  const gapMmInp = document.getElementById('cfg_etiquetaGapMm');
+  if(gapMmInp){
+    const gapMm = parseFloat(gapMmInp.value);
+    DB.settings.etiquetaGapMm = (isFinite(gapMm) && gapMm>=0) ? gapMm : 2;
+  }
   const notifCheckbox = document.getElementById('cfg_enableDeviceAcceptNotif');
   if(notifCheckbox){
     setDeviceAcceptNotifEnabled(notifCheckbox.checked);
@@ -12515,7 +12543,7 @@ async function apagarTudoExecutar(){
     });
   }
   if(manterEtiqueta){
-    ['etiquetaModelos','etiquetaLayout','etiquetaOrientacao','etiquetaModoCustom','etiquetaMostrarBarras','etiquetaMostrarFoto','etiquetaFonte','etiquetaTamanho','etiquetaCor','etiquetaLarguraMm','etiquetaAlturaMm','etiquetaModoImpressao'].forEach(k=>{
+    ['etiquetaModelos','etiquetaLayout','etiquetaOrientacao','etiquetaModoCustom','etiquetaMostrarBarras','etiquetaMostrarFoto','etiquetaFonte','etiquetaTamanho','etiquetaCor','etiquetaLarguraMm','etiquetaAlturaMm','etiquetaModoImpressao','etiquetaGapMm'].forEach(k=>{
       if(typeof settingsAntigos[k]!=='undefined') novoSettings[k] = settingsAntigos[k];
     });
   }
