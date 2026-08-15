@@ -3496,6 +3496,7 @@ html.is-mobile .btn::before{ display:none; }
             <button type="button" class="btn secondary small" id="btnConectarImpressoraUSB" style="display:none;" onclick="conectarImpressoraUSB()">🔌 Conectar impressora USB</button>
             <button type="button" class="btn secondary small" id="btnConectarImpressoraBT" style="display:none;" onclick="conectarImpressoraBluetooth()">📶 Conectar impressora Bluetooth</button>
             <button type="button" class="btn secondary small" id="btnTestarImpressora" style="display:none;" onclick="testarImpressoraDireta()">🧪 Testar impressão</button>
+            <button type="button" class="btn secondary small" id="btnRebobinarImpressora" style="display:none;" onclick="rebobinarImpressoraDireta()" title="Usa o sensor da impressora pra reposicionar a etiqueta no início — o motor pode girar pra trás se o papel avançou demais">⏪ Rebobinar / Recalibrar posição</button>
             <button type="button" class="btn secondary small" id="btnDesconectarImpressora" style="display:none;" onclick="desconectarImpressoraDireta()">✖ Desconectar</button>
           </div>
           <p class="dimSmall">USB só funciona no Chrome/Edge do computador, e só se a impressora aparecer como porta serial/COM. Bluetooth só funciona com impressoras Bluetooth LE — a maioria das térmicas baratas usa Bluetooth clássico (SPP), que nenhum navegador consegue acessar direto; se sua impressora não aparecer na lista, use USB ou "Caixa do sistema". A conexão direta vale só para este aparelho e esta sessão — feche e reconecte se fechar o navegador.</p>
@@ -9302,6 +9303,39 @@ async function testarImpressoraDireta(){
     el.remove();
   }
 }
+// Manda a impressora reposicionar a etiqueta usando o sensor dela — comando TSPL
+// "HOME" oficial do protocolo (documentado no manual TSC/TSPL2). Se o papel avançou
+// além do início da etiqueta (ex.: depois de um teste que saiu torto/desalinhado),
+// esse comando faz a própria impressora achar o início de novo usando o sensor, e
+// pra isso ELA PODE girar o motor pra trás sozinha — não existe um comando padrão
+// de mercado pra "só girar pra trás sem critério nenhum" (isso varia por fabricante
+// e mandar errado pode forçar o motor), então usamos o jeito oficial e seguro: pedir
+// pra impressora se recalibrar sozinha pelo sensor, que é exatamente o que resolve
+// o desalinhamento. Só disponível no protocolo TSPL — ESC/POS não tem equivalente
+// padrão pra isso.
+async function rebobinarImpressoraDireta(){
+  if(!impressoraDiretaDisponivel_()){
+    alertModal('Conecte a impressora primeiro.');
+    return;
+  }
+  if((DB.settings.etiquetaProtocolo||'tspl') !== 'tspl'){
+    alertModal('Rebobinar/recalibrar só está disponível no protocolo TSPL (troque em "Protocolo da impressora" se sua impressora suportar).');
+    return;
+  }
+  try{
+    const dims = dimsDoModeloEscolhido_ ? dimsDoModeloEscolhido_() : {w:40,h:30};
+    const gapMm = Number(DB.settings.etiquetaGapMm) || 2;
+    const comandoTexto =
+      `SIZE ${dims.w} mm,${dims.h} mm\r\n` +
+      `GAP ${gapMm} mm,0 mm\r\n` +
+      `HOME\r\n`;
+    await enviarBytesImpressoraDireta_(new TextEncoder().encode(comandoTexto));
+    log('Comando de rebobinar/recalibrar enviado à impressora.');
+  }catch(err){
+    console.error('Erro ao rebobinar impressora:', err);
+    alertModal('Não foi possível enviar o comando. Verifique a conexão e tente novamente.');
+  }
+}
 function renderImpressoraEtiquetaUI(){
   const wrap = document.getElementById('impressoraEtiquetaStatus');
   if(!wrap) return;
@@ -9312,11 +9346,13 @@ function renderImpressoraEtiquetaUI(){
   const btnBt = document.getElementById('btnConectarImpressoraBT');
   const btnDesc = document.getElementById('btnDesconectarImpressora');
   const btnTestar = document.getElementById('btnTestarImpressora');
+  const btnRebobinar = document.getElementById('btnRebobinarImpressora');
   if(btnUsb) btnUsb.style.display = modo==='usb' ? '' : 'none';
   if(btnBt) btnBt.style.display = modo==='bluetooth' ? '' : 'none';
   const conectada = !!(_impressoraDireta.writer || _impressoraDireta.bleChar);
   if(btnDesc) btnDesc.style.display = (modo!=='sistema' && conectada) ? '' : 'none';
   if(btnTestar) btnTestar.style.display = (modo!=='sistema' && conectada) ? '' : 'none';
+  if(btnRebobinar) btnRebobinar.style.display = (modo!=='sistema' && conectada && protocolo==='tspl') ? '' : 'none';
   const gapWrap = document.getElementById('cfg_etiquetaGapWrap');
   if(gapWrap) gapWrap.style.display = (modo==='sistema' || protocolo!=='tspl') ? 'none' : '';
   const protocoloWrap = document.getElementById('cfg_etiquetaProtocoloWrap');
