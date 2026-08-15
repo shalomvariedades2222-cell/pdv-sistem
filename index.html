@@ -580,9 +580,9 @@ html.anim-off-login #connectingScreen *{animation:none !important;}
 .forgotErr{color:var(--red);font-size:11.5px;min-height:14px;margin-bottom:4px;}
 .forgotOk{color:var(--green);font-size:11.5px;min-height:14px;margin-bottom:4px;}
 
-/* ---------- ETIQUETA DE PRODUTO (tamanho configurável em Configurações; padrão 40mm x 30mm) ---------- */
+/* ---------- ETIQUETA DE PRODUTO (50mm x 30mm) ---------- */
 .etq{
-  width:var(--etq-w,50mm);height:var(--etq-h,30mm);box-sizing:border-box;background:#fff;color:#000;
+  width:50mm;height:30mm;box-sizing:border-box;background:#fff;color:#000;
   font-family:var(--etq-font, Arial,Helvetica,sans-serif);position:relative;overflow:hidden;
   border:0.35mm solid var(--etq-accent,#000);padding:0.9mm;display:flex;flex-direction:column;gap:0.35mm;
 }
@@ -3415,12 +3415,6 @@ html.is-mobile .btn::before{ display:none; }
             <label style="margin:0;">Usar a foto do produto no lugar do logo da loja</label>
           </div>
           <div class="formGrid" style="margin-top:6px;">
-            <div class="field"><label>Largura da etiqueta (mm)</label>
-              <input id="cfg_etiquetaLarguraMm" type="number" min="15" max="150" step="1" data-perm="admin" oninput="saveSettingsLive()">
-            </div>
-            <div class="field"><label>Altura da etiqueta (mm)</label>
-              <input id="cfg_etiquetaAlturaMm" type="number" min="10" max="150" step="1" data-perm="admin" oninput="saveSettingsLive()">
-            </div>
             <div class="field"><label>Estilo do texto (fonte)</label>
               <select id="cfg_etiquetaFonte" data-perm="admin" onchange="saveSettingsLive()">
                 <option value="padrao">Padrão (sem serifa)</option>
@@ -3440,16 +3434,43 @@ html.is-mobile .btn::before{ display:none; }
               <input id="cfg_etiquetaCor" type="color" data-perm="admin" onchange="saveSettingsLive()" style="height:38px;padding:2px;">
             </div>
           </div>
+          <div class="formGrid" style="margin-top:6px;">
+            <div class="field"><label>Largura da etiqueta (mm)</label>
+              <input id="cfg_etiquetaLarguraMm" type="number" min="15" max="100" step="1" data-perm="admin" oninput="saveSettingsLive()">
+            </div>
+            <div class="field"><label>Altura da etiqueta (mm)</label>
+              <input id="cfg_etiquetaAlturaMm" type="number" min="10" max="100" step="1" data-perm="admin" oninput="saveSettingsLive()">
+            </div>
+          </div>
           <button class="btn secondary small" style="margin-top:8px;" onclick="previewEtiquetaConfig()">🔍 Pré-visualizar etiqueta</button>
-          <p class="dimSmall">Etiqueta impressa no tamanho definido acima (padrão 40mm x 30mm), com nome, preço, código de barras e QR code do produto. As opções acima valem para todas as etiquetas da loja. A impressão agora gera um PDF já no tamanho certo e abre a caixa de impressão dele — não usa mais a impressão padrão da página.</p>
+          <p class="dimSmall">O desenho da etiqueta (nome, preço, código de barras e QR code) se ajusta automaticamente ao tamanho físico informado acima — padrão 40mm x 30mm. As demais opções valem para todas as etiquetas da loja.</p>
           <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:14px;">
             <div class="field" style="display:flex;align-items:center;gap:8px;">
               <input type="checkbox" id="cfg_etiquetaModoCustom" data-perm="admin" onchange="saveSettingsLive()" style="width:auto;margin:0;">
               <label style="margin:0;">Usar etiqueta personalizada (editor avançado, substitui os modelos Premium/Normal quando só houver 1 modelo salvo)</label>
             </div>
             <button class="btn secondary small" style="margin-top:8px;" onclick="abrirEditorEtiqueta()">🎨 Abrir editor de etiquetas</button>
-            <p class="dimSmall">No editor você adiciona os elementos que quiser (nome, preço, código de barras, QR code, logo, retângulo, textos livres...), arrasta cada um para a posição desejada, redimensiona pelo canto e ajusta fonte, tamanho e cor individualmente. Você pode salvar quantos modelos quiser, cada um com seu próprio nome, e escolher qual usar na hora de imprimir a etiqueta de cada produto. O campo Largura/Altura acima define o tamanho dos modelos prontos (Premium/Normal); a etiqueta personalizada usa o tamanho fixo do próprio editor (50x30mm ou 30x50mm, conforme a orientação escolhida ali dentro).</p>
+            <p class="dimSmall">No editor você adiciona os elementos que quiser (nome, preço, código de barras, QR code, logo, retângulo, textos livres...), arrasta cada um para a posição desejada, redimensiona pelo canto e ajusta fonte, tamanho e cor individualmente. Você pode salvar quantos modelos quiser, cada um com seu próprio nome, e escolher qual usar na hora de imprimir a etiqueta de cada produto.</p>
           </div>
+        </div>
+        <div class="panel" style="max-width:520px;">
+          <h3>🖨️ Impressora de Etiquetas</h3>
+          <p class="dimSmall" style="margin-top:-6px;">Escolha como o sistema manda a etiqueta pra impressora. "Caixa do sistema" é o padrão (mais compatível, funciona em qualquer aparelho): gera a etiqueta em PDF e abre a caixa de impressão do navegador pra você escolher a impressora e confirmar. USB e Bluetooth imprimem direto, sem abrir caixa nenhuma — mas dependem do navegador e de como a impressora se conecta (veja os avisos abaixo de cada opção).</p>
+          <div class="field">
+            <label>Como imprimir</label>
+            <select id="cfg_etiquetaModoImpressao" data-perm="admin" onchange="mudarModoImpressaoEtiqueta(this.value)">
+              <option value="sistema">Caixa do sistema (padrão, mais compatível)</option>
+              <option value="usb">USB direto (sem caixa de impressão)</option>
+              <option value="bluetooth">Bluetooth direto (sem caixa de impressão)</option>
+            </select>
+          </div>
+          <div class="field" style="margin-top:8px;">
+            <div id="impressoraEtiquetaStatus" class="dimSmall" style="margin-bottom:8px;">⏳ Nenhum aparelho conectado nesta sessão</div>
+            <button type="button" class="btn secondary small" id="btnConectarImpressoraUSB" style="display:none;" onclick="conectarImpressoraUSB()">🔌 Conectar impressora USB</button>
+            <button type="button" class="btn secondary small" id="btnConectarImpressoraBT" style="display:none;" onclick="conectarImpressoraBluetooth()">📶 Conectar impressora Bluetooth</button>
+            <button type="button" class="btn secondary small" id="btnDesconectarImpressora" style="display:none;" onclick="desconectarImpressoraDireta()">✖ Desconectar</button>
+          </div>
+          <p class="dimSmall">USB só funciona no Chrome/Edge do computador, e só se a impressora aparecer como porta serial/COM. Bluetooth só funciona com impressoras Bluetooth LE — a maioria das térmicas baratas usa Bluetooth clássico (SPP), que nenhum navegador consegue acessar direto; se sua impressora não aparecer na lista, use USB ou "Caixa do sistema". A conexão direta vale só para este aparelho e esta sessão — feche e reconecte se fechar o navegador.</p>
         </div>
         <div class="panel" style="max-width:520px;">
           <h3>Impressora de Recibo</h3>
@@ -5119,8 +5140,6 @@ function ensureCatalogDefaults(){
   if(typeof DB.settings.estoqueLiberacaoMinutos==='undefined' || !DB.settings.estoqueLiberacaoMinutos) DB.settings.estoqueLiberacaoMinutos = 60;
   if(typeof DB.settings.etiquetaMostrarBarras==='undefined') DB.settings.etiquetaMostrarBarras = true;
   if(typeof DB.settings.etiquetaMostrarFoto==='undefined') DB.settings.etiquetaMostrarFoto = false;
-  if(!DB.settings.etiquetaLarguraMm || !(Number(DB.settings.etiquetaLarguraMm)>0)) DB.settings.etiquetaLarguraMm = 40;
-  if(!DB.settings.etiquetaAlturaMm || !(Number(DB.settings.etiquetaAlturaMm)>0)) DB.settings.etiquetaAlturaMm = 30;
   if(!DB.settings.etiquetaFonte) DB.settings.etiquetaFonte = 'padrao';
   if(!DB.settings.etiquetaTamanho) DB.settings.etiquetaTamanho = 'medio';
   if(!DB.settings.etiquetaCor) DB.settings.etiquetaCor = '#000000';
@@ -5128,6 +5147,9 @@ function ensureCatalogDefaults(){
   if(!Array.isArray(DB.settings.etiquetaLayout)) DB.settings.etiquetaLayout = [];
   if(!DB.settings.etiquetaOrientacao) DB.settings.etiquetaOrientacao = 'horizontal'; // 'horizontal' (50x30mm) ou 'vertical' (30x50mm) — só vale pro editor personalizado
   if(!Array.isArray(DB.settings.etiquetaModelos)) DB.settings.etiquetaModelos = [];
+  if(!DB.settings.etiquetaLarguraMm) DB.settings.etiquetaLarguraMm = 40;
+  if(!DB.settings.etiquetaAlturaMm) DB.settings.etiquetaAlturaMm = 30;
+  if(!DB.settings.etiquetaModoImpressao) DB.settings.etiquetaModoImpressao = 'sistema'; // 'sistema' (PDF+caixa de impressão), 'usb' (Web Serial) ou 'bluetooth' (Web Bluetooth)
   // migração: quem já tinha um layout personalizado solto (versão antiga, sem nome/lista)
   // vira automaticamente o primeiro modelo salvo, pra não perder o trabalho já feito
   if(!DB.settings.etiquetaModelos.length && DB.settings.etiquetaLayout.length){
@@ -8435,16 +8457,6 @@ function renderEstoqueLista(manerScroll){
 let _etqState = {productId:null, modelo:null};
 const ETQ_FONTES = {padrao:"Arial,Helvetica,sans-serif", elegante:"Georgia,'Times New Roman',serif", moderna:"'Courier New',monospace"};
 const ETQ_TAMANHOS = {pequeno:0.85, medio:1, grande:1.15, extra:1.3};
-// Tamanho físico (em mm) da etiqueta dos modelos PRONTOS (Premium/Normal), configurável em
-// Configurações > Etiqueta de Produtos. A etiqueta personalizada (editor avançado) tem seu
-// próprio tamanho fixo (50x30/30x50 conforme orientação), não é afetada por esta função.
-function tamanhoEtiquetaPadrao(){
-  const larguraBruta = Number(DB.settings.etiquetaLarguraMm);
-  const alturaBruta = Number(DB.settings.etiquetaAlturaMm);
-  const w = (isFinite(larguraBruta) && larguraBruta>=15 && larguraBruta<=150) ? larguraBruta : 40;
-  const h = (isFinite(alturaBruta) && alturaBruta>=10 && alturaBruta<=150) ? alturaBruta : 30;
-  return {w, h};
-}
 
 function buildEtiquetaHTML(p, modelo, sfx, barcodeValue){
   const preco = Number(p.venda)||0;
@@ -8463,8 +8475,7 @@ function buildEtiquetaHTML(p, modelo, sfx, barcodeValue){
   const escala = ETQ_TAMANHOS[DB.settings.etiquetaTamanho] || 1;
   const corDestaque = DB.settings.etiquetaCor || '#000000';
   const codigoExibido = barcodeValue || p.barcode || '';
-  const dimsPadrao = tamanhoEtiquetaPadrao();
-  const etqStyle = `--etq-font:${fonteCss};--etq-scale:${escala};--etq-accent:${corDestaque};--etq-w:${dimsPadrao.w}mm;--etq-h:${dimsPadrao.h}mm;`;
+  const etqStyle = `--etq-font:${fonteCss};--etq-scale:${escala};--etq-accent:${corDestaque};`;
 
   // coluna QR: se desativado no sistema, a coluna some e o preço ocupa a etiqueta toda
   const qrCol = `
@@ -8717,9 +8728,8 @@ function salvarModeloSeMarcado(){
     autoSaveLocal(); autoSaveToFile();
   }
 }
-// Dimensões (mm) da etiqueta conforme o modelo escolhido no momento (premium/normal = tamanho
-// configurado em Configurações, padrão 40x30; personalizada = conforme a orientação salva
-// naquele modelo específico, tamanho fixo do editor)
+// Dimensões (mm) da etiqueta conforme o modelo escolhido no momento (premium/normal = 50x30
+// fixo; personalizada = conforme a orientação salva naquele modelo específico)
 function dimsDoModeloEscolhido_(){
   const modelo = _etqState.modelo;
   if(typeof modelo==='string' && modelo.indexOf('custom')===0){
@@ -8727,7 +8737,36 @@ function dimsDoModeloEscolhido_(){
     const m = obterModeloEtiquetaCustom(idModelo);
     return m.orientacao==='vertical' ? {w:30,h:50} : {w:50,h:30};
   }
-  return tamanhoEtiquetaPadrao();
+  // Modelos padrão (Premium/Normal): desenhados num "papel de trabalho" fixo de
+  // 50x30mm, mas impressos/exportados no tamanho físico configurado pela loja
+  // (ver escalaEtiquetaAlvo_) — por padrão 40x30mm.
+  const larguraPadrao = Number(DB.settings.etiquetaLarguraMm) || 40;
+  const alturaPadrao = Number(DB.settings.etiquetaAlturaMm) || 30;
+  return {w:larguraPadrao,h:alturaPadrao};
+}
+// Fator de escala (X,Y) pra levar o desenho nativo de 50x30mm dos modelos
+// Premium/Normal até o tamanho físico configurado, sem precisar redesenhar
+// cada elemento — aplicado via transform CSS no wrapper do item impresso.
+function escalaEtiquetaAlvo_(dims, modelo){
+  if(typeof modelo==='string' && modelo.indexOf('custom')===0) return {sx:1, sy:1};
+  return { sx: dims.w/50, sy: dims.h/30 };
+}
+// Ajusta o elemento .etqPrintItem pro tamanho físico configurado (dims, em mm) e,
+// pros modelos padrão (Premium/Normal, desenhados nativamente em 50x30mm), aplica
+// a escala calculada em escalaEtiquetaAlvo_ pra "encolher/esticar" o desenho
+// inteiro (preço, logo, código de barras, QR) proporcionalmente até caber
+// exatamente no tamanho de etiqueta física escolhido pela loja.
+function aplicarTamanhoFisicoEtiqueta_(item, dims, modelo){
+  item.style.width = dims.w + 'mm';
+  item.style.height = dims.h + 'mm';
+  item.style.overflow = 'hidden';
+  item.style.position = 'relative';
+  const escala = escalaEtiquetaAlvo_(dims, modelo);
+  const etqEl = item.querySelector('.etq');
+  if(etqEl && (escala.sx !== 1 || escala.sy !== 1)){
+    etqEl.style.transform = `scale(${escala.sx},${escala.sy})`;
+    etqEl.style.transformOrigin = 'top left';
+  }
 }
 function imprimirEtiquetaFinal(){
   const area = document.getElementById('printArea');
@@ -8755,8 +8794,8 @@ function imprimirEtiquetaFinal(){
     produtosMultiplos.forEach(function(prod, index){
       const item = document.createElement('div');
       item.className = 'etqPrintItem';
-      item.style.width = dims.w+'mm'; item.style.height = dims.h+'mm';
       promessasEtiquetas.push(renderEtiquetaInto(item, prod, _etqState.modelo, 'print_' + index, prod.barcode));
+      aplicarTamanhoFisicoEtiqueta_(item, dims, _etqState.modelo);
       area.appendChild(item);
       itensEtiquetas.push(item);
     });
@@ -8773,17 +8812,15 @@ function imprimirEtiquetaFinal(){
     codigos.slice(0, qtd).forEach(function(codigo, index){
       const item = document.createElement('div');
       item.className = 'etqPrintItem';
-      item.style.width = dims.w+'mm'; item.style.height = dims.h+'mm';
       promessasEtiquetas.push(renderEtiquetaInto(item, p, _etqState.modelo, 'print_' + index, codigo));
+      aplicarTamanhoFisicoEtiqueta_(item, dims, _etqState.modelo);
       area.appendChild(item);
       itensEtiquetas.push(item);
     });
   }
-  // Em vez de deixar a área visível na tela pra imprimir a PÁGINA (window.print, que
-  // depende do @media print do navegador e tinha bugs pra renderizar o código de
-  // barras corretamente), a área fica fora da tela (position:fixed, fora da viewport)
-  // mas com layout real — assim cada etiqueta tem o tamanho físico certo em mm pra ser
-  // fotografada pelo html2canvas, sem que a pessoa veja essa área "piscando" na tela.
+  // A área fica fora da tela (position:fixed, fora da viewport) mas com layout real —
+  // assim cada etiqueta tem o tamanho físico certo em mm pra ser fotografada pelo
+  // html2canvas, sem que a pessoa veja essa área "piscando" na tela.
   area.style.cssText = 'display:block;position:fixed;left:-10000px;top:0;';
   closeModal();
   function limparArea(){
@@ -8794,8 +8831,28 @@ function imprimirEtiquetaFinal(){
   // a impressão indefinidamente, ex.: se a internet cair no meio do desenho).
   const tetoSeguranca = new Promise(function(resolve){ setTimeout(resolve, 6000); });
   Promise.race([Promise.all(promessasEtiquetas), tetoSeguranca]).then(function(){
-    return Promise.all([garantirHtml2Canvas(), garantirJsPDF()]);
-  }).then(function(){
+    // Impressora conectada direto (USB/Bluetooth, sem caixa de diálogo nenhuma do
+    // sistema/navegador) tem prioridade quando configurada E de fato conectada nesta
+    // sessão; senão cai automaticamente no fluxo de sempre (PDF + caixa de impressão).
+    if(impressoraDiretaDisponivel_()){
+      return imprimirEtiquetasViaImpressoraDireta_(itensEtiquetas, dims).then(limparArea).catch(function(err){
+        console.error('Erro na impressão direta, caindo para o modo compatibilidade:', err);
+        return imprimirEtiquetasViaSistema_(itensEtiquetas, dims, limparArea);
+      });
+    }
+    return imprimirEtiquetasViaSistema_(itensEtiquetas, dims, limparArea);
+  }).catch(function(err){
+    console.error('Erro ao preparar etiquetas para impressão:', err);
+    limparArea();
+    alertModal('Erro ao preparar a impressão das etiquetas.');
+  });
+}
+// Fluxo de sempre: fotografa cada etiqueta com html2canvas, monta um PDF (uma página
+// por etiqueta, já no tamanho físico configurado) e abre a caixa de impressão NATIVA
+// DO PDF (visualizador de PDF do navegador) — usado quando não há impressora direta
+// conectada, ou como reserva se a impressão direta falhar no meio do caminho.
+function imprimirEtiquetasViaSistema_(itensEtiquetas, dims, limparArea){
+  return Promise.all([garantirHtml2Canvas(), garantirJsPDF()]).then(function(){
     if(typeof html2canvas==='undefined' || !window.jspdf){
       limparArea();
       alertModal('Não foi possível preparar a impressão (recurso indisponível). Verifique sua internet e tente novamente.');
@@ -8818,11 +8875,6 @@ function imprimirEtiquetaFinal(){
     });
     return cadeia.then(function(){
       limparArea();
-      // Abre a caixa de impressão NATIVA DO PDF (visualizador de PDF do navegador),
-      // em vez do window.print() da página HTML. Como o PDF já é um "retrato" fechado
-      // de cada etiqueta (o código de barras já virou imagem, não precisa mais ser
-      // desenhado de novo na hora de imprimir), sai idêntico em qualquer impressora,
-      // sem os bugs de layout/margem que a impressão de página comum podia ter.
       doc.autoPrint();
       const blobUrl = doc.output('bloburl');
       const janela = window.open(blobUrl, '_blank');
@@ -8830,10 +8882,6 @@ function imprimirEtiquetaFinal(){
         alertModal('Não foi possível abrir a janela de impressão (bloqueada pelo navegador). Permita pop-ups para este site e tente novamente.');
       }
     });
-  }).catch(function(err){
-    console.error('Erro ao preparar etiquetas para impressão:', err);
-    limparArea();
-    alertModal('Erro ao preparar a impressão das etiquetas.');
   });
 }
 // A regra @page do CSS fica fixa em 50mm x 30mm (etiqueta padrão); quando a
@@ -8876,6 +8924,233 @@ function baixarEtiquetaPDF(){
       alertModal('Erro ao gerar o PDF da etiqueta.');
     });
   });
+}
+/* =========================================================
+   IMPRESSORA DE ETIQUETAS — impressão direta via USB (Web Serial) ou
+   Bluetooth (Web Bluetooth), sem passar pela caixa de impressão do
+   sistema/navegador (o "Ctrl+P"). O sistema converte a própria etiqueta já
+   desenhada em uma imagem (o mesmo html2canvas usado no PDF) e manda os
+   bytes crus, no formato ESC/POS de imagem (comando "GS v 0"), direto pro
+   aparelho escolhido — funciona com a maioria das impressoras térmicas de
+   etiqueta (Elgin, Bematech, Zebra em modo ESC/POS, entre outras).
+
+   LIMITAÇÕES REAIS DO NAVEGADOR (importante deixar claro pra loja):
+   - USB (Web Serial): só funciona em Chrome/Edge no computador, e só se a
+     impressora aparecer como porta serial/COM — a maioria das térmicas USB
+     entra nessa categoria, mas impressoras instaladas só com "driver de
+     impressora" do Windows (fila de impressão comum) não aparecem aqui;
+     nesse caso a loja precisa usar o modo "Caixa do sistema" mesmo.
+   - Bluetooth (Web Bluetooth): só funciona com impressoras Bluetooth LE
+     (BLE). A maioria das térmicas baratas usa Bluetooth clássico (SPP), que
+     o navegador NUNCA consegue acessar diretamente — nenhum site consegue,
+     é uma limitação de segurança do próprio navegador, não deste sistema.
+     Se a impressora não aparecer na lista de pareamento, é sinal de que ela
+     é Bluetooth clássico: use USB ou o modo "Caixa do sistema".
+========================================================= */
+let _impressoraDireta = { tipo:null, port:null, writer:null, bleDevice:null, bleChar:null, nome:'' };
+
+function impressoraDiretaDisponivel_(){
+  const modo = DB.settings.etiquetaModoImpressao;
+  if(modo==='usb') return !!_impressoraDireta.writer;
+  if(modo==='bluetooth') return !!_impressoraDireta.bleChar;
+  return false;
+}
+function statusImpressoraDiretaTexto_(){
+  if(_impressoraDireta.tipo==='usb' && _impressoraDireta.writer) return '✅ USB conectada' + (_impressoraDireta.nome?': '+_impressoraDireta.nome:'');
+  if(_impressoraDireta.tipo==='bluetooth' && _impressoraDireta.bleChar) return '✅ Bluetooth conectado' + (_impressoraDireta.nome?': '+_impressoraDireta.nome:'');
+  return '⏳ Nenhum aparelho conectado nesta sessão';
+}
+async function desconectarImpressoraDireta(){
+  try{
+    if(_impressoraDireta.writer){ try{ _impressoraDireta.writer.releaseLock(); }catch(e){} }
+    if(_impressoraDireta.port){ try{ await _impressoraDireta.port.close(); }catch(e){} }
+    if(_impressoraDireta.bleDevice && _impressoraDireta.bleDevice.gatt && _impressoraDireta.bleDevice.gatt.connected){
+      try{ _impressoraDireta.bleDevice.gatt.disconnect(); }catch(e){}
+    }
+  }finally{
+    _impressoraDireta = { tipo:null, port:null, writer:null, bleDevice:null, bleChar:null, nome:'' };
+    renderImpressoraEtiquetaUI();
+  }
+}
+// Conecta a uma impressora USB que apareça como porta serial (a maioria das térmicas
+// de etiqueta USB). Precisa de um clique do usuário (exigência do navegador) — por
+// isso é chamada direto pelo botão "Conectar impressora USB".
+async function conectarImpressoraUSB(){
+  if(!('serial' in navigator)){
+    alertModal('Este navegador não tem suporte a impressão USB direta (Web Serial). Use o Google Chrome ou Microsoft Edge no computador, ou escolha "Caixa do sistema".');
+    return;
+  }
+  try{
+    const port = await navigator.serial.requestPort();
+    await port.open({ baudRate: 9600 });
+    const writer = port.writable.getWriter();
+    await desconectarImpressoraDireta_semLimparUI_();
+    _impressoraDireta = { tipo:'usb', port, writer, bleDevice:null, bleChar:null, nome:(port.getInfo && port.getInfo().usbProductId) ? ('USB '+port.getInfo().usbProductId.toString(16)) : 'USB' };
+    log('Impressora de etiquetas conectada via USB.');
+    renderImpressoraEtiquetaUI();
+  }catch(err){
+    if(err && err.name==='NotFoundError') return; // pessoa cancelou a seleção, não é erro
+    console.error('Erro ao conectar impressora USB:', err);
+    alertModal('Não foi possível conectar à impressora USB. Verifique se ela está ligada e conectada, e tente novamente.');
+  }
+}
+// Serviços/características mais comuns em módulos Bluetooth LE usados por
+// impressoras térmicas baratas (ex.: módulos tipo HM-10) — tenta cada um até achar
+// uma característica que aceite escrita.
+const BLE_PRINTER_SERVICES = [
+  '000018f0-0000-1000-8000-00805f9b34fb',
+  '49535343-fe7d-4ae5-8fa9-9fafd205e455',
+  'e7810a71-73ae-499d-8c15-faa9aef0c3f2'
+];
+async function conectarImpressoraBluetooth(){
+  if(!('bluetooth' in navigator)){
+    alertModal('Este navegador não tem suporte a Bluetooth direto (Web Bluetooth). Use o Google Chrome no computador ou Android, ou escolha "Caixa do sistema".');
+    return;
+  }
+  try{
+    const device = await navigator.bluetooth.requestDevice({
+      acceptAllDevices: true,
+      optionalServices: BLE_PRINTER_SERVICES
+    });
+    const server = await device.gatt.connect();
+    let characteristic = null;
+    for(const uuid of BLE_PRINTER_SERVICES){
+      try{
+        const service = await server.getPrimaryService(uuid);
+        const chars = await service.getCharacteristics();
+        characteristic = chars.find(c => c.properties.write || c.properties.writeWithoutResponse) || null;
+        if(characteristic) break;
+      }catch(e){ /* essa impressora não tem esse serviço — tenta o próximo */ }
+    }
+    if(!characteristic){
+      alertModal('O aparelho pareou, mas não foi possível achar um canal de impressão compatível nele. Se for uma impressora Bluetooth clássica (SPP), o navegador não consegue usá-la direto — use USB ou "Caixa do sistema".');
+      try{ device.gatt.disconnect(); }catch(e){}
+      return;
+    }
+    await desconectarImpressoraDireta_semLimparUI_();
+    _impressoraDireta = { tipo:'bluetooth', port:null, writer:null, bleDevice:device, bleChar:characteristic, nome:device.name||'Bluetooth' };
+    device.addEventListener('gattserverdisconnected', function(){
+      if(_impressoraDireta.bleDevice===device){ _impressoraDireta = { tipo:null, port:null, writer:null, bleDevice:null, bleChar:null, nome:'' }; renderImpressoraEtiquetaUI(); }
+    });
+    log('Impressora de etiquetas conectada via Bluetooth: ' + (device.name||''));
+    renderImpressoraEtiquetaUI();
+  }catch(err){
+    if(err && err.name==='NotFoundError') return; // pessoa cancelou a seleção, não é erro
+    console.error('Erro ao conectar impressora Bluetooth:', err);
+    alertModal('Não foi possível conectar via Bluetooth. Verifique se a impressora está ligada e pareável, e tente novamente.');
+  }
+}
+// Fecha uma conexão anterior sem re-renderizar a UI no meio (usado antes de abrir uma nova)
+async function desconectarImpressoraDireta_semLimparUI_(){
+  try{
+    if(_impressoraDireta.writer){ try{ _impressoraDireta.writer.releaseLock(); }catch(e){} }
+    if(_impressoraDireta.port){ try{ await _impressoraDireta.port.close(); }catch(e){} }
+    if(_impressoraDireta.bleDevice && _impressoraDireta.bleDevice.gatt && _impressoraDireta.bleDevice.gatt.connected){
+      try{ _impressoraDireta.bleDevice.gatt.disconnect(); }catch(e){}
+    }
+  }catch(e){}
+}
+// Converte um canvas (já desenhado pelo html2canvas) em bytes ESC/POS de imagem
+// ("GS v 0"), em preto e branco puro (limiar de cinza), redimensionado pra caber
+// exatamente na largura física da etiqueta configurada, a 203dpi (padrão da
+// imensa maioria das térmicas — ~8 pontos por mm).
+function canvasParaRasterEscPos_(canvas, larguraMm){
+  const DOTS_POR_MM = 8; // 203dpi
+  const larguraPontos = Math.max(8, Math.round(larguraMm * DOTS_POR_MM / 8) * 8); // múltiplo de 8 (1 byte = 8 pontos)
+  const alturaPontos = Math.round(canvas.height * (larguraPontos / canvas.width));
+  const off = document.createElement('canvas');
+  off.width = larguraPontos; off.height = alturaPontos;
+  const ctx = off.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0,0,larguraPontos,alturaPontos);
+  ctx.drawImage(canvas, 0, 0, larguraPontos, alturaPontos);
+  const img = ctx.getImageData(0,0,larguraPontos,alturaPontos).data;
+  const bytesPorLinha = larguraPontos/8;
+  const raster = new Uint8Array(bytesPorLinha * alturaPontos);
+  for(let y=0; y<alturaPontos; y++){
+    for(let x=0; x<larguraPontos; x++){
+      const i = (y*larguraPontos + x)*4;
+      const cinza = (img[i]*0.299 + img[i+1]*0.587 + img[i+2]*0.114);
+      const preto = cinza < 170 ? 1 : 0; // limiar simples de preto/branco
+      if(preto){
+        raster[y*bytesPorLinha + (x>>3)] |= (0x80 >> (x % 8));
+      }
+    }
+  }
+  const cabecalho = new Uint8Array([
+    0x1D, 0x76, 0x30, 0x00,           // GS v 0 m  (m=0: modo normal)
+    bytesPorLinha & 0xFF, (bytesPorLinha>>8) & 0xFF,   // xL xH (bytes por linha)
+    alturaPontos & 0xFF, (alturaPontos>>8) & 0xFF       // yL yH (linhas)
+  ]);
+  const saida = new Uint8Array(cabecalho.length + raster.length);
+  saida.set(cabecalho, 0);
+  saida.set(raster, cabecalho.length);
+  return saida;
+}
+// Manda os bytes pro canal certo (USB serial ou Bluetooth), em pedaços pequenos no
+// caso do Bluetooth (a maioria dos módulos BLE só aceita ~180-240 bytes por vez).
+async function enviarBytesImpressoraDireta_(bytes){
+  if(_impressoraDireta.tipo==='usb' && _impressoraDireta.writer){
+    await _impressoraDireta.writer.write(bytes);
+    return;
+  }
+  if(_impressoraDireta.tipo==='bluetooth' && _impressoraDireta.bleChar){
+    const TAMANHO_PEDACO = 180;
+    for(let i=0; i<bytes.length; i+=TAMANHO_PEDACO){
+      const pedaco = bytes.slice(i, i+TAMANHO_PEDACO);
+      if(_impressoraDireta.bleChar.properties.writeWithoutResponse){
+        await _impressoraDireta.bleChar.writeValueWithoutResponse(pedaco);
+      } else {
+        await _impressoraDireta.bleChar.writeValue(pedaco);
+      }
+      await new Promise(r=>setTimeout(r, 20)); // dá um respiro pro módulo BLE processar
+    }
+    return;
+  }
+  throw new Error('Nenhuma impressora direta conectada.');
+}
+// Imprime a lista de itens (elementos .etqPrintItem já renderizados) direto na
+// impressora conectada — uma foto (html2canvas) + um comando de imagem ESC/POS por
+// etiqueta, com um avanço de papel entre elas (sem corte automático, que varia
+// demais de impressora pra impressora — a maioria das térmicas de etiqueta com
+// sensor de gap já corta/para sozinha no fim de cada etiqueta física).
+function imprimirEtiquetasViaImpressoraDireta_(itensEtiquetas, dims){
+  return garantirHtml2Canvas().then(function(){
+    if(typeof html2canvas==='undefined'){
+      throw new Error('html2canvas indisponível');
+    }
+    let cadeia = Promise.resolve();
+    itensEtiquetas.forEach(function(item){
+      cadeia = cadeia.then(function(){
+        return html2canvas(item, {scale:4, backgroundColor:'#ffffff'}).then(function(canvas){
+          const bytes = canvasParaRasterEscPos_(canvas, dims.w);
+          const avancoPapel = new Uint8Array([0x1B,0x4A,24]); // ESC J 24 — avança ~24/180" de papel
+          const pacote = new Uint8Array(bytes.length + avancoPapel.length);
+          pacote.set(bytes,0); pacote.set(avancoPapel, bytes.length);
+          return enviarBytesImpressoraDireta_(pacote);
+        });
+      });
+    });
+    return cadeia.then(function(){
+      log('Etiqueta(s) impressa(s) direto via ' + (_impressoraDireta.tipo==='usb'?'USB':'Bluetooth') + '.');
+    });
+  });
+}
+function renderImpressoraEtiquetaUI(){
+  const wrap = document.getElementById('impressoraEtiquetaStatus');
+  if(!wrap) return;
+  wrap.textContent = statusImpressoraDiretaTexto_();
+  const modo = DB.settings.etiquetaModoImpressao || 'sistema';
+  const btnUsb = document.getElementById('btnConectarImpressoraUSB');
+  const btnBt = document.getElementById('btnConectarImpressoraBT');
+  const btnDesc = document.getElementById('btnDesconectarImpressora');
+  if(btnUsb) btnUsb.style.display = modo==='usb' ? '' : 'none';
+  if(btnBt) btnBt.style.display = modo==='bluetooth' ? '' : 'none';
+  if(btnDesc) btnDesc.style.display = (modo!=='sistema' && (_impressoraDireta.writer || _impressoraDireta.bleChar)) ? '' : 'none';
+}
+function mudarModoImpressaoEtiqueta(valor){
+  DB.settings.etiquetaModoImpressao = valor;
+  saveSettingsLive();
+  renderImpressoraEtiquetaUI();
 }
 /* =========================================================
    EDITOR DE ETIQUETAS PERSONALIZADO (arrastar, redimensionar,
@@ -11477,12 +11752,14 @@ function renderConfig(){
   document.getElementById('cfg_etiquetaMostrarQr').checked = DB.settings.etiquetaMostrarQr !== false;
   document.getElementById('cfg_etiquetaMostrarBarras').checked = DB.settings.etiquetaMostrarBarras !== false;
   document.getElementById('cfg_etiquetaMostrarFoto').checked = !!DB.settings.etiquetaMostrarFoto;
-  document.getElementById('cfg_etiquetaLarguraMm').value = DB.settings.etiquetaLarguraMm || 40;
-  document.getElementById('cfg_etiquetaAlturaMm').value = DB.settings.etiquetaAlturaMm || 30;
   document.getElementById('cfg_etiquetaFonte').value = DB.settings.etiquetaFonte || 'padrao';
   document.getElementById('cfg_etiquetaTamanho').value = DB.settings.etiquetaTamanho || 'medio';
   document.getElementById('cfg_etiquetaCor').value = DB.settings.etiquetaCor || '#000000';
   document.getElementById('cfg_etiquetaModoCustom').checked = !!DB.settings.etiquetaModoCustom;
+  document.getElementById('cfg_etiquetaLarguraMm').value = DB.settings.etiquetaLarguraMm || 40;
+  document.getElementById('cfg_etiquetaAlturaMm').value = DB.settings.etiquetaAlturaMm || 30;
+  document.getElementById('cfg_etiquetaModoImpressao').value = DB.settings.etiquetaModoImpressao || 'sistema';
+  renderImpressoraEtiquetaUI();
   updateLogoOptionUI();
   renderVisualConfigUI();
   renderAnimTogglesUI();
@@ -11989,14 +12266,14 @@ function saveSettingsLive(){
   DB.settings.etiquetaMostrarQr = document.getElementById('cfg_etiquetaMostrarQr').checked;
   DB.settings.etiquetaMostrarBarras = document.getElementById('cfg_etiquetaMostrarBarras').checked;
   DB.settings.etiquetaMostrarFoto = document.getElementById('cfg_etiquetaMostrarFoto').checked;
-  const larguraMm = Math.round(Number(document.getElementById('cfg_etiquetaLarguraMm').value));
-  const alturaMm = Math.round(Number(document.getElementById('cfg_etiquetaAlturaMm').value));
-  DB.settings.etiquetaLarguraMm = (isFinite(larguraMm) && larguraMm>=15 && larguraMm<=150) ? larguraMm : 40;
-  DB.settings.etiquetaAlturaMm = (isFinite(alturaMm) && alturaMm>=10 && alturaMm<=150) ? alturaMm : 30;
   DB.settings.etiquetaFonte = document.getElementById('cfg_etiquetaFonte').value;
   DB.settings.etiquetaTamanho = document.getElementById('cfg_etiquetaTamanho').value;
   DB.settings.etiquetaCor = document.getElementById('cfg_etiquetaCor').value;
   DB.settings.etiquetaModoCustom = document.getElementById('cfg_etiquetaModoCustom').checked;
+  const largMm = parseFloat(document.getElementById('cfg_etiquetaLarguraMm').value);
+  const altMm = parseFloat(document.getElementById('cfg_etiquetaAlturaMm').value);
+  DB.settings.etiquetaLarguraMm = (isFinite(largMm) && largMm>0) ? largMm : 40;
+  DB.settings.etiquetaAlturaMm = (isFinite(altMm) && altMm>0) ? altMm : 30;
   const notifCheckbox = document.getElementById('cfg_enableDeviceAcceptNotif');
   if(notifCheckbox){
     setDeviceAcceptNotifEnabled(notifCheckbox.checked);
@@ -12238,7 +12515,7 @@ async function apagarTudoExecutar(){
     });
   }
   if(manterEtiqueta){
-    ['etiquetaModelos','etiquetaLayout','etiquetaOrientacao','etiquetaModoCustom','etiquetaMostrarBarras','etiquetaMostrarFoto','etiquetaFonte','etiquetaTamanho','etiquetaCor','etiquetaLarguraMm','etiquetaAlturaMm'].forEach(k=>{
+    ['etiquetaModelos','etiquetaLayout','etiquetaOrientacao','etiquetaModoCustom','etiquetaMostrarBarras','etiquetaMostrarFoto','etiquetaFonte','etiquetaTamanho','etiquetaCor','etiquetaLarguraMm','etiquetaAlturaMm','etiquetaModoImpressao'].forEach(k=>{
       if(typeof settingsAntigos[k]!=='undefined') novoSettings[k] = settingsAntigos[k];
     });
   }
