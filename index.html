@@ -3489,7 +3489,12 @@ html.is-mobile .btn::before{ display:none; }
             <div class="dimSmall" style="margin-top:4px;">Só vale pro protocolo TSPL. É o espacinho em branco entre uma etiqueta e outra do rolo adesivo — a impressora usa o sensor dela pra encontrar esse espaço e alinhar o desenho certinho dentro de cada etiqueta a cada impressão (recalibra sozinha toda vez, então se trocar o rolo por um com tubo/posição diferente ela se ajusta automaticamente). 2mm é o mais comum; se o desenho continuar saindo desalinhado, meça o espaço real do seu rolo e ajuste aqui. <b>Papel CONTÍNUO, sem separação entre etiquetas (ex.: papel de tatuagem/decalque) — coloque 0 aqui.</b> Se o valor ficar em 2mm num rolo contínuo, a impressora fica procurando um espaço que não existe e ou desalinha tudo ou não para de puxar papel.</div>
           </div>
           <div class="field" id="cfg_etiquetaEscposAvisoWrap" style="display:none;">
-            <div class="dimSmall">No modo ESC/POS não existe um comando padrão de mercado pra pedir que a impressora recalibre pelo sensor de gap/marca preta a cada etiqueta — isso depende da própria impressora (normalmente segurando o botão FEED com a impressora ligada faz ela recalibrar sozinha, ou existe uma opção disso no menu dela, se tiver visor). Faça essa calibração física uma vez ao trocar o rolo.</div>
+            <div class="dimSmall">No modo ESC/POS não existe um comando padrão de mercado pra pedir que a impressora recalibre pelo sensor de gap/marca preta a cada etiqueta — isso depende da própria impressora (normalmente segurando o botão FEED com a impressora ligada faz ela recalibrar sozinha, ou existe uma opção disso no menu dela, se tiver visor). Faça essa calibração física uma vez ao trocar o rolo. Em papel CONTÍNUO (sem gap) como o de tatuagem/decalque, não existe marca nenhuma pro sensor achar de qualquer forma — o jeito de manter o espaçamento sempre igual entre uma etiqueta e outra é o avanço de papel logo abaixo, que é sempre a mesma distância exata a cada impressão (calibre uma vez e ele se repete sozinho).</div>
+          </div>
+          <div class="field" id="cfg_etiquetaEscposAvancoWrap" style="display:none;">
+            <label>Avanço de papel após cada etiqueta (mm)</label>
+            <input id="cfg_etiquetaAvancoEscposMm" type="number" min="0" max="30" step="0.5" data-perm="admin" oninput="saveSettingsLive()">
+            <div class="dimSmall" style="margin-top:4px;">Distância extra que a impressora empurra o papel depois de imprimir cada etiqueta, antes de começar a próxima — sempre o mesmo valor exato (não depende de sensor). Se as etiquetas saem grudadas ou cortando a próxima, aumente. Se sobra muito espaço em branco entre elas, diminua. Padrão: 3mm.</div>
           </div>
           <div class="field" style="margin-top:8px;">
             <div id="impressoraEtiquetaStatus" class="dimSmall" style="margin-bottom:8px;">⏳ Nenhum aparelho conectado nesta sessão</div>
@@ -5180,6 +5185,7 @@ function ensureCatalogDefaults(){
   if(!DB.settings.etiquetaAlturaMm) DB.settings.etiquetaAlturaMm = 30;
   if(!DB.settings.etiquetaModoImpressao) DB.settings.etiquetaModoImpressao = 'sistema'; // 'sistema' (PDF+caixa de impressão), 'usb' (Web Serial) ou 'bluetooth' (Web Bluetooth)
   if(typeof DB.settings.etiquetaGapMm !== 'number' || !isFinite(DB.settings.etiquetaGapMm)) DB.settings.etiquetaGapMm = 2; // espaço (mm) entre uma etiqueta e outra no rolo — usado na impressão direta (TSPL) pra impressora calibrar pelo sensor de gap. CORREÇÃO: antes usava "if(!valor)", que tratava 0 (papel CONTÍNUO, sem gap — caso do papel de tatuagem) como "não configurado" e forçava de volta pra 2mm, fazendo a impressora ficar procurando um gap que não existe no rolo (impressão sem parar / desalinhada).
+  if(typeof DB.settings.etiquetaAvancoEscposMm !== 'number' || !isFinite(DB.settings.etiquetaAvancoEscposMm)) DB.settings.etiquetaAvancoEscposMm = 3; // avanço fixo (mm) de papel após cada etiqueta no protocolo ESC/POS (que não tem sensor de gap/calibração automática) — sempre a mesma distância exata, calibrada manualmente uma vez.
   if(!DB.settings.etiquetaProtocolo) DB.settings.etiquetaProtocolo = 'tspl'; // 'tspl' (Zebra/Argox/TSC/Elgin em "modo etiqueta") ou 'escpos' (impressoras térmicas comuns — Elgin i9/i7, Bematech etc., a maioria das baratas) — usado só na impressão direta (USB/Bluetooth)
   if(!DB.settings.etiquetaBaudRate) DB.settings.etiquetaBaudRate = 9600; // velocidade da porta serial (USB) — precisa bater com a da impressora, senão os bytes chegam embaralhados (sintoma: letras bugadas sem parar)
   // migração: quem já tinha um layout personalizado solto (versão antiga, sem nome/lista)
@@ -8862,14 +8868,31 @@ function imprimirEtiquetaFinal(){
   // Espera todos os desenhos terminarem (com um teto de segurança de 6s pra nunca travar
   // a impressão indefinidamente, ex.: se a internet cair no meio do desenho).
   const tetoSeguranca = new Promise(function(resolve){ setTimeout(resolve, 6000); });
+  const modoConfigurado = DB.settings.etiquetaModoImpressao || 'sistema';
+  const qtdEtiquetas = itensEtiquetas.length;
   Promise.race([Promise.all(promessasEtiquetas), tetoSeguranca]).then(function(){
-    // Impressora conectada direto (USB/Bluetooth, sem caixa de diálogo nenhuma do
-    // sistema/navegador) tem prioridade quando configurada E de fato conectada nesta
-    // sessão; senão cai automaticamente no fluxo de sempre (PDF + caixa de impressão).
-    if(impressoraDiretaDisponivel_()){
-      return imprimirEtiquetasViaImpressoraDireta_(itensEtiquetas, dims).then(limparArea).catch(function(err){
-        console.error('Erro na impressão direta, caindo para o modo compatibilidade:', err);
-        return imprimirEtiquetasViaSistema_(itensEtiquetas, dims, limparArea);
+    // Quando a loja escolheu USB ou Bluetooth direto em Configurações, o app NUNCA
+    // cai sozinho na caixa de impressão do navegador (o "Ctrl+P") — isso já
+    // aconteceu antes como um plano B silencioso em caso de erro, mas confundia
+    // quem tava esperando a etiqueta sair direto da impressora térmica. Agora,
+    // nesses dois modos, qualquer problema aparece como um popup do próprio
+    // sistema (mesma cara do resto do app), nunca abrindo nada do navegador.
+    // A caixa de impressão do navegador só é usada quando a loja escolheu
+    // "Caixa do sistema" de propósito em Configurações.
+    if(modoConfigurado === 'usb' || modoConfigurado === 'bluetooth'){
+      if(!impressoraDiretaDisponivel_()){
+        limparArea();
+        alertModal('Nenhuma impressora ' + (modoConfigurado==='usb'?'USB':'Bluetooth') + ' conectada nesta sessão. Vá em Configurações → Impressora de Etiquetas e clique em "Conectar impressora" antes de imprimir.');
+        return;
+      }
+      return imprimirEtiquetasViaImpressoraDireta_(itensEtiquetas, dims).then(function(){
+        limparArea();
+        alertModal((qtdEtiquetas>1 ? qtdEtiquetas+' etiquetas enviadas' : 'Etiqueta enviada') + ' para a impressora com sucesso. ✅');
+      }).catch(function(err){
+        console.error('Erro na impressão direta:', err);
+        limparArea();
+        const detalhe = (err && err.message) ? err.message : 'Verifique se a impressora está ligada, conectada e com papel.';
+        alertModal('Não foi possível imprimir na impressora ' + (modoConfigurado==='usb'?'USB':'Bluetooth') + '. ' + detalhe);
       });
     }
     return imprimirEtiquetasViaSistema_(itensEtiquetas, dims, limparArea);
@@ -9207,7 +9230,20 @@ function gerarComandoESCPOS_(canvas, dimsMm){
   const xL = bytesPorLinha & 0xFF, xH = (bytesPorLinha >> 8) & 0xFF;
   const yL = alturaPontos & 0xFF, yH = (alturaPontos >> 8) & 0xFF;
   const cabecalhoRaster = new Uint8Array([GS, 0x76, 0x30, 0x00, xL, xH, yL, yH]);
-  const alimentaEfimBloco = new Uint8Array([0x0A, 0x0A, 0x0A]); // avança papel pro fim da etiqueta (não corta — a maioria das impressoras de etiqueta não tem faca)
+  // Avanço de papel após a etiqueta: como ESC/POS não tem sensor de gap/marca
+  // (ver comentário da função anterior), usamos "ESC J n" (Print and feed n
+  // dots) com n calculado a partir do valor configurado em Configurações →
+  // Impressora de Etiquetas → "Avanço de papel após cada etiqueta (mm)" — é um
+  // avanço EXATO em pontos (203dpi ≈ 8 pontos/mm), sempre a mesma distância a
+  // cada etiqueta, diferente do "empurrão" impreciso de várias quebras de
+  // linha (0x0A) que dependia da altura de linha configurada na impressora e
+  // variava de impressora pra impressora. "ESC J n" só aceita 1 byte (0-255
+  // pontos ≈ até ~31mm) — como o valor configurável vai até 30mm, cabe numa
+  // chamada só.
+  const DOTS_POR_MM = 8;
+  const avancoMm = Number(DB.settings.etiquetaAvancoEscposMm);
+  const avancoDots = Math.max(0, Math.min(255, Math.round((isFinite(avancoMm) ? avancoMm : 3) * DOTS_POR_MM)));
+  const alimentaEfimBloco = new Uint8Array([ESC, 0x4A, avancoDots]); // ESC J n
   const saida = new Uint8Array(inicializa.length + cabecalhoRaster.length + bitmap.length + alimentaEfimBloco.length);
   let pos = 0;
   saida.set(inicializa, pos); pos += inicializa.length;
@@ -9381,6 +9417,8 @@ function renderImpressoraEtiquetaUI(){
   if(baudWrap) baudWrap.style.display = modo==='usb' ? '' : 'none';
   const escposAvisoWrap = document.getElementById('cfg_etiquetaEscposAvisoWrap');
   if(escposAvisoWrap) escposAvisoWrap.style.display = (modo==='sistema' || protocolo!=='escpos') ? 'none' : '';
+  const escposAvancoWrap = document.getElementById('cfg_etiquetaEscposAvancoWrap');
+  if(escposAvancoWrap) escposAvancoWrap.style.display = (modo==='sistema' || protocolo!=='escpos') ? 'none' : '';
 }
 function mudarModoImpressaoEtiqueta(valor){
   DB.settings.etiquetaModoImpressao = valor;
@@ -12004,6 +12042,7 @@ function renderConfig(){
   document.getElementById('cfg_etiquetaAlturaMm').value = DB.settings.etiquetaAlturaMm || 30;
   document.getElementById('cfg_etiquetaModoImpressao').value = DB.settings.etiquetaModoImpressao || 'sistema';
   document.getElementById('cfg_etiquetaGapMm').value = (typeof DB.settings.etiquetaGapMm==='number') ? DB.settings.etiquetaGapMm : 2;
+  document.getElementById('cfg_etiquetaAvancoEscposMm').value = (typeof DB.settings.etiquetaAvancoEscposMm==='number') ? DB.settings.etiquetaAvancoEscposMm : 3;
   document.getElementById('cfg_etiquetaProtocolo').value = DB.settings.etiquetaProtocolo || 'tspl';
   document.getElementById('cfg_etiquetaBaudRate').value = String(DB.settings.etiquetaBaudRate || 9600);
   renderImpressoraEtiquetaUI();
@@ -12526,6 +12565,11 @@ function saveSettingsLive(){
     const gapMm = parseFloat(gapMmInp.value);
     DB.settings.etiquetaGapMm = (isFinite(gapMm) && gapMm>=0) ? gapMm : 2;
   }
+  const avancoEscposInp = document.getElementById('cfg_etiquetaAvancoEscposMm');
+  if(avancoEscposInp){
+    const avancoMm = parseFloat(avancoEscposInp.value);
+    DB.settings.etiquetaAvancoEscposMm = (isFinite(avancoMm) && avancoMm>=0) ? avancoMm : 3;
+  }
   const protocoloSel = document.getElementById('cfg_etiquetaProtocolo');
   if(protocoloSel){
     DB.settings.etiquetaProtocolo = protocoloSel.value === 'escpos' ? 'escpos' : 'tspl';
@@ -12776,7 +12820,7 @@ async function apagarTudoExecutar(){
     });
   }
   if(manterEtiqueta){
-    ['etiquetaModelos','etiquetaLayout','etiquetaOrientacao','etiquetaModoCustom','etiquetaMostrarBarras','etiquetaMostrarFoto','etiquetaFonte','etiquetaTamanho','etiquetaCor','etiquetaLarguraMm','etiquetaAlturaMm','etiquetaModoImpressao','etiquetaGapMm','etiquetaProtocolo','etiquetaBaudRate'].forEach(k=>{
+    ['etiquetaModelos','etiquetaLayout','etiquetaOrientacao','etiquetaModoCustom','etiquetaMostrarBarras','etiquetaMostrarFoto','etiquetaFonte','etiquetaTamanho','etiquetaCor','etiquetaLarguraMm','etiquetaAlturaMm','etiquetaModoImpressao','etiquetaGapMm','etiquetaAvancoEscposMm','etiquetaProtocolo','etiquetaBaudRate'].forEach(k=>{
       if(typeof settingsAntigos[k]!=='undefined') novoSettings[k] = settingsAntigos[k];
     });
   }
