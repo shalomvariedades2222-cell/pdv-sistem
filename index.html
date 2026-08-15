@@ -3555,6 +3555,28 @@ html.is-mobile .btn::before{ display:none; }
             </select>
             <div class="dimSmall" style="margin-top:4px;">Só vale pra USB. Precisa bater com a velocidade real da impressora — se estiver errada, os bytes chegam embaralhados nela e é uma das causas mais comuns de sair "letra bugada sem parar". Se 9600 não funcionar, desconecte, troque aqui e conecte de novo pra testar as outras.</div>
           </div>
+          <div class="field" id="cfg_etiquetaSistemaWrap">
+            <div class="dimSmall" style="margin-bottom:8px;">
+              <b>Etiquetas saindo com espaçamento errado / desalinhadas?</b> No modo "Caixa do sistema" é o driver de impressão do próprio computador/celular que manda o papel andar — o app não tem controle sobre isso (diferente do USB/Bluetooth direto, que ajusta certinho pela distância exata a cada etiqueta). Antes de mexer nos ajustes abaixo, confira nesta ordem:
+              <ol style="margin:6px 0 0 18px;padding:0;">
+                <li>Na caixa de impressão do navegador, o tamanho do papel selecionado é o mesmo configurado aqui em "Etiqueta de Produtos" (largura/altura em mm) — não "A4" nem "Carta".</li>
+                <li>A opção de escala está em <b>"Tamanho real / 100%"</b> — nunca em "Ajustar à página", pois isso encolhe ou estica a etiqueta e desalinha o corte a cada impressão.</li>
+                <li>Nas propriedades/driver da própria impressora (fora do navegador), o tipo de mídia está como "Etiqueta"/"Label" com o tamanho certo, e não "Papel contínuo" nem "Recibo".</li>
+                <li>Se a impressora tiver sensor de gap físico, ela foi calibrada pelo menos uma vez usando o botão de alimentação dela (segurar o botão FEED ligando a impressora, na maioria dos modelos) — isso normalmente resolve o desalinhamento indo se acumulando e evita ter que abrir a tampa toda hora.</li>
+              </ol>
+            </div>
+            <button type="button" class="btn secondary small" onclick="testarImpressaoSistema()">🧪 Imprimir etiqueta de teste (ajuste fino)</button>
+            <div class="dimSmall" style="margin:6px 0 10px;">Imprime só 1 etiqueta de teste com as marcas de canto, pra você conferir o alinhamento sem gastar etiqueta de produto de verdade. Ajuste os campos abaixo e teste de novo até sair certinho.</div>
+            <div class="formGrid">
+              <div class="field"><label>Ajuste fino de posição vertical (mm)</label>
+                <input id="cfg_etiquetaAjusteVerticalSistemaMm" type="number" min="-8" max="8" step="0.5" data-perm="admin" oninput="saveSettingsLive()">
+              </div>
+              <div class="field"><label>Folga extra no fim de cada etiqueta (mm)</label>
+                <input id="cfg_etiquetaEspacoExtraSistemaMm" type="number" min="0" max="15" step="0.5" data-perm="admin" oninput="saveSettingsLive()">
+              </div>
+            </div>
+            <div class="dimSmall" style="margin-top:4px;">"Ajuste fino" move o desenho pra cima (valor negativo) ou pra baixo (valor positivo) dentro do próprio tamanho da etiqueta, sem mudar o tamanho de página — use se o conteúdo sai sempre deslocado pro mesmo lado. "Folga extra" aumenta um pouco a altura de página mandada pro driver (fica um espaço em branco no fim), útil se a impressora vem cortando ou perdendo o lugar entre uma etiqueta e a próxima. Padrão dos dois: 0mm — só mexa se estiver mesmo desalinhando.</div>
+          </div>
           <div class="field" id="cfg_etiquetaProtocoloWrap">
             <label>Protocolo da impressora</label>
             <select id="cfg_etiquetaProtocoloDireto" data-perm="admin" onchange="mudarProtocoloImpressaoEtiqueta(this.value)">
@@ -5313,6 +5335,8 @@ function ensureCatalogDefaults(){
   if(!DB.settings.etiquetaProtocoloDireto) DB.settings.etiquetaProtocoloDireto = 'escpos'; // 'escpos' (padrão, avanço fixo) ou 'tspl' (comando TSC/TSPL — usa o sensor de gap/marca preta da própria impressora pra achar o começo de cada etiqueta sozinha)
   if(!DB.settings.etiquetaSensorTspl) DB.settings.etiquetaSensorTspl = 'gap'; // só vale com protocolo 'tspl': 'gap' (sensor de espaço entre etiquetas — o mais comum), 'blackmark' (sensor de marca preta impressa no verso do papel) ou 'continuo' (sem sensor, papel contínuo/bobina sem separação)
   if(typeof DB.settings.etiquetaGapMm !== 'number' || !isFinite(DB.settings.etiquetaGapMm)) DB.settings.etiquetaGapMm = 2; // distância (mm) do espaço/marca entre uma etiqueta e a próxima — só vale com protocolo 'tspl'; é o valor que a impressora usa como referência pro sensor achar o gap
+  if(typeof DB.settings.etiquetaAjusteVerticalSistemaMm !== 'number' || !isFinite(DB.settings.etiquetaAjusteVerticalSistemaMm)) DB.settings.etiquetaAjusteVerticalSistemaMm = 0; // deslocamento fino (mm, pode ser negativo) só do modo "Caixa do sistema" — empurra o desenho da etiqueta um pouco pra cima/baixo DENTRO do tamanho físico já configurado, pra compensar o desalinhamento comum desse modo (o driver do sistema não usa o sensor de gap da própria impressora, só empurra o papel pelo tamanho de página informado) sem precisar abrir a tampa da impressora pra ajustar manualmente
+  if(typeof DB.settings.etiquetaEspacoExtraSistemaMm !== 'number' || !isFinite(DB.settings.etiquetaEspacoExtraSistemaMm)) DB.settings.etiquetaEspacoExtraSistemaMm = 0; // mm extra somados à ALTURA de página enviada pro driver no modo "Caixa do sistema" (só a folha/página fica maior, o desenho da etiqueta continua do tamanho configurado) — cria uma folga em branco no fim de cada etiqueta pra absorver pequena imprecisão do driver/impressora, reduzindo o efeito de "foi perdendo o lugar" que obriga abrir a tampa pra reajustar
   // migração: quem já tinha um layout personalizado solto (versão antiga, sem nome/lista)
   // vira automaticamente o primeiro modelo salvo, pra não perder o trabalho já feito
   if(!DB.settings.etiquetaModelos.length && DB.settings.etiquetaLayout.length){
@@ -8932,7 +8956,7 @@ function escalaEtiquetaAlvo_(dims, modelo){
 // a escala calculada em escalaEtiquetaAlvo_ pra "encolher/esticar" o desenho
 // inteiro (preço, logo, código de barras, QR) proporcionalmente até caber
 // exatamente no tamanho de etiqueta física escolhido pela loja.
-function aplicarTamanhoFisicoEtiqueta_(item, dims, modelo){
+function aplicarTamanhoFisicoEtiqueta_(item, dims, modelo, deslocamentoVerticalMm){
   item.style.width = dims.w + 'mm';
   item.style.height = dims.h + 'mm';
   item.style.overflow = 'hidden';
@@ -8942,6 +8966,14 @@ function aplicarTamanhoFisicoEtiqueta_(item, dims, modelo){
   if(etqEl && (escala.sx !== 1 || escala.sy !== 1)){
     etqEl.style.transform = `scale(${escala.sx},${escala.sy})`;
     etqEl.style.transformOrigin = 'top left';
+  }
+  // Só usado no modo "Caixa do sistema" (ver cfg_etiquetaAjusteVerticalSistemaMm em
+  // Configurações) — empurra o desenho pra cima/baixo DENTRO da caixa de tamanho fixo
+  // já definida acima (que continua exatamente do tamanho físico configurado), sem
+  // mudar o tamanho de página mandado pro driver. O "overflow:hidden" do item garante
+  // que um valor positivo/negativo nunca "vaza" pra fora da etiqueta.
+  if(etqEl && deslocamentoVerticalMm){
+    etqEl.style.marginTop = deslocamentoVerticalMm + 'mm';
   }
 }
 function imprimirEtiquetaFinal(){
@@ -8966,12 +8998,14 @@ function imprimirEtiquetaFinal(){
   // correspondente, na mesma ordem, pra depois capturar cada um em uma página do PDF.
   const promessasEtiquetas = [];
   const itensEtiquetas = [];
+  const modoAtual_ = DB.settings.etiquetaModoImpressao || 'sistema';
+  const ajusteVerticalSistema_ = (modoAtual_==='sistema') ? (Number(DB.settings.etiquetaAjusteVerticalSistemaMm)||0) : 0;
   if(produtosMultiplos && produtosMultiplos.length){
     produtosMultiplos.forEach(function(prod, index){
       const item = document.createElement('div');
       item.className = 'etqPrintItem';
       promessasEtiquetas.push(renderEtiquetaInto(item, prod, _etqState.modelo, 'print_' + index, prod.barcode));
-      aplicarTamanhoFisicoEtiqueta_(item, dims, _etqState.modelo);
+      aplicarTamanhoFisicoEtiqueta_(item, dims, _etqState.modelo, ajusteVerticalSistema_);
       area.appendChild(item);
       itensEtiquetas.push(item);
     });
@@ -8989,7 +9023,7 @@ function imprimirEtiquetaFinal(){
       const item = document.createElement('div');
       item.className = 'etqPrintItem';
       promessasEtiquetas.push(renderEtiquetaInto(item, p, _etqState.modelo, 'print_' + index, codigo));
-      aplicarTamanhoFisicoEtiqueta_(item, dims, _etqState.modelo);
+      aplicarTamanhoFisicoEtiqueta_(item, dims, _etqState.modelo, ajusteVerticalSistema_);
       area.appendChild(item);
       itensEtiquetas.push(item);
     });
@@ -9102,7 +9136,15 @@ function atualizarTamanhoPaginaImpressao_(dims){
     styleEl.id = 'etqPrintPageSize';
     document.head.appendChild(styleEl);
   }
-  styleEl.textContent = `@media print{ @page{size:${dims.w}mm ${dims.h}mm;margin:0;} }`;
+  // Espaço extra (mm) só no modo "Caixa do sistema" (cfg_etiquetaEspacoExtraSistemaMm em
+  // Configurações): soma na ALTURA da página mandada pro driver da impressora, sem mudar
+  // o tamanho do desenho da etiqueta em si (que continua exatamente do jeito configurado,
+  // ancorado no topo da página) — vira uma folga em branco no fim de cada etiqueta, útil
+  // quando o driver/impressora corta ou perde o alinhamento por uma pequena imprecisão de
+  // avanço de papel a cada etiqueta impressa.
+  const extra = (DB.settings.etiquetaModoImpressao==='sistema') ? (Number(DB.settings.etiquetaEspacoExtraSistemaMm)||0) : 0;
+  const alturaPagina = Math.max(dims.h, dims.h + extra);
+  styleEl.textContent = `@media print{ @page{size:${dims.w}mm ${alturaPagina}mm;margin:0;} }`;
 }
 function baixarEtiquetaPDF(){
   const p = DB.products.find(x=>x.id===_etqState.productId);
@@ -9720,6 +9762,52 @@ async function testarImpressoraDireta(){
     el.remove();
   }
 }
+// Imprime 1 etiqueta de teste pelo modo "Caixa do sistema" (abre a caixa de impressão
+// normal do navegador), com marcas nos 4 cantos + o tamanho configurado escrito nela —
+// serve pra loja conferir visualmente se saiu alinhado/com o espaço certo ANTES de
+// gastar etiqueta de produto de verdade, e ajustar os campos "Ajuste fino de posição" e
+// "Folga extra" em Configurações até acertar, sem precisar abrir a tampa da impressora
+// pra cada teste.
+async function testarImpressaoSistema(){
+  const area = document.getElementById('printArea');
+  if(!area) return;
+  area.innerHTML = '';
+  const dims = dimsDoModeloEscolhido_ ? dimsDoModeloEscolhido_() : {w:40,h:30};
+  const item = document.createElement('div');
+  item.className = 'etqPrintItem';
+  const conteudo = document.createElement('div');
+  conteudo.className = 'etq';
+  conteudo.style.cssText = 'width:100%;height:100%;box-sizing:border-box;background:#fff;border:0.6mm solid #000;display:flex;align-items:center;justify-content:center;text-align:center;font-family:Arial,sans-serif;font-weight:bold;color:#000;position:relative;line-height:1.25;';
+  conteudo.style.fontSize = Math.max(5, Math.min(dims.w, dims.h) * 0.16) + 'mm';
+  conteudo.innerHTML = 'TESTE OK<br>' + dims.w + ' x ' + dims.h + 'mm';
+  // 4 marcas de canto — ajudam a enxergar se o desenho saiu deslocado pra algum lado.
+  [
+    'top:0.6mm;left:0.6mm;border-width:0.6mm 0 0 0.6mm;',
+    'top:0.6mm;right:0.6mm;border-width:0.6mm 0.6mm 0 0;',
+    'bottom:0.6mm;left:0.6mm;border-width:0 0 0.6mm 0.6mm;',
+    'bottom:0.6mm;right:0.6mm;border-width:0 0.6mm 0.6mm 0;'
+  ].forEach(function(pos){
+    const marca = document.createElement('div');
+    marca.style.cssText = 'position:absolute;width:4mm;height:4mm;border-style:solid;border-color:#000;' + pos;
+    conteudo.appendChild(marca);
+  });
+  item.appendChild(conteudo);
+  area.appendChild(item);
+  const ajuste = Number(DB.settings.etiquetaAjusteVerticalSistemaMm) || 0;
+  // "customTeste" (começa com "custom") pra escalaEtiquetaAlvo_ não tentar reescalar
+  // esse desenho de teste — ele já nasce do tamanho exato da etiqueta configurada.
+  aplicarTamanhoFisicoEtiqueta_(item, dims, 'customTeste', ajuste);
+  area.style.cssText = 'display:block;position:fixed;left:-10000px;top:0;';
+  function limparArea(){ area.style.cssText = 'display:none;'; area.innerHTML = ''; }
+  try{
+    await imprimirEtiquetasViaSistema_([item], dims, limparArea);
+    logSilencioso('Etiqueta de teste (Caixa do sistema) enviada para impressão.');
+  }catch(err){
+    console.error('Erro ao testar impressão (Caixa do sistema):', err);
+    limparArea();
+    alertModal('Não foi possível abrir a caixa de impressão para o teste.');
+  }
+}
 function renderImpressoraEtiquetaUI(){
   const wrap = document.getElementById('impressoraEtiquetaStatus');
   if(!wrap) return;
@@ -9736,6 +9824,8 @@ function renderImpressoraEtiquetaUI(){
   if(btnTestar) btnTestar.style.display = (modo!=='sistema' && conectada) ? '' : 'none';
   const baudWrap = document.getElementById('cfg_etiquetaBaudWrap');
   if(baudWrap) baudWrap.style.display = modo==='usb' ? '' : 'none';
+  const sistemaWrap = document.getElementById('cfg_etiquetaSistemaWrap');
+  if(sistemaWrap) sistemaWrap.style.display = modo==='sistema' ? '' : 'none';
   const protocolo = DB.settings.etiquetaProtocoloDireto || 'escpos';
   const protocoloWrap = document.getElementById('cfg_etiquetaProtocoloWrap');
   if(protocoloWrap) protocoloWrap.style.display = modo==='sistema' ? 'none' : '';
@@ -12381,6 +12471,8 @@ function renderConfig(){
   document.getElementById('cfg_etiquetaProtocoloDireto').value = (DB.settings.etiquetaProtocoloDireto==='tspl') ? 'tspl' : 'escpos';
   document.getElementById('cfg_etiquetaSensorTspl').value = DB.settings.etiquetaSensorTspl || 'gap';
   document.getElementById('cfg_etiquetaGapMm').value = (typeof DB.settings.etiquetaGapMm==='number') ? DB.settings.etiquetaGapMm : 2;
+  document.getElementById('cfg_etiquetaAjusteVerticalSistemaMm').value = (typeof DB.settings.etiquetaAjusteVerticalSistemaMm==='number') ? DB.settings.etiquetaAjusteVerticalSistemaMm : 0;
+  document.getElementById('cfg_etiquetaEspacoExtraSistemaMm').value = (typeof DB.settings.etiquetaEspacoExtraSistemaMm==='number') ? DB.settings.etiquetaEspacoExtraSistemaMm : 0;
   renderImpressoraEtiquetaUI();
   // Ao abrir essa tela, tenta sozinha reconectar na impressora já autorizada antes
   // (cobre o caso de ter desconectado o cabo/saído de alcance e plugado de novo).
@@ -12914,6 +13006,16 @@ function saveSettingsLive(){
     const gapMm = parseFloat(gapMmInp.value);
     DB.settings.etiquetaGapMm = (isFinite(gapMm) && gapMm>=0) ? gapMm : 2;
   }
+  const ajusteVertSistemaInp = document.getElementById('cfg_etiquetaAjusteVerticalSistemaMm');
+  if(ajusteVertSistemaInp){
+    const ajusteVert = parseFloat(ajusteVertSistemaInp.value);
+    DB.settings.etiquetaAjusteVerticalSistemaMm = (isFinite(ajusteVert) && ajusteVert>=-8 && ajusteVert<=8) ? ajusteVert : 0;
+  }
+  const espacoExtraSistemaInp = document.getElementById('cfg_etiquetaEspacoExtraSistemaMm');
+  if(espacoExtraSistemaInp){
+    const espacoExtra = parseFloat(espacoExtraSistemaInp.value);
+    DB.settings.etiquetaEspacoExtraSistemaMm = (isFinite(espacoExtra) && espacoExtra>=0 && espacoExtra<=15) ? espacoExtra : 0;
+  }
   const notifCheckbox = document.getElementById('cfg_enableDeviceAcceptNotif');
   if(notifCheckbox){
     setDeviceAcceptNotifEnabled(notifCheckbox.checked);
@@ -13155,7 +13257,7 @@ async function apagarTudoExecutar(){
     });
   }
   if(manterEtiqueta){
-    ['etiquetaModelos','etiquetaLayout','etiquetaOrientacao','etiquetaModoCustom','etiquetaMostrarBarras','etiquetaMostrarFoto','etiquetaFonte','etiquetaTamanho','etiquetaCor','etiquetaLarguraMm','etiquetaAlturaMm','etiquetaModoImpressao','etiquetaAvancoEscposMm','etiquetaBaudRate','etiquetaProtocoloDireto','etiquetaSensorTspl','etiquetaGapMm'].forEach(k=>{
+    ['etiquetaModelos','etiquetaLayout','etiquetaOrientacao','etiquetaModoCustom','etiquetaMostrarBarras','etiquetaMostrarFoto','etiquetaFonte','etiquetaTamanho','etiquetaCor','etiquetaLarguraMm','etiquetaAlturaMm','etiquetaModoImpressao','etiquetaAvancoEscposMm','etiquetaBaudRate','etiquetaProtocoloDireto','etiquetaSensorTspl','etiquetaGapMm','etiquetaAjusteVerticalSistemaMm','etiquetaEspacoExtraSistemaMm'].forEach(k=>{
       if(typeof settingsAntigos[k]!=='undefined') novoSettings[k] = settingsAntigos[k];
     });
   }
