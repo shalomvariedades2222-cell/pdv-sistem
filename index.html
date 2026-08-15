@@ -580,9 +580,9 @@ html.anim-off-login #connectingScreen *{animation:none !important;}
 .forgotErr{color:var(--red);font-size:11.5px;min-height:14px;margin-bottom:4px;}
 .forgotOk{color:var(--green);font-size:11.5px;min-height:14px;margin-bottom:4px;}
 
-/* ---------- ETIQUETA DE PRODUTO (50mm x 30mm) ---------- */
+/* ---------- ETIQUETA DE PRODUTO (tamanho configurável em Configurações; padrão 40mm x 30mm) ---------- */
 .etq{
-  width:50mm;height:30mm;box-sizing:border-box;background:#fff;color:#000;
+  width:var(--etq-w,50mm);height:var(--etq-h,30mm);box-sizing:border-box;background:#fff;color:#000;
   font-family:var(--etq-font, Arial,Helvetica,sans-serif);position:relative;overflow:hidden;
   border:0.35mm solid var(--etq-accent,#000);padding:0.9mm;display:flex;flex-direction:column;gap:0.35mm;
 }
@@ -3415,6 +3415,12 @@ html.is-mobile .btn::before{ display:none; }
             <label style="margin:0;">Usar a foto do produto no lugar do logo da loja</label>
           </div>
           <div class="formGrid" style="margin-top:6px;">
+            <div class="field"><label>Largura da etiqueta (mm)</label>
+              <input id="cfg_etiquetaLarguraMm" type="number" min="15" max="150" step="1" data-perm="admin" oninput="saveSettingsLive()">
+            </div>
+            <div class="field"><label>Altura da etiqueta (mm)</label>
+              <input id="cfg_etiquetaAlturaMm" type="number" min="10" max="150" step="1" data-perm="admin" oninput="saveSettingsLive()">
+            </div>
             <div class="field"><label>Estilo do texto (fonte)</label>
               <select id="cfg_etiquetaFonte" data-perm="admin" onchange="saveSettingsLive()">
                 <option value="padrao">Padrão (sem serifa)</option>
@@ -3435,14 +3441,14 @@ html.is-mobile .btn::before{ display:none; }
             </div>
           </div>
           <button class="btn secondary small" style="margin-top:8px;" onclick="previewEtiquetaConfig()">🔍 Pré-visualizar etiqueta</button>
-          <p class="dimSmall">Etiqueta impressa em 50mm x 30mm, com nome, preço, código de barras e QR code do produto. As opções acima valem para todas as etiquetas da loja.</p>
+          <p class="dimSmall">Etiqueta impressa no tamanho definido acima (padrão 40mm x 30mm), com nome, preço, código de barras e QR code do produto. As opções acima valem para todas as etiquetas da loja. A impressão agora gera um PDF já no tamanho certo e abre a caixa de impressão dele — não usa mais a impressão padrão da página.</p>
           <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:14px;">
             <div class="field" style="display:flex;align-items:center;gap:8px;">
               <input type="checkbox" id="cfg_etiquetaModoCustom" data-perm="admin" onchange="saveSettingsLive()" style="width:auto;margin:0;">
               <label style="margin:0;">Usar etiqueta personalizada (editor avançado, substitui os modelos Premium/Normal quando só houver 1 modelo salvo)</label>
             </div>
             <button class="btn secondary small" style="margin-top:8px;" onclick="abrirEditorEtiqueta()">🎨 Abrir editor de etiquetas</button>
-            <p class="dimSmall">No editor você adiciona os elementos que quiser (nome, preço, código de barras, QR code, logo, retângulo, textos livres...), arrasta cada um para a posição desejada, redimensiona pelo canto e ajusta fonte, tamanho e cor individualmente. Você pode salvar quantos modelos quiser, cada um com seu próprio nome, e escolher qual usar na hora de imprimir a etiqueta de cada produto.</p>
+            <p class="dimSmall">No editor você adiciona os elementos que quiser (nome, preço, código de barras, QR code, logo, retângulo, textos livres...), arrasta cada um para a posição desejada, redimensiona pelo canto e ajusta fonte, tamanho e cor individualmente. Você pode salvar quantos modelos quiser, cada um com seu próprio nome, e escolher qual usar na hora de imprimir a etiqueta de cada produto. O campo Largura/Altura acima define o tamanho dos modelos prontos (Premium/Normal); a etiqueta personalizada usa o tamanho fixo do próprio editor (50x30mm ou 30x50mm, conforme a orientação escolhida ali dentro).</p>
           </div>
         </div>
         <div class="panel" style="max-width:520px;">
@@ -5113,6 +5119,8 @@ function ensureCatalogDefaults(){
   if(typeof DB.settings.estoqueLiberacaoMinutos==='undefined' || !DB.settings.estoqueLiberacaoMinutos) DB.settings.estoqueLiberacaoMinutos = 60;
   if(typeof DB.settings.etiquetaMostrarBarras==='undefined') DB.settings.etiquetaMostrarBarras = true;
   if(typeof DB.settings.etiquetaMostrarFoto==='undefined') DB.settings.etiquetaMostrarFoto = false;
+  if(!DB.settings.etiquetaLarguraMm || !(Number(DB.settings.etiquetaLarguraMm)>0)) DB.settings.etiquetaLarguraMm = 40;
+  if(!DB.settings.etiquetaAlturaMm || !(Number(DB.settings.etiquetaAlturaMm)>0)) DB.settings.etiquetaAlturaMm = 30;
   if(!DB.settings.etiquetaFonte) DB.settings.etiquetaFonte = 'padrao';
   if(!DB.settings.etiquetaTamanho) DB.settings.etiquetaTamanho = 'medio';
   if(!DB.settings.etiquetaCor) DB.settings.etiquetaCor = '#000000';
@@ -8427,6 +8435,16 @@ function renderEstoqueLista(manerScroll){
 let _etqState = {productId:null, modelo:null};
 const ETQ_FONTES = {padrao:"Arial,Helvetica,sans-serif", elegante:"Georgia,'Times New Roman',serif", moderna:"'Courier New',monospace"};
 const ETQ_TAMANHOS = {pequeno:0.85, medio:1, grande:1.15, extra:1.3};
+// Tamanho físico (em mm) da etiqueta dos modelos PRONTOS (Premium/Normal), configurável em
+// Configurações > Etiqueta de Produtos. A etiqueta personalizada (editor avançado) tem seu
+// próprio tamanho fixo (50x30/30x50 conforme orientação), não é afetada por esta função.
+function tamanhoEtiquetaPadrao(){
+  const larguraBruta = Number(DB.settings.etiquetaLarguraMm);
+  const alturaBruta = Number(DB.settings.etiquetaAlturaMm);
+  const w = (isFinite(larguraBruta) && larguraBruta>=15 && larguraBruta<=150) ? larguraBruta : 40;
+  const h = (isFinite(alturaBruta) && alturaBruta>=10 && alturaBruta<=150) ? alturaBruta : 30;
+  return {w, h};
+}
 
 function buildEtiquetaHTML(p, modelo, sfx, barcodeValue){
   const preco = Number(p.venda)||0;
@@ -8445,7 +8463,8 @@ function buildEtiquetaHTML(p, modelo, sfx, barcodeValue){
   const escala = ETQ_TAMANHOS[DB.settings.etiquetaTamanho] || 1;
   const corDestaque = DB.settings.etiquetaCor || '#000000';
   const codigoExibido = barcodeValue || p.barcode || '';
-  const etqStyle = `--etq-font:${fonteCss};--etq-scale:${escala};--etq-accent:${corDestaque};`;
+  const dimsPadrao = tamanhoEtiquetaPadrao();
+  const etqStyle = `--etq-font:${fonteCss};--etq-scale:${escala};--etq-accent:${corDestaque};--etq-w:${dimsPadrao.w}mm;--etq-h:${dimsPadrao.h}mm;`;
 
   // coluna QR: se desativado no sistema, a coluna some e o preço ocupa a etiqueta toda
   const qrCol = `
@@ -8698,8 +8717,9 @@ function salvarModeloSeMarcado(){
     autoSaveLocal(); autoSaveToFile();
   }
 }
-// Dimensões (mm) da etiqueta conforme o modelo escolhido no momento (premium/normal = 50x30
-// fixo; personalizada = conforme a orientação salva naquele modelo específico)
+// Dimensões (mm) da etiqueta conforme o modelo escolhido no momento (premium/normal = tamanho
+// configurado em Configurações, padrão 40x30; personalizada = conforme a orientação salva
+// naquele modelo específico, tamanho fixo do editor)
 function dimsDoModeloEscolhido_(){
   const modelo = _etqState.modelo;
   if(typeof modelo==='string' && modelo.indexOf('custom')===0){
@@ -8707,7 +8727,7 @@ function dimsDoModeloEscolhido_(){
     const m = obterModeloEtiquetaCustom(idModelo);
     return m.orientacao==='vertical' ? {w:30,h:50} : {w:50,h:30};
   }
-  return {w:50,h:30};
+  return tamanhoEtiquetaPadrao();
 }
 function imprimirEtiquetaFinal(){
   const area = document.getElementById('printArea');
@@ -8725,6 +8745,7 @@ function imprimirEtiquetaFinal(){
   if(!p && !(produtosMultiplos && produtosMultiplos.length)) return;
   if(p) salvarModeloSeMarcado();
   area.innerHTML = '';
+  const dims = dimsDoModeloEscolhido_();
   // Guarda uma Promise por etiqueta (ela só resolve quando o código de barras — e o QR,
   // se houver — já foi de fato desenhado no canvas daquela etiqueta) e o elemento DOM
   // correspondente, na mesma ordem, pra depois capturar cada um em uma página do PDF.
@@ -8734,6 +8755,7 @@ function imprimirEtiquetaFinal(){
     produtosMultiplos.forEach(function(prod, index){
       const item = document.createElement('div');
       item.className = 'etqPrintItem';
+      item.style.width = dims.w+'mm'; item.style.height = dims.h+'mm';
       promessasEtiquetas.push(renderEtiquetaInto(item, prod, _etqState.modelo, 'print_' + index, prod.barcode));
       area.appendChild(item);
       itensEtiquetas.push(item);
@@ -8751,12 +8773,12 @@ function imprimirEtiquetaFinal(){
     codigos.slice(0, qtd).forEach(function(codigo, index){
       const item = document.createElement('div');
       item.className = 'etqPrintItem';
+      item.style.width = dims.w+'mm'; item.style.height = dims.h+'mm';
       promessasEtiquetas.push(renderEtiquetaInto(item, p, _etqState.modelo, 'print_' + index, codigo));
       area.appendChild(item);
       itensEtiquetas.push(item);
     });
   }
-  const dims = dimsDoModeloEscolhido_();
   // Em vez de deixar a área visível na tela pra imprimir a PÁGINA (window.print, que
   // depende do @media print do navegador e tinha bugs pra renderizar o código de
   // barras corretamente), a área fica fora da tela (position:fixed, fora da viewport)
@@ -11455,6 +11477,8 @@ function renderConfig(){
   document.getElementById('cfg_etiquetaMostrarQr').checked = DB.settings.etiquetaMostrarQr !== false;
   document.getElementById('cfg_etiquetaMostrarBarras').checked = DB.settings.etiquetaMostrarBarras !== false;
   document.getElementById('cfg_etiquetaMostrarFoto').checked = !!DB.settings.etiquetaMostrarFoto;
+  document.getElementById('cfg_etiquetaLarguraMm').value = DB.settings.etiquetaLarguraMm || 40;
+  document.getElementById('cfg_etiquetaAlturaMm').value = DB.settings.etiquetaAlturaMm || 30;
   document.getElementById('cfg_etiquetaFonte').value = DB.settings.etiquetaFonte || 'padrao';
   document.getElementById('cfg_etiquetaTamanho').value = DB.settings.etiquetaTamanho || 'medio';
   document.getElementById('cfg_etiquetaCor').value = DB.settings.etiquetaCor || '#000000';
@@ -11965,6 +11989,10 @@ function saveSettingsLive(){
   DB.settings.etiquetaMostrarQr = document.getElementById('cfg_etiquetaMostrarQr').checked;
   DB.settings.etiquetaMostrarBarras = document.getElementById('cfg_etiquetaMostrarBarras').checked;
   DB.settings.etiquetaMostrarFoto = document.getElementById('cfg_etiquetaMostrarFoto').checked;
+  const larguraMm = Math.round(Number(document.getElementById('cfg_etiquetaLarguraMm').value));
+  const alturaMm = Math.round(Number(document.getElementById('cfg_etiquetaAlturaMm').value));
+  DB.settings.etiquetaLarguraMm = (isFinite(larguraMm) && larguraMm>=15 && larguraMm<=150) ? larguraMm : 40;
+  DB.settings.etiquetaAlturaMm = (isFinite(alturaMm) && alturaMm>=10 && alturaMm<=150) ? alturaMm : 30;
   DB.settings.etiquetaFonte = document.getElementById('cfg_etiquetaFonte').value;
   DB.settings.etiquetaTamanho = document.getElementById('cfg_etiquetaTamanho').value;
   DB.settings.etiquetaCor = document.getElementById('cfg_etiquetaCor').value;
@@ -12210,7 +12238,7 @@ async function apagarTudoExecutar(){
     });
   }
   if(manterEtiqueta){
-    ['etiquetaModelos','etiquetaLayout','etiquetaOrientacao','etiquetaModoCustom','etiquetaMostrarBarras','etiquetaMostrarFoto','etiquetaFonte','etiquetaTamanho','etiquetaCor'].forEach(k=>{
+    ['etiquetaModelos','etiquetaLayout','etiquetaOrientacao','etiquetaModoCustom','etiquetaMostrarBarras','etiquetaMostrarFoto','etiquetaFonte','etiquetaTamanho','etiquetaCor','etiquetaLarguraMm','etiquetaAlturaMm'].forEach(k=>{
       if(typeof settingsAntigos[k]!=='undefined') novoSettings[k] = settingsAntigos[k];
     });
   }
