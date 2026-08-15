@@ -9290,8 +9290,10 @@ async function desconectarImpressoraDireta_semLimparUI_(){
 }
 // Fotografa o canvas em preto-e-branco puro (1 bit por ponto), no tamanho físico
 // da etiqueta a 203dpi (8 pontos/mm — padrão de quase toda impressora térmica).
-// Devolve o bitmap monocromático cru + as medidas em pontos; é a "foto" que o
-// comando ESC/POS empacota no passo seguinte.
+// Devolve o bitmap monocromático em dois formatos: "bitmap" (compactado, 1
+// byte = 8 pontos numa linha — formato que comandos raster tipo TSPL usam) e
+// "pixels" (1 byte por ponto, sem compactar — mais fácil de reorganizar por
+// coluna, que é o formato que o bit-image ESC/POS pede, ver gerarComandoESCPOS_).
 function gerarBitmapMonocromatico_(canvas, dimsMm){
   const DOTS_POR_MM = 8; // 203dpi
   const larguraPontos = Math.max(8, Math.round(dimsMm.w * DOTS_POR_MM / 8) * 8); // múltiplo de 8 (1 byte = 8 pontos)
@@ -9304,6 +9306,7 @@ function gerarBitmapMonocromatico_(canvas, dimsMm){
   const img = ctx.getImageData(0,0,larguraPontos,alturaPontos).data;
   const bytesPorLinha = larguraPontos/8;
   const bitmap = new Uint8Array(bytesPorLinha * alturaPontos);
+  const pixels = new Uint8Array(larguraPontos * alturaPontos);
   for(let y=0; y<alturaPontos; y++){
     for(let x=0; x<larguraPontos; x++){
       const i = (y*larguraPontos + x)*4;
@@ -9311,39 +9314,74 @@ function gerarBitmapMonocromatico_(canvas, dimsMm){
       const preto = cinza < 170 ? 1 : 0; // limiar simples de preto/branco
       if(preto){
         bitmap[y*bytesPorLinha + (x>>3)] |= (0x80 >> (x % 8));
+        pixels[y*larguraPontos + x] = 1;
       }
     }
   }
-  return { bitmap, bytesPorLinha, larguraPontos, alturaPontos };
+  return { bitmap, pixels, bytesPorLinha, larguraPontos, alturaPontos };
 }
 // Converte um canvas em um comando ESC/POS completo — protocolo padrão do
-// sistema (o mais compatível com mini impressoras térmicas genéricas). Usa
-// o comando de imagem raster "GS v 0" (que
-// imprime o bitmap inteiro de uma vez), precedido de "ESC @" (reset/inicializa
-// a impressora — limpa qualquer coisa pendente de uma tentativa anterior, o
-// que ajuda a sair de um estado "travado" imprimindo lixo sem parar).
+// sistema (o mais compatível com mini impressoras térmicas genéricas).
 //
-// ESPAÇO ENTRE ETIQUETAS (correção do bug relatado — "não deixa um espaço pra
-// próxima"): como ESC/POS não tem sensor de gap/marca preta, o espaçamento é
-// garantido por um avanço de papel fixo ao final de cada etiqueta. Antes esse
-// avanço ia inteiro num único "ESC J n" (Print and feed n dots) — em algumas
-// mini impressoras térmicas mais simples (o tipo mais comum em impressoras
-// Bluetooth de etiqueta baratas) esse comando é ignorado ou só parcialmente
-// respeitado, e a etiqueta seguinte saía colada na anterior. Agora o avanço é
-// enviado em vários blocos pequenos de "ESC J n" (mais confiável do que um
-// bloco grande de uma vez só) e reforçado por um punhado de quebras de linha
-// (0x0A) no final — um comando universal que praticamente toda impressora
-// térmica entende, mesmo as que ignoram "ESC J". Isso garante, na prática,
-// que sempre sobra um respiro visível antes da próxima etiqueta começar.
+// IMAGEM: usa o comando de bit-image "ESC * m nL nH d1...dk" (modo 33 = 24
+// pontos, dupla densidade), enviado em faixas horizontais de até 24 pontos de
+// altura cada, com "ESC J n" entre uma faixa e outra pra avançar exatamente
+// os pontos já impressos. Esse é o comando de imagem MAIS ANTIGO e universal
+// do ESC/POS (existe desde as primeiras impressoras compatíveis com matriz
+// de pontos) — o sistema usava antes o "GS v 0" (comando de imagem raster
+// mais novo, que manda a etiqueta inteira de uma vez só), só que a própria
+// Epson já marca "GS v 0" como comando OBSOLETO, e boa parte das impressoras
+// clone/genéricas baratas (o tipo mais comum em mini impressoras Bluetooth de
+// etiqueta) nunca chegou a implementá-lo direito. Quando a impressora recebe
+// um comando raster que não reconhece, ela não "erra" nem avisa nada — ela
+// simplesmente trata aqueles bytes crus da imagem como se fossem texto normal
+// e imprime cada um deles como um caractere qualquer da tabela de código dela,
+// o que sai na etiqueta como um monte de letras/símbolos aleatórios ("código")
+// no lugar da imagem — exatamente o sintoma relatado pela loja. Trocando pelo
+// "ESC *", isso deixa de acontecer nas impressoras que não suportavam o
+// comando mais novo, sem prejudicar nada nas que já suportavam os dois.
+//
+// ESPAÇO ENTRE ETIQUETAS: como ESC/POS não tem sensor de gap/marca preta, o
+// espaçamento é garantido por um avanço de papel fixo ao final de cada
+// etiqueta. Antes esse avanço ia inteiro num único "ESC J n" (Print and feed
+// n dots) — em algumas mini impressoras térmicas mais simples esse comando é
+// ignorado ou só parcialmente respeitado, e a etiqueta seguinte saía colada
+// na anterior. Agora o avanço é enviado em vários blocos pequenos de
+// "ESC J n" (mais confiável do que um bloco grande de uma vez só) e reforçado
+// por um punhado de quebras de linha (0x0A) no final — um comando universal
+// que praticamente toda impressora térmica entende, mesmo as que ignoram
+// "ESC J". Isso garante, na prática, que sempre sobra um respiro visível
+// antes da próxima etiqueta começar.
 function gerarComandoESCPOS_(canvas, dimsMm){
-  const { bitmap, bytesPorLinha, larguraPontos, alturaPontos } = gerarBitmapMonocromatico_(canvas, dimsMm);
-  const ESC = 0x1B, GS = 0x1D;
-  const inicializa = new Uint8Array([ESC, 0x40]); // ESC @
-  // GS v 0 m xL xH yL yH d1...dk — m=0 (normal); xL/xH = bytes por linha (16 bits);
-  // yL/yH = altura em pontos (16 bits), depois vem o bitmap cru linha a linha.
-  const xL = bytesPorLinha & 0xFF, xH = (bytesPorLinha >> 8) & 0xFF;
-  const yL = alturaPontos & 0xFF, yH = (alturaPontos >> 8) & 0xFF;
-  const cabecalhoRaster = new Uint8Array([GS, 0x76, 0x30, 0x00, xL, xH, yL, yH]);
+  const { pixels, larguraPontos, alturaPontos } = gerarBitmapMonocromatico_(canvas, dimsMm);
+  const ESC = 0x1B;
+  const partes = [];
+  partes.push(new Uint8Array([ESC, 0x40])); // ESC @ — inicializa/reseta a impressora
+  // ESC * m nL nH d1...dk — m=33 (0x21): modo 24 pontos de altura, dupla
+  // densidade horizontal. nL/nH = quantidade de colunas (largura em pontos,
+  // 16 bits). Cada coluna usa 3 bytes (8+8+8 = 24 pontos de altura), bit mais
+  // significativo primeiro = ponto mais ao topo da faixa.
+  const ALTURA_BANDA = 24;
+  const nL = larguraPontos & 0xFF, nH = (larguraPontos >> 8) & 0xFF;
+  for(let y0=0; y0<alturaPontos; y0+=ALTURA_BANDA){
+    const bandaAltura = Math.min(ALTURA_BANDA, alturaPontos - y0);
+    const dadosBanda = new Uint8Array(larguraPontos * 3);
+    for(let x=0; x<larguraPontos; x++){
+      for(let bytePos=0; bytePos<3; bytePos++){
+        let v = 0;
+        for(let bit=0; bit<8; bit++){
+          const y = y0 + bytePos*8 + bit;
+          if(y < y0+bandaAltura && y < alturaPontos && pixels[y*larguraPontos + x]){
+            v |= (0x80 >> bit);
+          }
+        }
+        dadosBanda[x*3 + bytePos] = v;
+      }
+    }
+    partes.push(new Uint8Array([ESC, 0x2A, 33, nL, nH]));
+    partes.push(dadosBanda);
+    partes.push(new Uint8Array([ESC, 0x4A, bandaAltura])); // ESC J n — avança só o que essa faixa realmente ocupou, sem sobrepor nem deixar buraco
+  }
   // Avanço de papel após a etiqueta, calculado a partir de Configurações →
   // Impressora de Etiquetas → "Avanço de papel após cada etiqueta (mm)".
   const DOTS_POR_MM = 8;
@@ -9370,13 +9408,11 @@ function gerarComandoESCPOS_(canvas, dimsMm){
   // "ESC J" já fez o trabalho sozinho (o pequeno excesso não atrapalha).
   const REFORCO_LINHAS = 3;
   for(let i=0; i<REFORCO_LINHAS; i++) blocosFeed.push(0x0A);
-  const alimentaFim = new Uint8Array(blocosFeed);
-  const saida = new Uint8Array(inicializa.length + cabecalhoRaster.length + bitmap.length + alimentaFim.length);
+  partes.push(new Uint8Array(blocosFeed));
+  const tamanhoTotal = partes.reduce((soma, p) => soma + p.length, 0);
+  const saida = new Uint8Array(tamanhoTotal);
   let pos = 0;
-  saida.set(inicializa, pos); pos += inicializa.length;
-  saida.set(cabecalhoRaster, pos); pos += cabecalhoRaster.length;
-  saida.set(bitmap, pos); pos += bitmap.length;
-  saida.set(alimentaFim, pos);
+  partes.forEach(p => { saida.set(p, pos); pos += p.length; });
   return saida;
 }
 // Converte um canvas em um comando TSC/TSPL completo. Ao contrário do ESC/POS
