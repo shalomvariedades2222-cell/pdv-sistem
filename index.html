@@ -3596,7 +3596,7 @@ html.is-mobile .btn::before{ display:none; }
             <button type="button" class="btn secondary small" id="btnTestarImpressora" style="display:none;" onclick="testarImpressoraDireta()">🧪 Testar impressão</button>
             <button type="button" class="btn secondary small" id="btnDesconectarImpressora" style="display:none;" onclick="desconectarImpressoraDireta()">✖ Desconectar</button>
           </div>
-          <p class="dimSmall">USB só funciona no Chrome/Edge do computador, e só se a impressora aparecer como porta serial/COM. Bluetooth só funciona com impressoras Bluetooth LE — a maioria das térmicas baratas usa Bluetooth clássico (SPP), que nenhum navegador consegue acessar direto; se sua impressora não aparecer na lista, use USB ou "Caixa do sistema". A conexão direta vale só para este aparelho e esta sessão — feche e reconecte se fechar o navegador.</p>
+          <p class="dimSmall">USB só funciona no Chrome/Edge do computador, e só se a impressora aparecer como porta serial/COM. Bluetooth só funciona com impressoras Bluetooth LE — a maioria das térmicas baratas usa Bluetooth clássico (SPP), que nenhum navegador consegue acessar direto; se sua impressora não aparecer na lista, use USB ou "Caixa do sistema". A conexão direta vale só para este aparelho (precisa clicar em "Conectar impressora" uma vez em cada computador/celular que for imprimir) — mas, depois desse primeiro clique, o sistema reconecta sozinho nela ao entrar, ao recarregar a página ou se ela cair e voltar, sem precisar clicar de novo.</p>
         </div>
         <div class="panel" style="max-width:520px;">
           <h3>Impressora de Recibo</h3>
@@ -5777,6 +5777,10 @@ function efetuarLogin(emp){
   // ativarTentativasTelaCheia(), chamada no início do arquivo); esta
   // chamada aqui é só uma garantia extra e não faz nada se já estiver ativa.
   ativarTentativasTelaCheia();
+  // Tenta reconectar sozinha na impressora de etiquetas (USB/Bluetooth), se a loja já
+  // tiver autorizado uma antes por aqui — sem isso, sair e entrar de novo no sistema (ou
+  // só recarregar a página) sempre exigia clicar em "Conectar impressora" outra vez.
+  try{ tentarReconectarImpressoraSilenciosamente_(); }catch(e){}
 }
 function doLogout(){
   currentUser=null;
@@ -9004,7 +9008,7 @@ function imprimirEtiquetaFinal(){
   const tetoSeguranca = new Promise(function(resolve){ setTimeout(resolve, 6000); });
   const modoConfigurado = DB.settings.etiquetaModoImpressao || 'sistema';
   const qtdEtiquetas = itensEtiquetas.length;
-  Promise.race([Promise.all(promessasEtiquetas), tetoSeguranca]).then(function(){
+  Promise.race([Promise.all(promessasEtiquetas), tetoSeguranca]).then(async function(){
     // Quando a loja escolheu USB ou Bluetooth direto em Configurações, o app NUNCA
     // cai sozinho na caixa de impressão do navegador (o "Ctrl+P") — isso já
     // aconteceu antes como um plano B silencioso em caso de erro, mas confundia
@@ -9014,6 +9018,12 @@ function imprimirEtiquetaFinal(){
     // A caixa de impressão do navegador só é usada quando a loja escolheu
     // "Caixa do sistema" de propósito em Configurações.
     if(modoConfigurado === 'usb' || modoConfigurado === 'bluetooth'){
+      if(!impressoraDiretaDisponivel_()){
+        // Antes de desistir, tenta reconectar sozinha (cobre o caso comum de ter
+        // desconectado/religado a impressora, ou saído e voltado pro sistema, e a
+        // impressora continuar fisicamente ligada e ao alcance).
+        await tentarReconectarImpressoraSilenciosamente_();
+      }
       if(!impressoraDiretaDisponivel_()){
         limparArea();
         alertModal('Nenhuma impressora ' + (modoConfigurado==='usb'?'USB':'Bluetooth') + ' conectada nesta sessão. Vá em Configurações → Impressora de Etiquetas e clique em "Conectar impressora" antes de imprimir.');
@@ -9202,6 +9212,14 @@ async function conectarImpressoraUSB(){
     const writer = port.writable.getWriter();
     await desconectarImpressoraDireta_semLimparUI_();
     _impressoraDireta = { tipo:'usb', port, writer, bleDevice:null, bleChar:null, nome:(port.getInfo && port.getInfo().usbProductId) ? ('USB '+port.getInfo().usbProductId.toString(16)) : 'USB' };
+    // Detecta quando o cabo é desconectado fisicamente (ou a impressora é desligada) pra
+    // limpar o estado e liberar a tela pra tentar reconectar, em vez de ficar "conectada"
+    // na tela mas sem funcionar de verdade. A permissão do navegador pra essa porta continua
+    // valendo (não precisa escolher de novo), então tentarReconectarImpressoraSilenciosamente_
+    // consegue voltar a conectar sozinha assim que a impressora reaparecer.
+    port.addEventListener('disconnect', function(){
+      if(_impressoraDireta.port===port){ _impressoraDireta = { tipo:null, port:null, writer:null, bleDevice:null, bleChar:null, nome:'' }; renderImpressoraEtiquetaUI(); }
+    });
     log('Impressora de etiquetas conectada via USB (' + baud + ' bps).');
     renderImpressoraEtiquetaUI();
   }catch(err){
@@ -9266,8 +9284,21 @@ async function conectarImpressoraBluetooth(){
     await desconectarImpressoraDireta_semLimparUI_();
     _impressoraDireta = { tipo:'bluetooth', port:null, writer:null, bleDevice:device, bleChar:characteristic, nome:device.name||'Bluetooth' };
     device.addEventListener('gattserverdisconnected', function(){
-      if(_impressoraDireta.bleDevice===device){ _impressoraDireta = { tipo:null, port:null, writer:null, bleDevice:null, bleChar:null, nome:'' }; renderImpressoraEtiquetaUI(); }
+      if(_impressoraDireta.bleDevice===device){
+        _impressoraDireta = { tipo:null, port:null, writer:null, bleDevice:null, bleChar:null, nome:'' };
+        renderImpressoraEtiquetaUI();
+        // Tenta reconectar sozinho ao mesmo aparelho (sem pedir pareamento de novo — só
+        // some da lista de "aparelhos permitidos" se a loja remover a permissão manualmente
+        // nas configurações do navegador). Cobre o caso comum de a impressora BLE dormir/
+        // sair de alcance por alguns segundos e depois voltar.
+        setTimeout(tentarReconectarImpressoraSilenciosamente_, 1500);
+      }
     });
+    // Guarda o id do aparelho pra achar o mesmo depois de recarregar a página (a permissão
+    // de pareamento em si o navegador já mantém sozinho; isso é só pra saber QUAL dos
+    // aparelhos permitidos usar, caso a loja já tenha pareado mais de uma impressora aqui).
+    DB.settings.etiquetaBleDeviceId = device.id;
+    try{ saveSettingsLive(); }catch(e){}
     log('Impressora de etiquetas conectada via Bluetooth: ' + (device.name||''));
     renderImpressoraEtiquetaUI();
   }catch(err){
@@ -9287,6 +9318,88 @@ async function desconectarImpressoraDireta_semLimparUI_(){
       try{ _impressoraDireta.bleDevice.gatt.disconnect(); }catch(e){}
     }
   }catch(e){}
+}
+// Reconecta sozinha, SEM abrir nenhuma caixa de pareamento (isso só é permitido pelo
+// navegador se a loja já tiver conectado essa mesma impressora pelo menos uma vez antes
+// por aqui — a permissão concedida fica salva pelo navegador, ligada a este site, e
+// sobrevive a fechar a aba, recarregar a página, sair/entrar no sistema e desligar o
+// aparelho). É isso que resolve o "toda vez que eu saio do sistema ou desconecto a
+// impressora, tenho que conectar de novo": antes, a variável de conexão (_impressoraDireta)
+// só existia na memória da página, então bastava recarregar ou fechar a aba pra ela sumir
+// e forçar clicar em "Conectar impressora" de novo, mesmo a impressora já tendo sido
+// autorizada antes. Agora essa reconexão silenciosa roda sozinha ao entrar no sistema, ao
+// abrir Configurações → Impressora de Etiquetas, e como última tentativa antes de qualquer
+// impressão — sem precisar de nenhum clique, contanto que o modo (USB/Bluetooth) já esteja
+// escolhido em Configurações e a impressora esteja ligada e ao alcance.
+// Devolve true se conseguiu ficar conectada (ou já estava), false se não tinha nada pra
+// reconectar sozinha (nesse caso a loja precisa clicar em "Conectar impressora" uma vez,
+// como antes — é a única situação em que o navegador exige o clique).
+let _tentandoReconectarImpressora = false;
+async function tentarReconectarImpressoraSilenciosamente_(){
+  if(impressoraDiretaDisponivel_()) return true;
+  if(_tentandoReconectarImpressora) return false; // já tem uma tentativa rolando, não empilha outra
+  const modo = DB.settings.etiquetaModoImpressao;
+  _tentandoReconectarImpressora = true;
+  try{
+    if(modo==='usb'){
+      if(!('serial' in navigator)) return false;
+      let portas = [];
+      try{ portas = await navigator.serial.getPorts(); }catch(e){ return false; }
+      const baud = Number(DB.settings.etiquetaBaudRate) || 9600;
+      for(const port of portas){
+        try{
+          await port.open({ baudRate: baud });
+          const writer = port.writable.getWriter();
+          _impressoraDireta = { tipo:'usb', port, writer, bleDevice:null, bleChar:null, nome:(port.getInfo && port.getInfo().usbProductId) ? ('USB '+port.getInfo().usbProductId.toString(16)) : 'USB' };
+          port.addEventListener('disconnect', function(){
+            if(_impressoraDireta.port===port){ _impressoraDireta = { tipo:null, port:null, writer:null, bleDevice:null, bleChar:null, nome:'' }; renderImpressoraEtiquetaUI(); }
+          });
+          log('Impressora de etiquetas reconectada sozinha via USB.');
+          renderImpressoraEtiquetaUI();
+          return true;
+        }catch(e){ try{ await port.close(); }catch(e2){} /* essa porta não abriu (em uso por outra aba, ou não é a impressora) — tenta a próxima, se houver */ }
+      }
+      return false;
+    }
+    if(modo==='bluetooth'){
+      if(!('bluetooth' in navigator) || !navigator.bluetooth.getDevices) return false;
+      let devices = [];
+      try{ devices = await navigator.bluetooth.getDevices(); }catch(e){ return false; }
+      if(!devices.length) return false;
+      const idSalvo = DB.settings.etiquetaBleDeviceId;
+      const device = (idSalvo && devices.find(d => d.id===idSalvo)) || (devices.length===1 ? devices[0] : null);
+      if(!device) return false; // mais de um aparelho permitido e nenhum bate com o salvo — pede pra escolher de novo manualmente
+      try{
+        const server = await _comTimeout_(device.gatt.connect(), 8000, 'timeout');
+        let characteristic = null;
+        for(const uuid of BLE_PRINTER_SERVICES){
+          try{
+            const service = await server.getPrimaryService(uuid);
+            const chars = await service.getCharacteristics();
+            characteristic = chars.find(c => c.properties.write || c.properties.writeWithoutResponse) || null;
+            if(characteristic) break;
+          }catch(e){ /* tenta o próximo serviço */ }
+        }
+        if(!characteristic){ try{ device.gatt.disconnect(); }catch(e){} return false; }
+        _impressoraDireta = { tipo:'bluetooth', port:null, writer:null, bleDevice:device, bleChar:characteristic, nome:device.name||'Bluetooth' };
+        device.addEventListener('gattserverdisconnected', function(){
+          if(_impressoraDireta.bleDevice===device){
+            _impressoraDireta = { tipo:null, port:null, writer:null, bleDevice:null, bleChar:null, nome:'' };
+            renderImpressoraEtiquetaUI();
+            setTimeout(tentarReconectarImpressoraSilenciosamente_, 1500);
+          }
+        });
+        DB.settings.etiquetaBleDeviceId = device.id;
+        try{ saveSettingsLive(); }catch(e){}
+        log('Impressora de etiquetas reconectada sozinha via Bluetooth: ' + (device.name||''));
+        renderImpressoraEtiquetaUI();
+        return true;
+      }catch(e){ return false; }
+    }
+    return false;
+  }finally{
+    _tentandoReconectarImpressora = false;
+  }
 }
 // Fotografa o canvas em preto-e-branco puro (1 bit por ponto), no tamanho físico
 // da etiqueta a 203dpi (8 pontos/mm — padrão de quase toda impressora térmica).
@@ -9405,8 +9518,16 @@ function gerarComandoESCPOS_(canvas, dimsMm){
   // (0x0A) é o comando de avanço mais básico que existe e é respeitado por
   // praticamente qualquer impressora térmica, então funciona como garantia
   // extra de que sempre sobra espaço antes da próxima etiqueta, mesmo quando
-  // "ESC J" já fez o trabalho sozinho (o pequeno excesso não atrapalha).
-  const REFORCO_LINHAS = 3;
+  // "ESC J" já fez o trabalho sozinho.
+  // Esse reforço já foi de 3 linhas, mas em impressoras onde "ESC J" já
+  // funciona direito (a maioria) isso somava com o avanço configurado em
+  // Configurações → Impressora de Etiquetas → "Avanço de papel após cada
+  // etiqueta (mm)" e sobrava espaço em branco demais entre uma etiqueta e a
+  // próxima. Baixado pra 1 linha: ainda dá esse empurrão extra de segurança
+  // nas impressoras que ignoram "ESC J", mas sem inflar tanto o espaço nas
+  // que já respeitam. Se ainda sobrar espaço demais, reduza também o "Avanço
+  // de papel" em Configurações (é ele quem controla a maior parte do espaço).
+  const REFORCO_LINHAS = 1;
   for(let i=0; i<REFORCO_LINHAS; i++) blocosFeed.push(0x0A);
   partes.push(new Uint8Array(blocosFeed));
   const tamanhoTotal = partes.reduce((soma, p) => soma + p.length, 0);
@@ -12261,6 +12382,9 @@ function renderConfig(){
   document.getElementById('cfg_etiquetaSensorTspl').value = DB.settings.etiquetaSensorTspl || 'gap';
   document.getElementById('cfg_etiquetaGapMm').value = (typeof DB.settings.etiquetaGapMm==='number') ? DB.settings.etiquetaGapMm : 2;
   renderImpressoraEtiquetaUI();
+  // Ao abrir essa tela, tenta sozinha reconectar na impressora já autorizada antes
+  // (cobre o caso de ter desconectado o cabo/saído de alcance e plugado de novo).
+  try{ tentarReconectarImpressoraSilenciosamente_().then(renderImpressoraEtiquetaUI); }catch(e){}
   updateLogoOptionUI();
   renderVisualConfigUI();
   renderAnimTogglesUI();
