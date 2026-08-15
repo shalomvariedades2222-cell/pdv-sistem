@@ -8902,41 +8902,46 @@ function imprimirEtiquetaFinal(){
     alertModal('Erro ao preparar a impressão das etiquetas.');
   });
 }
-// Fluxo de sempre: fotografa cada etiqueta com html2canvas, monta um PDF (uma página
-// por etiqueta, já no tamanho físico configurado) e abre a caixa de impressão NATIVA
-// DO PDF (visualizador de PDF do navegador) — usado quando não há impressora direta
-// conectada, ou como reserva se a impressão direta falhar no meio do caminho.
+// Fluxo "Caixa do sistema": a etiqueta já está pronta (nome, preço, código de
+// barras, QR) dentro de #printArea, no tamanho físico certo em mm — chama
+// window.print() DIRETO nela, o mesmo comando por trás do atalho Ctrl+P. Isso
+// sempre abre a caixa de impressão nativa do sistema operacional/navegador (a
+// pessoa escolhe a impressora ali e confirma), em qualquer navegador.
+// ANTES esse modo gerava um PDF à parte (html2canvas + jsPDF) e abria numa aba
+// nova torcendo pra aba disparar a impressão sozinha via doc.autoPrint() — só
+// que isso depende do leitor de PDF embutido do navegador rodar aquele script
+// interno do PDF, o que falha silenciosamente em vários navegadores/config­
+// urações (fica só a aba/PDF aberto, sem popup nenhum de impressão). Chamando
+// window.print() direto na própria página, o popup SEMPRE aparece — é o
+// comportamento padrão do navegador, sem depender de nenhum script de PDF.
+// As regras @media print no CSS (ver "@media print" perto do topo do arquivo)
+// já escondem todo o resto da página e mostram só #printArea nesse momento.
 function imprimirEtiquetasViaSistema_(itensEtiquetas, dims, limparArea){
-  return Promise.all([garantirHtml2Canvas(), garantirJsPDF()]).then(function(){
-    if(typeof html2canvas==='undefined' || !window.jspdf){
+  // Ajusta o tamanho físico da página de impressão (@page) pro tamanho da
+  // etiqueta escolhida — sem isso o navegador tentaria imprimir em folha A4.
+  atualizarTamanhoPaginaImpressao_(dims);
+  return new Promise(function(resolve){
+    let jaFinalizou = false;
+    function finalizar(){
+      if(jaFinalizou) return;
+      jaFinalizou = true;
+      window.removeEventListener('afterprint', finalizar);
       limparArea();
-      alertModal('Não foi possível preparar a impressão (recurso indisponível). Verifique sua internet e tente novamente.');
-      return;
+      resolve();
     }
-    const { jsPDF } = window.jspdf;
-    const orientacao = dims.w>=dims.h ? 'landscape' : 'portrait';
-    const doc = new jsPDF({orientation: orientacao, unit:'mm', format:[dims.w,dims.h]});
-    // Fotografa cada etiqueta em sequência (uma de cada vez, não todas ao mesmo tempo)
-    // pra não sobrecarregar a memória do celular/PC em impressões com muitas etiquetas.
-    let cadeia = Promise.resolve();
-    itensEtiquetas.forEach(function(item, index){
-      cadeia = cadeia.then(function(){
-        return html2canvas(item, {scale:8, backgroundColor:'#ffffff'}).then(function(canvas){
-          if(index > 0) doc.addPage([dims.w,dims.h], orientacao);
-          const img = canvas.toDataURL('image/png');
-          doc.addImage(img, 'PNG', 0, 0, dims.w, dims.h);
-        });
-      });
-    });
-    return cadeia.then(function(){
-      limparArea();
-      doc.autoPrint();
-      const blobUrl = doc.output('bloburl');
-      const janela = window.open(blobUrl, '_blank');
-      if(!janela){
-        alertModal('Não foi possível abrir a janela de impressão (bloqueada pelo navegador). Permita pop-ups para este site e tente novamente.');
-      }
-    });
+    // "afterprint" dispara assim que a pessoa confirma OU cancela a caixa de
+    // impressão — é o sinal certo de que já pode esconder a área de novo.
+    window.addEventListener('afterprint', finalizar);
+    // pequena espera pro navegador aplicar o novo tamanho de página (@page)
+    // antes de abrir a caixa — sem isso, em alguns navegadores a primeira
+    // impressão do dia ainda sai no tamanho antigo.
+    setTimeout(function(){
+      window.print();
+      // Reforço de segurança: em navegadores que não disparam "afterprint"
+      // direito (raro), garante que a área não fica escondida fora da tela
+      // pra sempre — sem isso a próxima tela do app ficaria "sumida".
+      setTimeout(finalizar, 5000);
+    }, 60);
   });
 }
 // A regra @page do CSS fica fixa em 50mm x 30mm (etiqueta padrão); quando a
