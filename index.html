@@ -3555,6 +3555,14 @@ html.is-mobile .btn::before{ display:none; }
             </select>
             <div class="dimSmall" style="margin-top:4px;">Só vale pra USB. Precisa bater com a velocidade real da impressora — se estiver errada, os bytes chegam embaralhados nela e é uma das causas mais comuns de sair "letra bugada sem parar". Se 9600 não funcionar, desconecte, troque aqui e conecte de novo pra testar as outras.</div>
           </div>
+          <div class="field" id="cfg_etiquetaProtocoloWrap">
+            <label>Protocolo da impressora</label>
+            <select id="cfg_etiquetaProtocoloDireto" data-perm="admin" onchange="mudarProtocoloImpressaoEtiqueta(this.value)">
+              <option value="escpos">ESC/POS (padrão, avanço de papel fixo)</option>
+              <option value="tspl">TSC / TSPL (usa o sensor de gap da impressora)</option>
+            </select>
+            <div class="dimSmall" style="margin-top:4px;">Escolha "TSC / TSPL" se sua impressora for uma etiquetadora TSC (ou compatível) com sensor de gap/marca preta — nesse modo é o próprio sensor da impressora que enxerga o espaço entre uma etiqueta e a próxima, em vez de empurrar sempre a mesma distância fixa de papel. Se sua impressora não tiver esse sensor (a maioria das mini impressoras Bluetooth baratas não tem), deixe em "ESC/POS".</div>
+          </div>
           <div class="field" id="cfg_etiquetaEscposAvisoWrap">
             <div class="dimSmall">A impressora não tem sensor de gap/marca preta — o espaçamento entre uma etiqueta e a próxima é sempre garantido pelo avanço de papel abaixo, numa distância fixa e exata a cada impressão (não precisa calibrar nada na impressora). Pra reforçar ainda mais a confiabilidade, esse avanço agora é enviado em pequenos blocos + uma folga extra de segurança no final, então mesmo impressoras mais simples (ex.: mini impressoras Bluetooth de etiqueta) sempre deixam um respiro visível antes de começar a próxima etiqueta.</div>
           </div>
@@ -3562,6 +3570,24 @@ html.is-mobile .btn::before{ display:none; }
             <label>Avanço de papel após cada etiqueta (mm)</label>
             <input id="cfg_etiquetaAvancoEscposMm" type="number" min="0" max="30" step="0.5" data-perm="admin" oninput="saveSettingsLive()">
             <div class="dimSmall" style="margin-top:4px;">Distância extra que a impressora empurra o papel depois de imprimir cada etiqueta, antes de começar a próxima — sempre o mesmo valor exato. Se as etiquetas saem grudadas ou cortando a próxima, aumente. Se sobra muito espaço em branco entre elas, diminua. Padrão: 6mm (aumentado pra sempre deixar um espaço visível entre uma etiqueta e outra).</div>
+          </div>
+          <div class="field" id="cfg_etiquetaTsplSensorWrap">
+            <label>Tipo de sensor da impressora</label>
+            <select id="cfg_etiquetaSensorTspl" data-perm="admin" onchange="mudarSensorTsplEtiqueta(this.value)">
+              <option value="gap">Sensor de gap (espaço entre etiquetas — o mais comum)</option>
+              <option value="blackmark">Sensor de marca preta (marca impressa no verso do papel)</option>
+              <option value="continuo">Sem sensor (papel contínuo/bobina, sem separação)</option>
+            </select>
+            <div class="dimSmall" style="margin-top:4px;">A maioria das etiquetadoras TSC usa o sensor de "gap" (o espacinho vazio entre uma etiqueta e outra). Só use "marca preta" se o verso do rolo tiver uma faixa preta impressa entre as etiquetas. "Sem sensor" é só pra bobina contínua, sem separação nenhuma entre etiquetas.</div>
+          </div>
+          <div class="field" id="cfg_etiquetaTsplGapWrap">
+            <label>Tamanho do espaço/marca entre etiquetas (mm)</label>
+            <input id="cfg_etiquetaGapMm" type="number" min="0" max="30" step="0.5" data-perm="admin" oninput="saveSettingsLive()">
+            <div class="dimSmall" style="margin-top:4px;">Distância (em mm) do espaço vazio (ou da marca preta) entre uma etiqueta e a próxima — é a medida que o sensor da impressora usa como referência pra saber onde uma etiqueta termina e a outra começa. Meça com uma régua no rolo de etiquetas; o mais comum é entre 2 e 3mm. Se a impressora "perder o lugar" e desalinhar depois de algumas etiquetas, use o botão "Calibrar sensor" abaixo.</div>
+          </div>
+          <div class="field" id="cfg_etiquetaTsplCalibrarWrap" style="margin-top:4px;">
+            <button type="button" class="btn secondary small" onclick="calibrarSensorImpressoraTspl()">🎯 Calibrar sensor</button>
+            <div class="dimSmall" style="margin-top:4px;">Manda a impressora avançar algumas etiquetas sozinha usando o sensor, pra ela "aprender" o tamanho exato do gap/marca sozinha (recomendado sempre que trocar o rolo de etiquetas ou se o sensor começar a desalinhar). Precisa da impressora já conectada (USB ou Bluetooth) e de pelo menos 2-3 etiquetas em branco pra passar em vazio durante a calibração.</div>
           </div>
           <div class="field" style="margin-top:8px;">
             <div id="impressoraEtiquetaStatus" class="dimSmall" style="margin-bottom:8px;">⏳ Nenhum aparelho conectado nesta sessão</div>
@@ -5282,8 +5308,11 @@ function ensureCatalogDefaults(){
   if(!DB.settings.etiquetaLarguraMm) DB.settings.etiquetaLarguraMm = 40;
   if(!DB.settings.etiquetaAlturaMm) DB.settings.etiquetaAlturaMm = 30;
   if(!DB.settings.etiquetaModoImpressao) DB.settings.etiquetaModoImpressao = 'sistema'; // 'sistema' (PDF+caixa de impressão), 'usb' (Web Serial) ou 'bluetooth' (Web Bluetooth)
-  if(typeof DB.settings.etiquetaAvancoEscposMm !== 'number' || !isFinite(DB.settings.etiquetaAvancoEscposMm)) DB.settings.etiquetaAvancoEscposMm = 6; // avanço fixo (mm) de papel após cada etiqueta (protocolo único agora é ESC/POS, sem sensor de gap/calibração automática) — sempre a mesma distância exata, calibrada manualmente uma vez. Aumentado de 3 pra 6mm por padrão pra sempre sobrar um espaço visível antes da próxima etiqueta.
+  if(typeof DB.settings.etiquetaAvancoEscposMm !== 'number' || !isFinite(DB.settings.etiquetaAvancoEscposMm)) DB.settings.etiquetaAvancoEscposMm = 6; // avanço fixo (mm) de papel após cada etiqueta, usado só no protocolo ESC/POS (sem sensor de gap) — sempre a mesma distância exata, calibrada manualmente uma vez. Aumentado de 3 pra 6mm por padrão pra sempre sobrar um espaço visível antes da próxima etiqueta.
   if(!DB.settings.etiquetaBaudRate) DB.settings.etiquetaBaudRate = 9600; // velocidade da porta serial (USB) — precisa bater com a da impressora, senão os bytes chegam embaralhados (sintoma: letras bugadas sem parar)
+  if(!DB.settings.etiquetaProtocoloDireto) DB.settings.etiquetaProtocoloDireto = 'escpos'; // 'escpos' (padrão, avanço fixo) ou 'tspl' (comando TSC/TSPL — usa o sensor de gap/marca preta da própria impressora pra achar o começo de cada etiqueta sozinha)
+  if(!DB.settings.etiquetaSensorTspl) DB.settings.etiquetaSensorTspl = 'gap'; // só vale com protocolo 'tspl': 'gap' (sensor de espaço entre etiquetas — o mais comum), 'blackmark' (sensor de marca preta impressa no verso do papel) ou 'continuo' (sem sensor, papel contínuo/bobina sem separação)
+  if(typeof DB.settings.etiquetaGapMm !== 'number' || !isFinite(DB.settings.etiquetaGapMm)) DB.settings.etiquetaGapMm = 2; // distância (mm) do espaço/marca entre uma etiqueta e a próxima — só vale com protocolo 'tspl'; é o valor que a impressora usa como referência pro sensor achar o gap
   // migração: quem já tinha um layout personalizado solto (versão antiga, sem nome/lista)
   // vira automaticamente o primeiro modelo salvo, pra não perder o trabalho já feito
   if(!DB.settings.etiquetaModelos.length && DB.settings.etiquetaLayout.length){
@@ -9099,17 +9128,26 @@ function baixarEtiquetaPDF(){
    Bluetooth (Web Bluetooth), sem passar pela caixa de impressão do
    sistema/navegador (o "Ctrl+P"). O sistema converte a própria etiqueta já
    desenhada em uma imagem (o mesmo html2canvas usado no PDF) e manda os
-   bytes crus no protocolo ESC/POS (gerarComandoESCPOS_) — o único suportado
-   agora (o protocolo TSPL/TSC foi removido: era o que causava a maior parte
-   dos problemas relatados de impressão "bugada"/desalinhada, então o
-   sistema ficou só com o caminho ESC/POS, testado e mais confiável para as
-   impressoras térmicas de etiqueta mais comuns, incluindo mini impressoras
-   Bluetooth de etiqueta).
-   Como essas impressoras não têm sensor de gap/marca preta, o espaçamento
-   entre uma etiqueta e a próxima é garantido por um avanço de papel fixo e
-   exato ao final de cada etiqueta (ver "Avanço de papel" em Configurações →
-   Impressora de Etiquetas), agora enviado em blocos pequenos + uma folga
-   extra de segurança, pra nunca sair sem esse respiro entre etiquetas.
+   bytes crus num de dois protocolos, escolhido em Configurações → Impressora
+   de Etiquetas → "Protocolo da impressora" (DB.settings.etiquetaProtocoloDireto):
+   - 'escpos' (gerarComandoESCPOS_) — padrão, o mais compatível. Não depende
+     de a impressora ter sensor de gap/marca preta: o espaçamento entre uma
+     etiqueta e a próxima é garantido por um avanço de papel fixo e exato ao
+     final de cada etiqueta (ver "Avanço de papel" em Configurações),
+     enviado em blocos pequenos + uma folga extra de segurança, pra nunca
+     sair sem esse respiro entre etiquetas.
+   - 'tspl' (gerarComandoTSPL_) — comando TSC/TSPL, pra etiquetadoras TSC (e
+     compatíveis) que tenham sensor de gap ou de marca preta de verdade. Em
+     vez de um avanço fixo "no escuro", é a própria impressora que usa o
+     sensor pra enxergar onde uma etiqueta termina e a próxima começa (por
+     isso precisa informar o tamanho do gap/marca em Configurações, e pode
+     ser recalibrado a qualquer momento com o botão "Calibrar sensor").
+     Esse protocolo já foi removido uma vez do sistema (ver histórico), por
+     causar impressão "bugada"/desalinhada em impressoras que na verdade não
+     entendiam TSPL — por isso ele só deve ser escolhido em impressoras TSC
+     de verdade (ou clones que declarem suportar TSPL/TSPL2), nunca como
+     tentativa "pra ver se funciona" numa mini impressora Bluetooth genérica
+     (essas quase sempre só entendem ESC/POS mesmo).
 
    LIMITAÇÕES REAIS DO NAVEGADOR (importante deixar claro pra loja):
    - USB (Web Serial): só funciona em Chrome/Edge no computador, e só se a
@@ -9278,10 +9316,9 @@ function gerarBitmapMonocromatico_(canvas, dimsMm){
   }
   return { bitmap, bytesPorLinha, larguraPontos, alturaPontos };
 }
-// Converte um canvas em um comando ESC/POS completo — ÚNICO protocolo suportado
-// pelo sistema agora (o TSPL/TSC foi removido: era a causa mais comum de
-// "imprimir um monte de letra sem sentido sem parar" quando a impressora não
-// entendia aquele comando). Usa o comando de imagem raster "GS v 0" (que
+// Converte um canvas em um comando ESC/POS completo — protocolo padrão do
+// sistema (o mais compatível com mini impressoras térmicas genéricas). Usa
+// o comando de imagem raster "GS v 0" (que
 // imprime o bitmap inteiro de uma vez), precedido de "ESC @" (reset/inicializa
 // a impressora — limpa qualquer coisa pendente de uma tentativa anterior, o
 // que ajuda a sair de um estado "travado" imprimindo lixo sem parar).
@@ -9342,12 +9379,90 @@ function gerarComandoESCPOS_(canvas, dimsMm){
   saida.set(alimentaFim, pos);
   return saida;
 }
-// Ponto único que monta o comando pra impressora — hoje sempre ESC/POS (ver
-// comentário da função acima). Mantido como função separada pra não precisar
-// mexer em quem chama caso o sistema volte a suportar mais de um protocolo no
-// futuro.
+// Converte um canvas em um comando TSC/TSPL completo. Ao contrário do ESC/POS
+// (que empurra sempre a mesma distância fixa de papel "no escuro"), aqui é a
+// própria impressora que usa seu sensor (gap ou marca preta) pra enxergar o
+// espaço entre uma etiqueta e a próxima — por isso os comandos SIZE/GAP (ou
+// SIZE/BLINE) precisam bater com as medidas reais da etiqueta e do rolo (ver
+// Configurações → Impressora de Etiquetas → "Tamanho do espaço/marca entre
+// etiquetas" e "Tipo de sensor da impressora"). Uma vez calibrada (ver
+// calibrarSensorImpressoraTspl()), a impressora passa a parar sozinha no
+// começo de cada etiqueta, sem precisar de nenhum avanço fixo configurado.
+//
+// Estrutura do comando (uma etiqueta): SIZE (tamanho físico) + GAP/BLINE
+// (tipo e tamanho do sensor) + DIRECTION/REFERENCE (orientação/origem da
+// impressão) + CLS (limpa o buffer de imagem da impressora) + BITMAP (o
+// bitmap monocromático da etiqueta, no mesmo formato 1bpp já usado pelo
+// ESC/POS) + PRINT 1,1 (imprime 1 etiqueta, 1 cópia).
+function gerarComandoTSPL_(canvas, dimsMm){
+  const { bitmap, bytesPorLinha, alturaPontos } = gerarBitmapMonocromatico_(canvas, dimsMm);
+  const enc = new TextEncoder();
+  const sensor = DB.settings.etiquetaSensorTspl || 'gap';
+  const gapMm = Number(DB.settings.etiquetaGapMm);
+  const gapFinal = (isFinite(gapMm) && gapMm>=0) ? gapMm : 2;
+  const linhasComando = [];
+  linhasComando.push(`SIZE ${dimsMm.w} mm,${dimsMm.h} mm`);
+  // O comando certo (GAP ou BLINE) precisa ser enviado sempre, mesmo que a
+  // impressora já esteja configurada assim — é o próprio comando que "avisa"
+  // a impressora pra trocar de tipo de sensor, caso ela esteja usando outro.
+  if(sensor==='blackmark'){
+    linhasComando.push(`BLINE ${gapFinal} mm,0 mm`);
+  } else if(sensor==='continuo'){
+    linhasComando.push(`GAP 0,0`); // papel contínuo/bobina — sem sensor, sem gap nenhum
+  } else {
+    linhasComando.push(`GAP ${gapFinal} mm,0 mm`);
+  }
+  linhasComando.push('DIRECTION 1'); // sentido de impressão padrão
+  linhasComando.push('REFERENCE 0,0'); // origem no canto superior esquerdo da etiqueta
+  linhasComando.push('CLS'); // limpa o buffer de imagem antes de desenhar a etiqueta nova
+  const cabecalho = enc.encode(linhasComando.join('\r\n') + '\r\n');
+  // BITMAP x,y,largura_em_bytes,altura_em_pontos,modo,<dados crus> — modo 0 =
+  // OVERWRITE (desenha por cima, apagando o que já tinha naquela área).
+  const comandoBitmap = enc.encode(`BITMAP 0,0,${bytesPorLinha},${alturaPontos},0,`);
+  const rodape = enc.encode('\r\nPRINT 1,1\r\n');
+  const saida = new Uint8Array(cabecalho.length + comandoBitmap.length + bitmap.length + rodape.length);
+  let pos = 0;
+  saida.set(cabecalho, pos); pos += cabecalho.length;
+  saida.set(comandoBitmap, pos); pos += comandoBitmap.length;
+  saida.set(bitmap, pos); pos += bitmap.length;
+  saida.set(rodape, pos);
+  return saida;
+}
+// Ponto único que monta o comando pra impressora — escolhe entre ESC/POS e
+// TSC/TSPL de acordo com Configurações → Impressora de Etiquetas → "Protocolo
+// da impressora" (DB.settings.etiquetaProtocoloDireto). Mantido como função
+// separada pra quem chama nunca precisar saber qual protocolo está ativo.
 function gerarComandoImpressora_(canvas, dimsMm){
+  if(DB.settings.etiquetaProtocoloDireto==='tspl') return gerarComandoTSPL_(canvas, dimsMm);
   return gerarComandoESCPOS_(canvas, dimsMm);
+}
+// Manda a impressora recalibrar sozinha o sensor de gap/marca preta — só faz
+// sentido no protocolo TSC/TSPL. Usa o comando GAPDETECT sem parâmetros, que
+// faz a impressora avançar algumas etiquetas em vazio até "aprender" sozinha
+// o tamanho real do gap/marca (mais confiável do que confiar só no valor
+// digitado em Configurações, principalmente depois de trocar de rolo).
+async function calibrarSensorImpressoraTspl(){
+  if(DB.settings.etiquetaProtocoloDireto!=='tspl'){
+    alertModal('A calibração de sensor só existe no protocolo TSC/TSPL. Troque o protocolo em Configurações antes de calibrar.');
+    return;
+  }
+  if(!impressoraDiretaDisponivel_()){
+    alertModal('Conecte a impressora primeiro (USB ou Bluetooth) antes de calibrar.');
+    return;
+  }
+  const dims = dimsDoModeloEscolhido_ ? dimsDoModeloEscolhido_() : {w:40,h:30};
+  const sensor = DB.settings.etiquetaSensorTspl || 'gap';
+  const enc = new TextEncoder();
+  const linhas = [`SIZE ${dims.w} mm,${dims.h} mm`];
+  linhas.push(sensor==='blackmark' ? 'BLINE 3 mm,0 mm' : 'GAP 3 mm,0 mm');
+  linhas.push('GAPDETECT'); // sem x,y — deixa a impressora calcular sozinha o tamanho real
+  try{
+    await enviarBytesImpressoraDireta_(enc.encode(linhas.join('\r\n') + '\r\n'));
+    notificarImpressaoSucesso('Calibrando…', 'A impressora vai passar algumas etiquetas em vazio sozinha. Aguarde ela parar antes de imprimir de novo. ✅');
+  }catch(err){
+    console.error('Erro ao calibrar sensor TSPL:', err);
+    alertModal('Não foi possível enviar a calibração para a impressora. Verifique a conexão e tente novamente.');
+  }
 }
 // Manda os bytes pro canal certo (USB serial ou Bluetooth), sempre em pedaços
 // pequenos com uma pequena pausa entre eles — nunca tudo de uma vez. Isso existe
@@ -9464,10 +9579,19 @@ function renderImpressoraEtiquetaUI(){
   if(btnTestar) btnTestar.style.display = (modo!=='sistema' && conectada) ? '' : 'none';
   const baudWrap = document.getElementById('cfg_etiquetaBaudWrap');
   if(baudWrap) baudWrap.style.display = modo==='usb' ? '' : 'none';
+  const protocolo = DB.settings.etiquetaProtocoloDireto || 'escpos';
+  const protocoloWrap = document.getElementById('cfg_etiquetaProtocoloWrap');
+  if(protocoloWrap) protocoloWrap.style.display = modo==='sistema' ? 'none' : '';
   const escposAvisoWrap = document.getElementById('cfg_etiquetaEscposAvisoWrap');
-  if(escposAvisoWrap) escposAvisoWrap.style.display = modo==='sistema' ? 'none' : '';
+  if(escposAvisoWrap) escposAvisoWrap.style.display = (modo==='sistema' || protocolo==='tspl') ? 'none' : '';
   const escposAvancoWrap = document.getElementById('cfg_etiquetaEscposAvancoWrap');
-  if(escposAvancoWrap) escposAvancoWrap.style.display = modo==='sistema' ? 'none' : '';
+  if(escposAvancoWrap) escposAvancoWrap.style.display = (modo==='sistema' || protocolo==='tspl') ? 'none' : '';
+  const tsplSensorWrap = document.getElementById('cfg_etiquetaTsplSensorWrap');
+  if(tsplSensorWrap) tsplSensorWrap.style.display = (modo!=='sistema' && protocolo==='tspl') ? '' : 'none';
+  const tsplGapWrap = document.getElementById('cfg_etiquetaTsplGapWrap');
+  if(tsplGapWrap) tsplGapWrap.style.display = (modo!=='sistema' && protocolo==='tspl' && DB.settings.etiquetaSensorTspl!=='continuo') ? '' : 'none';
+  const tsplCalibrarWrap = document.getElementById('cfg_etiquetaTsplCalibrarWrap');
+  if(tsplCalibrarWrap) tsplCalibrarWrap.style.display = (modo!=='sistema' && protocolo==='tspl' && DB.settings.etiquetaSensorTspl!=='continuo') ? '' : 'none';
 }
 function mudarModoImpressaoEtiqueta(valor){
   DB.settings.etiquetaModoImpressao = valor;
@@ -9477,6 +9601,16 @@ function mudarModoImpressaoEtiqueta(valor){
 function mudarBaudRateImpressao(valor){
   DB.settings.etiquetaBaudRate = Number(valor) || 9600;
   saveSettingsLive();
+}
+function mudarProtocoloImpressaoEtiqueta(valor){
+  DB.settings.etiquetaProtocoloDireto = (valor==='tspl') ? 'tspl' : 'escpos';
+  saveSettingsLive();
+  renderImpressoraEtiquetaUI();
+}
+function mudarSensorTsplEtiqueta(valor){
+  DB.settings.etiquetaSensorTspl = ['gap','blackmark','continuo'].includes(valor) ? valor : 'gap';
+  saveSettingsLive();
+  renderImpressoraEtiquetaUI();
 }
 /* =========================================================
    EDITOR DE ETIQUETAS PERSONALIZADO (arrastar, redimensionar,
@@ -12087,6 +12221,9 @@ function renderConfig(){
   document.getElementById('cfg_etiquetaModoImpressao').value = DB.settings.etiquetaModoImpressao || 'sistema';
   document.getElementById('cfg_etiquetaAvancoEscposMm').value = (typeof DB.settings.etiquetaAvancoEscposMm==='number') ? DB.settings.etiquetaAvancoEscposMm : 6;
   document.getElementById('cfg_etiquetaBaudRate').value = String(DB.settings.etiquetaBaudRate || 9600);
+  document.getElementById('cfg_etiquetaProtocoloDireto').value = (DB.settings.etiquetaProtocoloDireto==='tspl') ? 'tspl' : 'escpos';
+  document.getElementById('cfg_etiquetaSensorTspl').value = DB.settings.etiquetaSensorTspl || 'gap';
+  document.getElementById('cfg_etiquetaGapMm').value = (typeof DB.settings.etiquetaGapMm==='number') ? DB.settings.etiquetaGapMm : 2;
   renderImpressoraEtiquetaUI();
   updateLogoOptionUI();
   renderVisualConfigUI();
@@ -12612,6 +12749,11 @@ function saveSettingsLive(){
     const baud = Number(baudSel.value);
     DB.settings.etiquetaBaudRate = [9600,19200,38400,57600,115200].includes(baud) ? baud : 9600;
   }
+  const gapMmInp = document.getElementById('cfg_etiquetaGapMm');
+  if(gapMmInp){
+    const gapMm = parseFloat(gapMmInp.value);
+    DB.settings.etiquetaGapMm = (isFinite(gapMm) && gapMm>=0) ? gapMm : 2;
+  }
   const notifCheckbox = document.getElementById('cfg_enableDeviceAcceptNotif');
   if(notifCheckbox){
     setDeviceAcceptNotifEnabled(notifCheckbox.checked);
@@ -12853,7 +12995,7 @@ async function apagarTudoExecutar(){
     });
   }
   if(manterEtiqueta){
-    ['etiquetaModelos','etiquetaLayout','etiquetaOrientacao','etiquetaModoCustom','etiquetaMostrarBarras','etiquetaMostrarFoto','etiquetaFonte','etiquetaTamanho','etiquetaCor','etiquetaLarguraMm','etiquetaAlturaMm','etiquetaModoImpressao','etiquetaAvancoEscposMm','etiquetaBaudRate'].forEach(k=>{
+    ['etiquetaModelos','etiquetaLayout','etiquetaOrientacao','etiquetaModoCustom','etiquetaMostrarBarras','etiquetaMostrarFoto','etiquetaFonte','etiquetaTamanho','etiquetaCor','etiquetaLarguraMm','etiquetaAlturaMm','etiquetaModoImpressao','etiquetaAvancoEscposMm','etiquetaBaudRate','etiquetaProtocoloDireto','etiquetaSensorTspl','etiquetaGapMm'].forEach(k=>{
       if(typeof settingsAntigos[k]!=='undefined') novoSettings[k] = settingsAntigos[k];
     });
   }
