@@ -3486,7 +3486,7 @@ html.is-mobile .btn::before{ display:none; }
           <div class="field" id="cfg_etiquetaGapWrap">
             <label>Espaço entre etiquetas no rolo (gap, mm)</label>
             <input id="cfg_etiquetaGapMm" type="number" min="0" max="10" step="0.5" data-perm="admin" oninput="saveSettingsLive()">
-            <div class="dimSmall" style="margin-top:4px;">Só vale pro protocolo TSPL. É o espacinho em branco entre uma etiqueta e outra do rolo adesivo — a impressora usa o sensor dela pra encontrar esse espaço e alinhar o desenho certinho dentro de cada etiqueta a cada impressão (recalibra sozinha toda vez, então se trocar o rolo por um com tubo/posição diferente ela se ajusta automaticamente). 2mm é o mais comum; se o desenho continuar saindo desalinhado, meça o espaço real do seu rolo e ajuste aqui.</div>
+            <div class="dimSmall" style="margin-top:4px;">Só vale pro protocolo TSPL. É o espacinho em branco entre uma etiqueta e outra do rolo adesivo — a impressora usa o sensor dela pra encontrar esse espaço e alinhar o desenho certinho dentro de cada etiqueta a cada impressão (recalibra sozinha toda vez, então se trocar o rolo por um com tubo/posição diferente ela se ajusta automaticamente). 2mm é o mais comum; se o desenho continuar saindo desalinhado, meça o espaço real do seu rolo e ajuste aqui. <b>Papel CONTÍNUO, sem separação entre etiquetas (ex.: papel de tatuagem/decalque) — coloque 0 aqui.</b> Se o valor ficar em 2mm num rolo contínuo, a impressora fica procurando um espaço que não existe e ou desalinha tudo ou não para de puxar papel.</div>
           </div>
           <div class="field" id="cfg_etiquetaEscposAvisoWrap" style="display:none;">
             <div class="dimSmall">No modo ESC/POS não existe um comando padrão de mercado pra pedir que a impressora recalibre pelo sensor de gap/marca preta a cada etiqueta — isso depende da própria impressora (normalmente segurando o botão FEED com a impressora ligada faz ela recalibrar sozinha, ou existe uma opção disso no menu dela, se tiver visor). Faça essa calibração física uma vez ao trocar o rolo.</div>
@@ -5179,7 +5179,7 @@ function ensureCatalogDefaults(){
   if(!DB.settings.etiquetaLarguraMm) DB.settings.etiquetaLarguraMm = 40;
   if(!DB.settings.etiquetaAlturaMm) DB.settings.etiquetaAlturaMm = 30;
   if(!DB.settings.etiquetaModoImpressao) DB.settings.etiquetaModoImpressao = 'sistema'; // 'sistema' (PDF+caixa de impressão), 'usb' (Web Serial) ou 'bluetooth' (Web Bluetooth)
-  if(!DB.settings.etiquetaGapMm) DB.settings.etiquetaGapMm = 2; // espaço (mm) entre uma etiqueta e outra no rolo — usado na impressão direta (TSPL) pra impressora calibrar pelo sensor de gap
+  if(typeof DB.settings.etiquetaGapMm !== 'number' || !isFinite(DB.settings.etiquetaGapMm)) DB.settings.etiquetaGapMm = 2; // espaço (mm) entre uma etiqueta e outra no rolo — usado na impressão direta (TSPL) pra impressora calibrar pelo sensor de gap. CORREÇÃO: antes usava "if(!valor)", que tratava 0 (papel CONTÍNUO, sem gap — caso do papel de tatuagem) como "não configurado" e forçava de volta pra 2mm, fazendo a impressora ficar procurando um gap que não existe no rolo (impressão sem parar / desalinhada).
   if(!DB.settings.etiquetaProtocolo) DB.settings.etiquetaProtocolo = 'tspl'; // 'tspl' (Zebra/Argox/TSC/Elgin em "modo etiqueta") ou 'escpos' (impressoras térmicas comuns — Elgin i9/i7, Bematech etc., a maioria das baratas) — usado só na impressão direta (USB/Bluetooth)
   if(!DB.settings.etiquetaBaudRate) DB.settings.etiquetaBaudRate = 9600; // velocidade da porta serial (USB) — precisa bater com a da impressora, senão os bytes chegam embaralhados (sintoma: letras bugadas sem parar)
   // migração: quem já tinha um layout personalizado solto (versão antiga, sem nome/lista)
@@ -9269,7 +9269,7 @@ async function enviarBytesImpressoraDireta_(bytes){
 // de imprimir aquela etiqueta específica, então elas saem alinhadas uma a uma,
 // sem acumular desvio ao longo do rolo.
 function imprimirEtiquetasViaImpressoraDireta_(itensEtiquetas, dims){
-  const gapMm = Number(DB.settings.etiquetaGapMm) || 2;
+  const gapMm = (isFinite(Number(DB.settings.etiquetaGapMm)) && DB.settings.etiquetaGapMm !== '') ? Number(DB.settings.etiquetaGapMm) : 2; // não usar "|| 2": isso trocava 0 (papel contínuo, sem gap) de volta pra 2mm sem avisar
   return garantirHtml2Canvas().then(function(){
     if(typeof html2canvas==='undefined'){
       throw new Error('html2canvas indisponível');
@@ -9312,7 +9312,7 @@ async function testarImpressoraDireta(){
       return;
     }
     const canvas = await html2canvas(el, {scale:4, backgroundColor:'#ffffff'});
-    const gapMm = Number(DB.settings.etiquetaGapMm) || 2;
+    const gapMm = (isFinite(Number(DB.settings.etiquetaGapMm)) && DB.settings.etiquetaGapMm !== '') ? Number(DB.settings.etiquetaGapMm) : 2; // não usar "|| 2": isso trocava 0 (papel contínuo, sem gap) de volta pra 2mm sem avisar
     const comando = gerarComandoImpressora_(canvas, dims, gapMm);
     await enviarBytesImpressoraDireta_(comando);
     log('Etiqueta de teste enviada (' + (DB.settings.etiquetaProtocolo==='escpos'?'ESC/POS':'TSPL') + ').');
@@ -9344,7 +9344,7 @@ async function rebobinarImpressoraDireta(){
   }
   try{
     const dims = dimsDoModeloEscolhido_ ? dimsDoModeloEscolhido_() : {w:40,h:30};
-    const gapMm = Number(DB.settings.etiquetaGapMm) || 2;
+    const gapMm = (isFinite(Number(DB.settings.etiquetaGapMm)) && DB.settings.etiquetaGapMm !== '') ? Number(DB.settings.etiquetaGapMm) : 2; // não usar "|| 2": isso trocava 0 (papel contínuo, sem gap) de volta pra 2mm sem avisar
     const comandoTexto =
       `SIZE ${dims.w} mm,${dims.h} mm\r\n` +
       `GAP ${gapMm} mm,0 mm\r\n` +
