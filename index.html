@@ -3472,6 +3472,17 @@ html.is-mobile .btn::before{ display:none; }
             </select>
             <div class="dimSmall" style="margin-top:4px;">Se não souber qual é a sua, comece em TSPL (padrão de impressora de etiqueta de verdade). Se ao imprimir sair um monte de letra sem sentido sem parar, é sinal de que a impressora não entende TSPL — troque para ESC/POS aqui. Use o botão "🧪 Testar impressão" abaixo pra confirmar sem gastar etiqueta boa.</div>
           </div>
+          <div class="field" id="cfg_etiquetaBaudWrap">
+            <label>Velocidade da conexão USB (baud rate)</label>
+            <select id="cfg_etiquetaBaudRate" data-perm="admin" onchange="mudarBaudRateImpressao(this.value)">
+              <option value="9600">9600 (mais comum)</option>
+              <option value="19200">19200</option>
+              <option value="38400">38400</option>
+              <option value="57600">57600</option>
+              <option value="115200">115200</option>
+            </select>
+            <div class="dimSmall" style="margin-top:4px;">Só vale pra USB. Precisa bater com a velocidade real da impressora — se estiver errada, os bytes chegam embaralhados nela e é uma das causas mais comuns de sair "letra bugada sem parar". Se 9600 não funcionar, desconecte, troque aqui e conecte de novo pra testar as outras.</div>
+          </div>
           <div class="field" id="cfg_etiquetaGapWrap">
             <label>Espaço entre etiquetas no rolo (gap, mm)</label>
             <input id="cfg_etiquetaGapMm" type="number" min="0" max="10" step="0.5" data-perm="admin" oninput="saveSettingsLive()">
@@ -5169,6 +5180,7 @@ function ensureCatalogDefaults(){
   if(!DB.settings.etiquetaModoImpressao) DB.settings.etiquetaModoImpressao = 'sistema'; // 'sistema' (PDF+caixa de impressão), 'usb' (Web Serial) ou 'bluetooth' (Web Bluetooth)
   if(!DB.settings.etiquetaGapMm) DB.settings.etiquetaGapMm = 2; // espaço (mm) entre uma etiqueta e outra no rolo — usado na impressão direta (TSPL) pra impressora calibrar pelo sensor de gap
   if(!DB.settings.etiquetaProtocolo) DB.settings.etiquetaProtocolo = 'tspl'; // 'tspl' (Zebra/Argox/TSC/Elgin em "modo etiqueta") ou 'escpos' (impressoras térmicas comuns — Elgin i9/i7, Bematech etc., a maioria das baratas) — usado só na impressão direta (USB/Bluetooth)
+  if(!DB.settings.etiquetaBaudRate) DB.settings.etiquetaBaudRate = 9600; // velocidade da porta serial (USB) — precisa bater com a da impressora, senão os bytes chegam embaralhados (sintoma: letras bugadas sem parar)
   // migração: quem já tinha um layout personalizado solto (versão antiga, sem nome/lista)
   // vira automaticamente o primeiro modelo salvo, pra não perder o trabalho já feito
   if(!DB.settings.etiquetaModelos.length && DB.settings.etiquetaLayout.length){
@@ -9018,11 +9030,12 @@ async function conectarImpressoraUSB(){
   }
   try{
     const port = await navigator.serial.requestPort();
-    await port.open({ baudRate: 9600 });
+    const baud = Number(DB.settings.etiquetaBaudRate) || 9600;
+    await port.open({ baudRate: baud });
     const writer = port.writable.getWriter();
     await desconectarImpressoraDireta_semLimparUI_();
     _impressoraDireta = { tipo:'usb', port, writer, bleDevice:null, bleChar:null, nome:(port.getInfo && port.getInfo().usbProductId) ? ('USB '+port.getInfo().usbProductId.toString(16)) : 'USB' };
-    log('Impressora de etiquetas conectada via USB.');
+    log('Impressora de etiquetas conectada via USB (' + baud + ' bps).');
     renderImpressoraEtiquetaUI();
   }catch(err){
     if(err && err.name==='NotFoundError') return; // pessoa cancelou a seleção, não é erro
@@ -9189,11 +9202,29 @@ function gerarComandoImpressora_(canvas, dimsMm, gapMm){
   const protocolo = DB.settings.etiquetaProtocolo || 'tspl';
   return protocolo === 'escpos' ? gerarComandoESCPOS_(canvas, dimsMm) : gerarComandoTSPL_(canvas, dimsMm, gapMm);
 }
-// Manda os bytes pro canal certo (USB serial ou Bluetooth), em pedaços pequenos no
-// caso do Bluetooth (a maioria dos módulos BLE só aceita ~180-240 bytes por vez).
+// Manda os bytes pro canal certo (USB serial ou Bluetooth), sempre em pedaços
+// pequenos com uma pequena pausa entre eles — nunca tudo de uma vez. Isso existe
+// porque o buffer de recepção de impressora térmica barata é pequeno; mandar a
+// etiqueta inteira (que pode ter vários KB de bitmap) de uma vez só, mais rápido
+// do que a impressora consegue processar, estoura esse buffer no meio do desenho
+// — e é exatamente isso que faz ela perder o sincronismo e sair cuspindo lixo sem
+// parar (o sintoma "letras bugadas sem fim"). No Bluetooth (BLE) o pedaço já era
+// pequeno por limitação do próprio protocolo; agora o USB também manda em pedaços,
+// com a pausa calculada a partir da velocidade (baud rate) configurada, pra nunca
+// mandar mais rápido do que a impressora consegue realmente receber.
 async function enviarBytesImpressoraDireta_(bytes){
   if(_impressoraDireta.tipo==='usb' && _impressoraDireta.writer){
-    await _impressoraDireta.writer.write(bytes);
+    const baud = Number(DB.settings.etiquetaBaudRate) || 9600;
+    const TAMANHO_PEDACO = 256;
+    // tempo real pra transmitir TAMANHO_PEDACO bytes nessa velocidade (10 bits por
+    // byte, contando start+stop), com uma folga de 60% pro buffer da impressora
+    // processar o que já chegou antes do próximo pedaço.
+    const pausaMs = Math.max(4, Math.ceil((TAMANHO_PEDACO * 10 / baud) * 1000 * 1.6));
+    for(let i=0; i<bytes.length; i+=TAMANHO_PEDACO){
+      const pedaco = bytes.slice(i, i+TAMANHO_PEDACO);
+      await _impressoraDireta.writer.write(pedaco);
+      await new Promise(r=>setTimeout(r, pausaMs));
+    }
     return;
   }
   if(_impressoraDireta.tipo==='bluetooth' && _impressoraDireta.bleChar){
@@ -9290,6 +9321,8 @@ function renderImpressoraEtiquetaUI(){
   if(gapWrap) gapWrap.style.display = (modo==='sistema' || protocolo!=='tspl') ? 'none' : '';
   const protocoloWrap = document.getElementById('cfg_etiquetaProtocoloWrap');
   if(protocoloWrap) protocoloWrap.style.display = modo==='sistema' ? 'none' : '';
+  const baudWrap = document.getElementById('cfg_etiquetaBaudWrap');
+  if(baudWrap) baudWrap.style.display = modo==='usb' ? '' : 'none';
   const escposAvisoWrap = document.getElementById('cfg_etiquetaEscposAvisoWrap');
   if(escposAvisoWrap) escposAvisoWrap.style.display = (modo==='sistema' || protocolo!=='escpos') ? 'none' : '';
 }
@@ -9302,6 +9335,10 @@ function mudarProtocoloImpressaoEtiqueta(valor){
   DB.settings.etiquetaProtocolo = valor;
   saveSettingsLive();
   renderImpressoraEtiquetaUI();
+}
+function mudarBaudRateImpressao(valor){
+  DB.settings.etiquetaBaudRate = Number(valor) || 9600;
+  saveSettingsLive();
 }
 /* =========================================================
    EDITOR DE ETIQUETAS PERSONALIZADO (arrastar, redimensionar,
@@ -11912,6 +11949,7 @@ function renderConfig(){
   document.getElementById('cfg_etiquetaModoImpressao').value = DB.settings.etiquetaModoImpressao || 'sistema';
   document.getElementById('cfg_etiquetaGapMm').value = (typeof DB.settings.etiquetaGapMm==='number') ? DB.settings.etiquetaGapMm : 2;
   document.getElementById('cfg_etiquetaProtocolo').value = DB.settings.etiquetaProtocolo || 'tspl';
+  document.getElementById('cfg_etiquetaBaudRate').value = String(DB.settings.etiquetaBaudRate || 9600);
   renderImpressoraEtiquetaUI();
   updateLogoOptionUI();
   renderVisualConfigUI();
@@ -12436,6 +12474,11 @@ function saveSettingsLive(){
   if(protocoloSel){
     DB.settings.etiquetaProtocolo = protocoloSel.value === 'escpos' ? 'escpos' : 'tspl';
   }
+  const baudSel = document.getElementById('cfg_etiquetaBaudRate');
+  if(baudSel){
+    const baud = Number(baudSel.value);
+    DB.settings.etiquetaBaudRate = [9600,19200,38400,57600,115200].includes(baud) ? baud : 9600;
+  }
   const notifCheckbox = document.getElementById('cfg_enableDeviceAcceptNotif');
   if(notifCheckbox){
     setDeviceAcceptNotifEnabled(notifCheckbox.checked);
@@ -12677,7 +12720,7 @@ async function apagarTudoExecutar(){
     });
   }
   if(manterEtiqueta){
-    ['etiquetaModelos','etiquetaLayout','etiquetaOrientacao','etiquetaModoCustom','etiquetaMostrarBarras','etiquetaMostrarFoto','etiquetaFonte','etiquetaTamanho','etiquetaCor','etiquetaLarguraMm','etiquetaAlturaMm','etiquetaModoImpressao','etiquetaGapMm','etiquetaProtocolo'].forEach(k=>{
+    ['etiquetaModelos','etiquetaLayout','etiquetaOrientacao','etiquetaModoCustom','etiquetaMostrarBarras','etiquetaMostrarFoto','etiquetaFonte','etiquetaTamanho','etiquetaCor','etiquetaLarguraMm','etiquetaAlturaMm','etiquetaModoImpressao','etiquetaGapMm','etiquetaProtocolo','etiquetaBaudRate'].forEach(k=>{
       if(typeof settingsAntigos[k]!=='undefined') novoSettings[k] = settingsAntigos[k];
     });
   }
