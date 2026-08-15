@@ -8507,38 +8507,49 @@ function renderEtiquetaInto(container, p, modelo, sfx, barcodeValue){
   }
   if(modelo==='custom' || (typeof modelo==='string' && modelo.indexOf('custom:')===0)){
     const idModelo = modelo==='custom' ? null : modelo.slice(7);
-    renderEtiquetaCustomInto(container, p, sfx, idModelo, barcodeValue);
-    return;
+    return renderEtiquetaCustomInto(container, p, sfx, idModelo, barcodeValue);
   }
   container.innerHTML = buildEtiquetaHTML(p, modelo, sfx, codigoExibido);
+  const promessasDesenho = [];
   const mostrarBarras = DB.settings.etiquetaMostrarBarras !== false;
   if(mostrarBarras){
-    desenharBarcodeComRetry(sfx, codigoExibido, 0);
+    promessasDesenho.push(desenharBarcodeComRetry(sfx, codigoExibido, 0));
   }
   const mostrarQr = DB.settings.etiquetaMostrarQr !== false && !!(DB.settings.etiquetaQr && DB.settings.etiquetaQr.trim());
   if(mostrarQr){
-    desenharQrComRetry(sfx, 0);
+    promessasDesenho.push(desenharQrComRetry(sfx, 0));
   }
+  return Promise.all(promessasDesenho);
 }
 function desenharBarcodeComRetry(sfx, valor, tentativa){
-  if(typeof JsBarcode === 'undefined'){
-    garantirJsBarcode(); // dispara o download sob demanda (só baixa 1x por sessão)
-    if(tentativa < 4){ setTimeout(()=>desenharBarcodeComRetry(sfx, valor, tentativa+1), 400); return; }
-    toast('Não foi possível gerar o código de barras (sem conexão com a biblioteca externa). Verifique sua internet.', 'erro');
-    return;
-  }
-  const canvasEl = document.getElementById('etqBarcodeSvg_'+sfx);
-  const wrap = canvasEl ? canvasEl.parentElement : null;
-  const larguraCss = wrap ? wrap.clientWidth : 0;
-  const alturaCss = wrap ? wrap.clientHeight : 0;
-  // o wrapper pode ainda não ter recebido layout (ex.: primeiro frame de um modal recém-aberto,
-  // ou área de impressão que acabou de virar display:block) — sem a largura real do espaço
-  // não dá pra calcular a espessura certa de cada barra, então espera mais um pouco.
-  if((!larguraCss || !alturaCss) && tentativa < 8){
-    setTimeout(()=>desenharBarcodeComRetry(sfx, valor, tentativa+1), 120);
-    return;
-  }
-  try{
+  // Devolve uma Promise que só resolve quando o código de barras já foi desenhado no
+  // canvas (ou quando desistiu, em caso de erro/sem internet) — isso permite que quem
+  // chama (ex.: a impressão) espere o desenho terminar de verdade antes de continuar,
+  // em vez de confiar num tempo fixo que pode não ser suficiente (esse era o bug: às
+  // vezes a etiqueta saía impressa sem o código de barras porque a impressão disparava
+  // antes do desenho terminar, especialmente logo que o app carrega e a biblioteca
+  // JsBarcode ainda está sendo baixada pela primeira vez na sessão).
+  return new Promise(function(resolve){
+    (function tentar(tentativa){
+      if(typeof JsBarcode === 'undefined'){
+        garantirJsBarcode(); // dispara o download sob demanda (só baixa 1x por sessão)
+        if(tentativa < 4){ setTimeout(()=>tentar(tentativa+1), 400); return; }
+        toast('Não foi possível gerar o código de barras (sem conexão com a biblioteca externa). Verifique sua internet.', 'erro');
+        resolve();
+        return;
+      }
+      const canvasEl = document.getElementById('etqBarcodeSvg_'+sfx);
+      const wrap = canvasEl ? canvasEl.parentElement : null;
+      const larguraCss = wrap ? wrap.clientWidth : 0;
+      const alturaCss = wrap ? wrap.clientHeight : 0;
+      // o wrapper pode ainda não ter recebido layout (ex.: primeiro frame de um modal recém-aberto,
+      // ou área de impressão que acabou de virar display:block) — sem a largura real do espaço
+      // não dá pra calcular a espessura certa de cada barra, então espera mais um pouco.
+      if((!larguraCss || !alturaCss) && tentativa < 8){
+        setTimeout(()=>tentar(tentativa+1), 120);
+        return;
+      }
+      try{
     const corBarras = DB.settings.etiquetaCor || '#000000';
     // ---- Por que canvas, e não mais <svg> ----
     // O código já saía com quiet zone certa, mas continuava ilegível porque o problema real
@@ -8572,29 +8583,40 @@ function desenharBarcodeComRetry(sfx, valor, tentativa){
       margin: margemFinal,
       lineColor: corBarras
     });
-    // canvasEl.width/height (o buffer real, em pixels) já ficou no tamanho de alta resolução
-    // calculado acima. O CSS (.etq-barcodeSvgWrap canvas{width:100%;height:100%}) só ajusta o
-    // tamanho EXIBIDO pra caber no espaço da etiqueta, sem reamostrar/perder nitidez do desenho.
-  }catch(err){
-    console.error('Erro ao gerar código de barras:', err);
-    toast('Erro ao gerar o código de barras: ' + err.message, 'erro');
-  }
+        // canvasEl.width/height (o buffer real, em pixels) já ficou no tamanho de alta resolução
+        // calculado acima. O CSS (.etq-barcodeSvgWrap canvas{width:100%;height:100%}) só ajusta o
+        // tamanho EXIBIDO pra caber no espaço da etiqueta, sem reamostrar/perder nitidez do desenho.
+      }catch(err){
+        console.error('Erro ao gerar código de barras:', err);
+        toast('Erro ao gerar o código de barras: ' + err.message, 'erro');
+      }
+      resolve();
+    })(tentativa);
+  });
 }
 function desenharQrComRetry(sfx, tentativa){
-  if(typeof QRious === 'undefined'){
-    garantirQRious();
-    if(tentativa < 4){ setTimeout(()=>desenharQrComRetry(sfx, tentativa+1), 400); return; }
-    toast('Não foi possível gerar o QR code (sem conexão com a biblioteca externa).', 'erro');
-    return;
-  }
-  try{
-    let link = DB.settings.etiquetaQr.trim();
-    if(!/^https?:\/\//i.test(link)) link = 'https://' + link;
-    new QRious({element: document.getElementById('etqQrCanvas_'+sfx), value: link, size:200, level:'M'});
-  }catch(err){
-    console.error('Erro ao gerar QR code:', err);
-    toast('Erro ao gerar o QR code: ' + err.message, 'erro');
-  }
+  // Mesma lógica de desenharBarcodeComRetry: devolve uma Promise que só resolve quando
+  // o QR já foi desenhado (ou desistiu), pra quem chama poder esperar terminar de verdade.
+  return new Promise(function(resolve){
+    (function tentar(tentativa){
+      if(typeof QRious === 'undefined'){
+        garantirQRious();
+        if(tentativa < 4){ setTimeout(()=>tentar(tentativa+1), 400); return; }
+        toast('Não foi possível gerar o QR code (sem conexão com a biblioteca externa).', 'erro');
+        resolve();
+        return;
+      }
+      try{
+        let link = DB.settings.etiquetaQr.trim();
+        if(!/^https?:\/\//i.test(link)) link = 'https://' + link;
+        new QRious({element: document.getElementById('etqQrCanvas_'+sfx), value: link, size:200, level:'M'});
+      }catch(err){
+        console.error('Erro ao gerar QR code:', err);
+        toast('Erro ao gerar o QR code: ' + err.message, 'erro');
+      }
+      resolve();
+    })(tentativa);
+  });
 }
 
 function openLabelPicker(productId){
@@ -8703,12 +8725,18 @@ function imprimirEtiquetaFinal(){
   if(!p && !(produtosMultiplos && produtosMultiplos.length)) return;
   if(p) salvarModeloSeMarcado();
   area.innerHTML = '';
+  // Guarda uma Promise por etiqueta (ela só resolve quando o código de barras — e o QR,
+  // se houver — já foi de fato desenhado no canvas daquela etiqueta) e o elemento DOM
+  // correspondente, na mesma ordem, pra depois capturar cada um em uma página do PDF.
+  const promessasEtiquetas = [];
+  const itensEtiquetas = [];
   if(produtosMultiplos && produtosMultiplos.length){
     produtosMultiplos.forEach(function(prod, index){
       const item = document.createElement('div');
       item.className = 'etqPrintItem';
-      renderEtiquetaInto(item, prod, _etqState.modelo, 'print_' + index, prod.barcode);
+      promessasEtiquetas.push(renderEtiquetaInto(item, prod, _etqState.modelo, 'print_' + index, prod.barcode));
       area.appendChild(item);
+      itensEtiquetas.push(item);
     });
   } else {
     const qtd = Math.max(1, Number(_etqState.quantidade)||1);
@@ -8723,19 +8751,67 @@ function imprimirEtiquetaFinal(){
     codigos.slice(0, qtd).forEach(function(codigo, index){
       const item = document.createElement('div');
       item.className = 'etqPrintItem';
-      renderEtiquetaInto(item, p, _etqState.modelo, 'print_' + index, codigo);
+      promessasEtiquetas.push(renderEtiquetaInto(item, p, _etqState.modelo, 'print_' + index, codigo));
       area.appendChild(item);
+      itensEtiquetas.push(item);
     });
   }
-  atualizarTamanhoPaginaImpressao_(dimsDoModeloEscolhido_());
-  area.style.display='block';
+  const dims = dimsDoModeloEscolhido_();
+  // Em vez de deixar a área visível na tela pra imprimir a PÁGINA (window.print, que
+  // depende do @media print do navegador e tinha bugs pra renderizar o código de
+  // barras corretamente), a área fica fora da tela (position:fixed, fora da viewport)
+  // mas com layout real — assim cada etiqueta tem o tamanho físico certo em mm pra ser
+  // fotografada pelo html2canvas, sem que a pessoa veja essa área "piscando" na tela.
+  area.style.cssText = 'display:block;position:fixed;left:-10000px;top:0;';
   closeModal();
-  requestAnimationFrame(function(){
-    requestAnimationFrame(function(){
-      window.print();
-      area.style.display='none';
-      area.innerHTML='';
+  function limparArea(){
+    area.style.cssText = 'display:none;';
+    area.innerHTML = '';
+  }
+  // Espera todos os desenhos terminarem (com um teto de segurança de 6s pra nunca travar
+  // a impressão indefinidamente, ex.: se a internet cair no meio do desenho).
+  const tetoSeguranca = new Promise(function(resolve){ setTimeout(resolve, 6000); });
+  Promise.race([Promise.all(promessasEtiquetas), tetoSeguranca]).then(function(){
+    return Promise.all([garantirHtml2Canvas(), garantirJsPDF()]);
+  }).then(function(){
+    if(typeof html2canvas==='undefined' || !window.jspdf){
+      limparArea();
+      alertModal('Não foi possível preparar a impressão (recurso indisponível). Verifique sua internet e tente novamente.');
+      return;
+    }
+    const { jsPDF } = window.jspdf;
+    const orientacao = dims.w>=dims.h ? 'landscape' : 'portrait';
+    const doc = new jsPDF({orientation: orientacao, unit:'mm', format:[dims.w,dims.h]});
+    // Fotografa cada etiqueta em sequência (uma de cada vez, não todas ao mesmo tempo)
+    // pra não sobrecarregar a memória do celular/PC em impressões com muitas etiquetas.
+    let cadeia = Promise.resolve();
+    itensEtiquetas.forEach(function(item, index){
+      cadeia = cadeia.then(function(){
+        return html2canvas(item, {scale:8, backgroundColor:'#ffffff'}).then(function(canvas){
+          if(index > 0) doc.addPage([dims.w,dims.h], orientacao);
+          const img = canvas.toDataURL('image/png');
+          doc.addImage(img, 'PNG', 0, 0, dims.w, dims.h);
+        });
+      });
     });
+    return cadeia.then(function(){
+      limparArea();
+      // Abre a caixa de impressão NATIVA DO PDF (visualizador de PDF do navegador),
+      // em vez do window.print() da página HTML. Como o PDF já é um "retrato" fechado
+      // de cada etiqueta (o código de barras já virou imagem, não precisa mais ser
+      // desenhado de novo na hora de imprimir), sai idêntico em qualquer impressora,
+      // sem os bugs de layout/margem que a impressão de página comum podia ter.
+      doc.autoPrint();
+      const blobUrl = doc.output('bloburl');
+      const janela = window.open(blobUrl, '_blank');
+      if(!janela){
+        alertModal('Não foi possível abrir a janela de impressão (bloqueada pelo navegador). Permita pop-ups para este site e tente novamente.');
+      }
+    });
+  }).catch(function(err){
+    console.error('Erro ao preparar etiquetas para impressão:', err);
+    limparArea();
+    alertModal('Erro ao preparar a impressão das etiquetas.');
   });
 }
 // A regra @page do CSS fica fixa em 50mm x 30mm (etiqueta padrão); quando a
@@ -9114,37 +9190,44 @@ function preencherConteudoElemento(box, el, p, sfx){
       const cid = `etqElQr_${sfx}_${el.id}`;
       inner.innerHTML = `<canvas id="${cid}"></canvas>`;
       if(DB.settings.etiquetaQr && DB.settings.etiquetaQr.trim()){
-        setTimeout(()=>desenharQrEmCanvas(cid), 0);
+        return new Promise(function(resolve){
+          setTimeout(()=>{ desenharQrEmCanvas(cid).then(resolve); }, 0);
+        });
       }
       break;
     }
     case 'barras': {
       const sid = `etqElBar_${sfx}_${el.id}`;
       inner.innerHTML = `<canvas id="${sid}"></canvas>`;
-      setTimeout(()=>desenharBarcodeEmCanvas(sid, p.barcode||'', corDestaque, !!el.mostrarNumero, el.textoPosicao, el.larguraPct), 0);
-      break;
+      return new Promise(function(resolve){
+        setTimeout(()=>{ desenharBarcodeEmCanvas(sid, p.barcode||'', corDestaque, !!el.mostrarNumero, el.textoPosicao, el.larguraPct).then(resolve); }, 0);
+      });
     }
   }
 }
 function desenharBarcodeEmCanvas(canvasId, valor, cor, mostrarNumero, textoPosicao, larguraPct, tentativa){
-  tentativa = tentativa||0;
-  if(typeof JsBarcode==='undefined'){
-    garantirJsBarcode();
-    if(tentativa<4){ setTimeout(()=>desenharBarcodeEmCanvas(canvasId,valor,cor,mostrarNumero,textoPosicao,larguraPct,tentativa+1), 400); return; }
-    return;
-  }
-  const canvasEl = document.getElementById(canvasId);
-  if(!canvasEl || !valor) return;
-  const wrap = canvasEl.parentElement;
-  const larguraCss = wrap ? wrap.clientWidth : 0;
-  const alturaCss = wrap ? wrap.clientHeight : 0;
-  // a caixa do elemento no editor pode ainda não ter tamanho de layout (primeiro frame,
-  // ou logo depois de o usuário soltar a alça de redimensionar) — espera um pouco mais.
-  if((!larguraCss || !alturaCss) && tentativa<8){
-    setTimeout(()=>desenharBarcodeEmCanvas(canvasId,valor,cor,mostrarNumero,textoPosicao,larguraPct,tentativa+1), 120);
-    return;
-  }
-  try{
+  // Mesmo esquema de Promise de desenharBarcodeComRetry: resolve só quando o desenho
+  // terminou (ou desistiu), pra quem chama (impressão) poder esperar de verdade.
+  return new Promise(function(resolve){
+    (function tentar(tentativa){
+      if(typeof JsBarcode==='undefined'){
+        garantirJsBarcode();
+        if(tentativa<4){ setTimeout(()=>tentar(tentativa+1), 400); return; }
+        resolve();
+        return;
+      }
+      const canvasEl = document.getElementById(canvasId);
+      if(!canvasEl || !valor){ resolve(); return; }
+      const wrap = canvasEl.parentElement;
+      const larguraCss = wrap ? wrap.clientWidth : 0;
+      const alturaCss = wrap ? wrap.clientHeight : 0;
+      // a caixa do elemento no editor pode ainda não ter tamanho de layout (primeiro frame,
+      // ou logo depois de o usuário soltar a alça de redimensionar) — espera um pouco mais.
+      if((!larguraCss || !alturaCss) && tentativa<8){
+        setTimeout(()=>tentar(tentativa+1), 120);
+        return;
+      }
+      try{
     // Canvas em vez de SVG pelo mesmo motivo do resto da etiqueta: html2canvas e algumas
     // rotas de impressão têm bugs conhecidos ao rasterizar <svg> com estilo CSS aplicado.
     const ESCALA_RESOLUCAO = 4;
@@ -9172,37 +9255,46 @@ function desenharBarcodeEmCanvas(canvasId, valor, cor, mostrarNumero, textoPosic
     // é o que permite "aumentar e esticar" o código). A margem (quiet zone) agora fica bem
     // enxuta, só o suficiente pra não cortar a barra, pra o código preencher a caixa toda
     // (a área ao redor com a borda laranja no editor) em vez de sobrar espaço vazio.
-    const fatorEscala = larguraAlvo / larguraReferencia;
-    const moduloFinal = Math.max(1, fatorEscala);
-    const margemFinal = Math.max(1, 2 * fatorEscala);
-    JsBarcode(canvasEl, valor, {
-      format:'CODE128',
-      displayValue: !!mostrarNumero,
-      textPosition: posicaoTexto,
-      fontOptions: 'bold',
-      textMargin: 2,
-      fontSize: Math.max(10, Math.round(alturaAlvo*0.16)),
-      height: alturaBarras,
-      width: moduloFinal,
-      margin: margemFinal,
-      lineColor: cor||'#000000'
-    });
-  }catch(err){ console.error('Erro código de barras (etiqueta personalizada):', err); }
+        const fatorEscala = larguraAlvo / larguraReferencia;
+        const moduloFinal = Math.max(1, fatorEscala);
+        const margemFinal = Math.max(1, 2 * fatorEscala);
+        JsBarcode(canvasEl, valor, {
+          format:'CODE128',
+          displayValue: !!mostrarNumero,
+          textPosition: posicaoTexto,
+          fontOptions: 'bold',
+          textMargin: 2,
+          fontSize: Math.max(10, Math.round(alturaAlvo*0.16)),
+          height: alturaBarras,
+          width: moduloFinal,
+          margin: margemFinal,
+          lineColor: cor||'#000000'
+        });
+      }catch(err){ console.error('Erro código de barras (etiqueta personalizada):', err); }
+      resolve();
+    })(tentativa||0);
+  });
 }
 function desenharQrEmCanvas(canvasId, tentativa){
-  tentativa = tentativa||0;
-  if(typeof QRious==='undefined'){
-    garantirQRious();
-    if(tentativa<4){ setTimeout(()=>desenharQrEmCanvas(canvasId,tentativa+1), 400); return; }
-    return;
-  }
-  const el = document.getElementById(canvasId);
-  if(!el || !DB.settings.etiquetaQr) return;
-  try{
-    let link = DB.settings.etiquetaQr.trim();
-    if(!/^https?:\/\//i.test(link)) link = 'https://' + link;
-    new QRious({element: el, value: link, size:200, level:'M'});
-  }catch(err){ console.error('Erro QR code (etiqueta personalizada):', err); }
+  // Mesmo esquema de Promise: resolve só quando o QR já foi desenhado (ou desistiu).
+  return new Promise(function(resolve){
+    (function tentar(tentativa){
+      if(typeof QRious==='undefined'){
+        garantirQRious();
+        if(tentativa<4){ setTimeout(()=>tentar(tentativa+1), 400); return; }
+        resolve();
+        return;
+      }
+      const el = document.getElementById(canvasId);
+      if(!el || !DB.settings.etiquetaQr){ resolve(); return; }
+      try{
+        let link = DB.settings.etiquetaQr.trim();
+        if(!/^https?:\/\//i.test(link)) link = 'https://' + link;
+        new QRious({element: el, value: link, size:200, level:'M'});
+      }catch(err){ console.error('Erro QR code (etiqueta personalizada):', err); }
+      resolve();
+    })(tentativa||0);
+  });
 }
 
 /* -------- arrastar (mover posição) -------- */
@@ -9559,10 +9651,15 @@ function renderEtiquetaCustomInto(container, p, sfx, idModelo, barcodeValue){
   const {w,h} = modelo.orientacao==='vertical' ? {w:30,h:50} : {w:50,h:30};
   const pParaEtiqueta = Object.assign({}, p, {barcode: barcodeValue || p.barcode || ''});
   container.innerHTML = `<div class="etq etqCustom" style="--etq-accent:${corDestaque};width:${w}mm;height:${h}mm;">${layout.map(el=>etqElementDivHTML(el, false)).join('')}</div>`;
+  const promessasDesenho = [];
   layout.forEach(el=>{
     const box = container.querySelector(`[data-elid="${el.id}"]`);
-    if(box) preencherConteudoElemento(box, el, pParaEtiqueta, sfx);
+    if(box){
+      const resultado = preencherConteudoElemento(box, el, pParaEtiqueta, sfx);
+      if(resultado && typeof resultado.then === 'function') promessasDesenho.push(resultado);
+    }
   });
+  return Promise.all(promessasDesenho);
 }
 
 function editProduct(id){
