@@ -1148,6 +1148,38 @@ html.is-mobile #printSuccessNotify .pNotifyIcon{font-size:26px;}
 html.is-mobile #printSuccessNotify .connNotifyTitle{font-size:13.5px;}
 html.is-mobile #printSuccessNotify .connNotifyMsg{font-size:12px;}
 
+/* ---------- Avisos de CONEXÃO DE IMPRESSORA no canto (conectando / conectou / falhou) ----------
+   Ficam empilhados no canto inferior direito, sem cobrir o meio da tela — diferente dos avisos
+   grandes de cima (#connNotify / #printSuccessNotify), que são pra internet/impressão concluída.
+   Usados tanto pelo botão rápido "Conectar impressora" do Estoque quanto pela tela de
+   Configurações → Impressora de Etiquetas. */
+#printerConnToastStack{
+  position:fixed;right:16px;bottom:16px;z-index:9500;
+  display:flex;flex-direction:column-reverse;gap:10px;
+  pointer-events:none;max-width:300px;
+}
+.printerConnToast{
+  pointer-events:auto;display:flex;align-items:center;gap:10px;
+  background:var(--glass-bg-strong);border:1.5px solid var(--glass-border);
+  border-left:5px solid var(--orange);border-radius:12px;padding:10px 14px;
+  box-shadow:0 10px 30px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.08);
+  backdrop-filter:blur(var(--glass-blur)) saturate(160%);-webkit-backdrop-filter:blur(var(--glass-blur)) saturate(160%);
+  opacity:0;transform:translateX(30px) scale(.95);
+  transition:opacity .25s ease, transform .25s ease;
+}
+.printerConnToast.show{opacity:1;transform:translateX(0) scale(1);}
+.printerConnToast.connecting{border-left-color:var(--orange);}
+.printerConnToast.success{border-left-color:var(--green);}
+.printerConnToast.error{border-left-color:var(--red);}
+.printerConnToast .pctIcon{font-size:22px;line-height:1;flex-shrink:0;}
+.printerConnToast.connecting .pctIcon{animation:pctSpin 1s linear infinite;display:inline-block;}
+@keyframes pctSpin{to{transform:rotate(360deg);}}
+.printerConnToast .pctTitle{font-size:13px;font-weight:800;color:var(--text);}
+.printerConnToast .pctMsg{font-size:11.5px;color:var(--text-dim);margin-top:1px;line-height:1.3;}
+html.anim-off-toast .printerConnToast{transition:none !important;}
+html.anim-off-toast .printerConnToast.connecting .pctIcon{animation:none !important;}
+html.is-mobile #printerConnToastStack{right:8px;bottom:8px;max-width:78vw;}
+
 /* ---------- Popup grande de "adicionado ao carrinho" (bem visível, no PDV) ---------- */
 #cartAddPopup{
   position:fixed;top:84px;left:50%;z-index:2500;
@@ -2846,6 +2878,7 @@ html.is-mobile .btn::before{ display:none; }
                 <input id="estoqueBarcodeFilter" placeholder="🔎 Buscar só por código de barras..." autocomplete="off" style="width:250px" oninput="debouncedCall('estoqueBarcodeFilter',renderEstoqueLista)" onkeydown="if(event.key==='Enter'){event.preventDefault();buscarProdutoPorCodigoBarras();}">
               </div>
               <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;">
+                <button type="button" class="btn secondary small" id="btnConectarImpressoraEstoqueRapido" style="display:none;" onclick="conectarImpressoraRapidoEstoque()" title="Conecta automaticamente na impressora de etiquetas usada mais recentemente, sem precisar ir em Configurações">🖨️ Conectar impressora</button>
                 <div class="dimSmall" id="estoqueTotalStock" style="font-weight:700;color:var(--orange);"></div>
                 <div class="dimSmall" id="lowStockAlert"></div>
               </div>
@@ -3612,13 +3645,17 @@ html.is-mobile .btn::before{ display:none; }
             <div class="dimSmall" style="margin-top:4px;">Manda a impressora avançar algumas etiquetas sozinha usando o sensor, pra ela "aprender" o tamanho exato do gap/marca sozinha (recomendado sempre que trocar o rolo de etiquetas ou se o sensor começar a desalinhar). Precisa da impressora já conectada (USB ou Bluetooth) e de pelo menos 2-3 etiquetas em branco pra passar em vazio durante a calibração.</div>
           </div>
           <div class="field" style="margin-top:8px;">
+            <label>Conectividade (USB + Bluetooth num só lugar)</label>
             <div id="impressoraEtiquetaStatus" class="dimSmall" style="margin-bottom:8px;">⏳ Nenhum aparelho conectado nesta sessão</div>
-            <button type="button" class="btn secondary small" id="btnConectarImpressoraUSB" style="display:none;" onclick="conectarImpressoraUSB()">🔌 Conectar impressora USB</button>
-            <button type="button" class="btn secondary small" id="btnConectarImpressoraBT" style="display:none;" onclick="conectarImpressoraBluetooth()">📶 Conectar impressora Bluetooth</button>
-            <button type="button" class="btn secondary small" id="btnTestarImpressora" style="display:none;" onclick="testarImpressoraDireta()">🧪 Testar impressão</button>
-            <button type="button" class="btn secondary small" id="btnDesconectarImpressora" style="display:none;" onclick="desconectarImpressoraDireta()">✖ Desconectar</button>
+            <div id="impressoraDispositivosList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px;"></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button type="button" class="btn secondary small" id="btnConectarImpressoraUSB" style="display:none;" onclick="conectarImpressoraUSB()">🔌 Detectar aparelho USB novo</button>
+              <button type="button" class="btn secondary small" id="btnConectarImpressoraBT" style="display:none;" onclick="conectarImpressoraBluetooth()">📶 Detectar aparelho Bluetooth novo</button>
+              <button type="button" class="btn secondary small" id="btnTestarImpressora" style="display:none;" onclick="testarImpressoraDireta()">🧪 Testar impressão</button>
+              <button type="button" class="btn secondary small" id="btnDesconectarImpressora" style="display:none;" onclick="desconectarImpressoraDireta()">✖ Desconectar</button>
+            </div>
           </div>
-          <p class="dimSmall">USB só funciona no Chrome/Edge do computador, e só se a impressora aparecer como porta serial/COM. Bluetooth só funciona com impressoras Bluetooth LE — a maioria das térmicas baratas usa Bluetooth clássico (SPP), que nenhum navegador consegue acessar direto; se sua impressora não aparecer na lista, use USB ou "Caixa do sistema". A conexão direta vale só para este aparelho (precisa clicar em "Conectar impressora" uma vez em cada computador/celular que for imprimir) — mas, depois desse primeiro clique, o sistema reconecta sozinho nela ao entrar, ao recarregar a página ou se ela cair e voltar, sem precisar clicar de novo.</p>
+          <p class="dimSmall">USB só funciona no Chrome/Edge do computador, e só se a impressora aparecer como porta serial/COM. Bluetooth só funciona com impressoras Bluetooth LE — a maioria das térmicas baratas usa Bluetooth clássico (SPP), que nenhum navegador consegue acessar direto; se sua impressora não aparecer na lista, use USB ou "Caixa do sistema". A conexão direta vale só para este aparelho — mas, uma vez conectada aqui, ela fica na lista de "aparelhos recentes" acima (e também disponível no botão rápido da tela de Estoque), e o sistema reconecta nela sozinho ao entrar, ao recarregar a página, ou se ela cair e voltar no meio de uma impressão, sem precisar clicar de novo.</p>
         </div>
         <div class="panel" style="max-width:520px;">
           <h3>Impressora de Recibo</h3>
@@ -3699,6 +3736,7 @@ html.is-mobile .btn::before{ display:none; }
 
 <!-- Save status widget -->
 <div id="toastStack"></div>
+<div id="printerConnToastStack" aria-live="polite"></div>
 <div id="connNotify" role="alert">
   <div class="connNotifyIcon" id="connNotifyIcon">📴</div>
   <div class="connNotifyText">
@@ -5925,6 +5963,9 @@ function applyPermissions(){
   const backupBtn = document.querySelector('#saveStatus .backupBtn');
   if(logBtn) logBtn.style.display = perm.isTotal ? '' : 'none';
   if(backupBtn) backupBtn.style.display = perm.isTotal ? '' : 'none';
+  // Botão rápido "Conectar impressora" no Estoque — só pra admin (Acesso total)
+  const btnConectarImpressoraEstoqueRapido = document.getElementById('btnConectarImpressoraEstoqueRapido');
+  if(btnConectarImpressoraEstoqueRapido) btnConectarImpressoraEstoqueRapido.style.display = perm.isTotal ? '' : 'none';
   atualizarBadgeNotificacoes();
 
   const checks = { estoque: perm.canEditStock, clientes: perm.canEditClientes, caixa: perm.isTotal, admin: perm.isTotal };
@@ -9216,6 +9257,190 @@ function baixarEtiquetaPDF(){
 ========================================================= */
 let _impressoraDireta = { tipo:null, port:null, writer:null, bleDevice:null, bleChar:null, nome:'' };
 
+/* ---------------- Avisos de conexão de impressora no canto (conectando/conectou/falhou) ----------------
+   Pequenos toasts empilhados no canto inferior direito (#printerConnToastStack). Diferente do
+   alertModal() (que interrompe com um popup no meio da tela), esses só avisam no canto e somem
+   sozinhos — usados pra dar feedback rápido de "conectando..." → "conectou!"/"não conectou". */
+let _printerConnToastSeq = 0;
+function _escapeHtmlPct_(s){
+  return String(s==null?'':s).replace(/[&<>"']/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+function printerConnToastShow(kind, titulo, msg, autoHideMs){
+  const stack = document.getElementById('printerConnToastStack');
+  if(!stack) return null;
+  const id = 'pct'+(++_printerConnToastSeq);
+  const el = document.createElement('div');
+  el.className = 'printerConnToast '+kind;
+  el.id = id;
+  const icone = kind==='success' ? '✅' : (kind==='error' ? '⚠️' : '🔄');
+  el.innerHTML = '<div class="pctIcon">'+icone+'</div><div><div class="pctTitle"></div><div class="pctMsg"></div></div>';
+  el.querySelector('.pctTitle').textContent = titulo||'';
+  el.querySelector('.pctMsg').textContent = msg||'';
+  stack.appendChild(el);
+  requestAnimationFrame(function(){ el.classList.add('show'); });
+  if(autoHideMs) setTimeout(function(){ printerConnToastRemove(id); }, autoHideMs);
+  return id;
+}
+function printerConnToastUpdate(id, kind, titulo, msg, autoHideMs){
+  const el = id ? document.getElementById(id) : null;
+  if(!el) return printerConnToastShow(kind, titulo, msg, autoHideMs);
+  el.className = 'printerConnToast '+kind+' show';
+  const icone = kind==='success' ? '✅' : (kind==='error' ? '⚠️' : '🔄');
+  el.querySelector('.pctIcon').textContent = icone;
+  el.querySelector('.pctTitle').textContent = titulo||'';
+  el.querySelector('.pctMsg').textContent = msg||'';
+  if(autoHideMs) setTimeout(function(){ printerConnToastRemove(id); }, autoHideMs);
+  return id;
+}
+function printerConnToastRemove(id){
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.classList.remove('show');
+  setTimeout(function(){ if(el.parentNode) el.parentNode.removeChild(el); }, 260);
+}
+
+/* ---------------- Aparelhos recentes da impressora (USB + Bluetooth juntos) ----------------
+   Guardado só neste aparelho (localStorage, nunca sincronizado com o servidor — cada
+   computador/celular tem seus próprios aparelhos pareados). Serve pra: (1) mostrar uma lista
+   única de "dispositivos que já conectaram aqui", misturando USB e Bluetooth, e (2) permitir
+   reconectar com 1 clique (sem abrir caixa de pareamento) tanto na tela de Configurações quanto
+   no botão rápido do Estoque. */
+const RECENT_PRINTERS_STORAGE = 'slmsys_recentPrinters';
+function getDispositivosRecentesImpressora_(){
+  try{ return JSON.parse(localStorage.getItem(RECENT_PRINTERS_STORAGE)||'[]'); }catch(e){ return []; }
+}
+function salvarDispositivosRecentesImpressora_(lista){
+  try{ localStorage.setItem(RECENT_PRINTERS_STORAGE, JSON.stringify(lista.slice(0,5))); }catch(e){}
+}
+function registrarDispositivoRecenteImpressora_(dado){
+  let lista = getDispositivosRecentesImpressora_();
+  lista = lista.filter(function(d){
+    if(d.tipo!==dado.tipo) return true;
+    if(dado.tipo==='usb') return !(d.usbVendorId===dado.usbVendorId && d.usbProductId===dado.usbProductId);
+    return d.bleId!==dado.bleId;
+  });
+  lista.unshift(Object.assign({}, dado, { ts: Date.now() }));
+  salvarDispositivosRecentesImpressora_(lista);
+  renderImpressoraEtiquetaUI();
+}
+function _tempoRelativoCurtoPct_(ts){
+  const diffMin = Math.max(0, Math.round((Date.now()-ts)/60000));
+  if(diffMin < 1) return 'agora mesmo';
+  if(diffMin < 60) return 'há '+diffMin+' min';
+  const diffH = Math.round(diffMin/60);
+  if(diffH < 24) return 'há '+diffH+'h';
+  return 'há '+Math.round(diffH/24)+'d';
+}
+// Tenta reconectar num dispositivo ESPECÍFICO da lista de recentes (sem abrir caixa de
+// pareamento — só funciona se o navegador já tiver permissão salva pra ele, ou seja, se já
+// foi conectado por aqui pelo menos uma vez). Ao conseguir, esse tipo (USB/Bluetooth) passa a
+// ser o "modo" ativo de impressão — é isso que une USB e Bluetooth numa lista só: a loja não
+// precisa mais trocar o "Como imprimir" manualmente antes de reconectar noutro aparelho.
+async function conectarDispositivoRecenteImpressora_(dado){
+  if(!dado) return false;
+  if(dado.tipo==='usb'){
+    if(!('serial' in navigator)) return false;
+    let portas = [];
+    try{ portas = await navigator.serial.getPorts(); }catch(e){ return false; }
+    let port = portas.find(function(p){
+      const info = p.getInfo ? p.getInfo() : {};
+      return info.usbVendorId===dado.usbVendorId && info.usbProductId===dado.usbProductId;
+    });
+    if(!port && portas.length===1) port = portas[0];
+    if(!port) return false;
+    try{
+      const baud = Number(DB.settings.etiquetaBaudRate) || 9600;
+      await port.open({ baudRate: baud });
+      const writer = port.writable.getWriter();
+      await desconectarImpressoraDireta_semLimparUI_();
+      _impressoraDireta = { tipo:'usb', port, writer, bleDevice:null, bleChar:null, nome: dado.nome || 'USB' };
+      port.addEventListener('disconnect', function(){
+        if(_impressoraDireta.port===port){ _impressoraDireta = { tipo:null, port:null, writer:null, bleDevice:null, bleChar:null, nome:'' }; renderImpressoraEtiquetaUI(); }
+      });
+      DB.settings.etiquetaModoImpressao = 'usb';
+      try{ saveSettingsLive(); }catch(e){}
+      registrarDispositivoRecenteImpressora_({ tipo:'usb', nome:_impressoraDireta.nome, usbVendorId: dado.usbVendorId, usbProductId: dado.usbProductId });
+      renderImpressoraEtiquetaUI();
+      return true;
+    }catch(e){ try{ await port.close(); }catch(e2){} return false; }
+  }
+  if(dado.tipo==='bluetooth'){
+    if(!('bluetooth' in navigator) || !navigator.bluetooth.getDevices) return false;
+    let devices = [];
+    try{ devices = await navigator.bluetooth.getDevices(); }catch(e){ return false; }
+    const device = devices.find(function(d){ return d.id===dado.bleId; });
+    if(!device) return false;
+    try{
+      const server = await _comTimeout_(device.gatt.connect(), 8000, 'timeout');
+      let characteristic = null;
+      for(const uuid of BLE_PRINTER_SERVICES){
+        try{
+          const service = await server.getPrimaryService(uuid);
+          const chars = await service.getCharacteristics();
+          characteristic = chars.find(function(c){ return c.properties.write || c.properties.writeWithoutResponse; }) || null;
+          if(characteristic) break;
+        }catch(e){ /* tenta o próximo serviço */ }
+      }
+      if(!characteristic){ try{ device.gatt.disconnect(); }catch(e){} return false; }
+      await desconectarImpressoraDireta_semLimparUI_();
+      _impressoraDireta = { tipo:'bluetooth', port:null, writer:null, bleDevice:device, bleChar:characteristic, nome: device.name || dado.nome || 'Bluetooth' };
+      device.addEventListener('gattserverdisconnected', function(){
+        if(_impressoraDireta.bleDevice===device){
+          _impressoraDireta = { tipo:null, port:null, writer:null, bleDevice:null, bleChar:null, nome:'' };
+          renderImpressoraEtiquetaUI();
+          setTimeout(tentarReconectarImpressoraSilenciosamente_, 1500);
+        }
+      });
+      DB.settings.etiquetaBleDeviceId = device.id;
+      DB.settings.etiquetaModoImpressao = 'bluetooth';
+      try{ saveSettingsLive(); }catch(e){}
+      registrarDispositivoRecenteImpressora_({ tipo:'bluetooth', nome:_impressoraDireta.nome, bleId: device.id });
+      renderImpressoraEtiquetaUI();
+      return true;
+    }catch(e){ return false; }
+  }
+  return false;
+}
+// Fluxo completo com avisos no canto: mostra "Conectando...", tenta reconectar (num
+// dispositivo específico, se informado, ou no último usado) e troca o aviso pra "conectou" ou
+// "não conectou" no final. Usado pelo botão rápido do Estoque e pelos botões "Conectar" da
+// lista de aparelhos recentes em Configurações.
+let _pctFlowRunning = false;
+async function conectarImpressoraComToast_(dispositivo){
+  if(_pctFlowRunning) return;
+  _pctFlowRunning = true;
+  const nomeAlvo = (dispositivo && dispositivo.nome) ? dispositivo.nome : 'impressora';
+  const toastId = printerConnToastShow('connecting', 'Conectando...', nomeAlvo);
+  try{
+    const ok = dispositivo ? await conectarDispositivoRecenteImpressora_(dispositivo) : await tentarReconectarImpressoraSilenciosamente_();
+    if(ok){
+      printerConnToastUpdate(toastId, 'success', 'Impressora conectada!', statusImpressoraDiretaTexto_().replace(/^✅\s*/,''), 4000);
+    }else{
+      printerConnToastUpdate(toastId, 'error', 'Não foi possível conectar', 'Vá em Configurações → Impressora de Etiquetas pra conectar manualmente.', 6000);
+    }
+  }catch(e){
+    printerConnToastUpdate(toastId, 'error', 'Não foi possível conectar', 'Verifique se a impressora está ligada e por perto.', 6000);
+  }finally{
+    _pctFlowRunning = false;
+  }
+}
+// Botão rápido do Estoque (só admin): conecta sozinho no aparelho usado mais recentemente,
+// sem precisar abrir Configurações. Só funciona pra aparelhos já conectados por aqui antes.
+function conectarImpressoraRapidoEstoque(){
+  if(impressoraDiretaDisponivel_()){
+    printerConnToastShow('success', 'Já conectada', statusImpressoraDiretaTexto_().replace(/^✅\s*/,''), 3500);
+    return;
+  }
+  const recentes = getDispositivosRecentesImpressora_();
+  if(!recentes.length){
+    printerConnToastShow('error', 'Nenhum aparelho recente', 'Conecte a impressora uma vez em Configurações → Impressora de Etiquetas.', 6000);
+    return;
+  }
+  conectarImpressoraComToast_(recentes[0]);
+}
+
 function impressoraDiretaDisponivel_(){
   const modo = DB.settings.etiquetaModoImpressao;
   if(modo==='usb') return !!_impressoraDireta.writer;
@@ -9263,6 +9488,8 @@ async function conectarImpressoraUSB(){
       if(_impressoraDireta.port===port){ _impressoraDireta = { tipo:null, port:null, writer:null, bleDevice:null, bleChar:null, nome:'' }; renderImpressoraEtiquetaUI(); }
     });
     log('Impressora de etiquetas conectada via USB (' + baud + ' bps).');
+    const infoUsb = port.getInfo ? port.getInfo() : {};
+    registrarDispositivoRecenteImpressora_({ tipo:'usb', nome:_impressoraDireta.nome, usbVendorId: infoUsb.usbVendorId||null, usbProductId: infoUsb.usbProductId||null });
     renderImpressoraEtiquetaUI();
   }catch(err){
     if(err && err.name==='NotFoundError') return; // pessoa cancelou a seleção, não é erro
@@ -9342,6 +9569,7 @@ async function conectarImpressoraBluetooth(){
     DB.settings.etiquetaBleDeviceId = device.id;
     try{ saveSettingsLive(); }catch(e){}
     log('Impressora de etiquetas conectada via Bluetooth: ' + (device.name||''));
+    registrarDispositivoRecenteImpressora_({ tipo:'bluetooth', nome:_impressoraDireta.nome, bleId: device.id });
     renderImpressoraEtiquetaUI();
   }catch(err){
     if(err && err.name==='NotFoundError') return; // pessoa cancelou a seleção, não é erro
@@ -9397,6 +9625,8 @@ async function tentarReconectarImpressoraSilenciosamente_(){
             if(_impressoraDireta.port===port){ _impressoraDireta = { tipo:null, port:null, writer:null, bleDevice:null, bleChar:null, nome:'' }; renderImpressoraEtiquetaUI(); }
           });
           log('Impressora de etiquetas reconectada sozinha via USB.');
+          const infoUsbRec = port.getInfo ? port.getInfo() : {};
+          registrarDispositivoRecenteImpressora_({ tipo:'usb', nome:_impressoraDireta.nome, usbVendorId: infoUsbRec.usbVendorId||null, usbProductId: infoUsbRec.usbProductId||null });
           renderImpressoraEtiquetaUI();
           return true;
         }catch(e){ try{ await port.close(); }catch(e2){} /* essa porta não abriu (em uso por outra aba, ou não é a impressora) — tenta a próxima, se houver */ }
@@ -9434,6 +9664,7 @@ async function tentarReconectarImpressoraSilenciosamente_(){
         DB.settings.etiquetaBleDeviceId = device.id;
         try{ saveSettingsLive(); }catch(e){}
         log('Impressora de etiquetas reconectada sozinha via Bluetooth: ' + (device.name||''));
+        registrarDispositivoRecenteImpressora_({ tipo:'bluetooth', nome:_impressoraDireta.nome, bleId: device.id });
         renderImpressoraEtiquetaUI();
         return true;
       }catch(e){ return false; }
@@ -9673,7 +9904,25 @@ async function calibrarSensorImpressoraTspl(){
 // pequeno por limitação do próprio protocolo; agora o USB também manda em pedaços,
 // com a pausa calculada a partir da velocidade (baud rate) configurada, pra nunca
 // mandar mais rápido do que a impressora consegue realmente receber.
+// Envia os bytes pra impressora conectada; se a conexão cair NO MEIO do envio (comum em
+// impressoras Bluetooth baratas, que às vezes dormem/soltam a conexão sozinhas durante o
+// trabalho), tenta reconectar sozinha no mesmo aparelho e reenvia tudo de novo uma vez, em vez
+// de simplesmente falhar e deixar a tela "desconfigurada" (voltando pros botões de conectar)
+// no meio de uma impressão.
 async function enviarBytesImpressoraDireta_(bytes){
+  try{
+    await _enviarBytesImpressoraDiretaSemRetry_(bytes);
+  }catch(err){
+    // Zera o estado de conexão antes de tentar reconectar — se não fizer isso, o writer/
+    // característica antigos (já mortos) continuam "parecendo" conectados e a tentativa de
+    // reconexão silenciosa desiste achando que já está tudo certo.
+    _impressoraDireta = { tipo:null, port:null, writer:null, bleDevice:null, bleChar:null, nome:'' };
+    const reconectou = await tentarReconectarImpressoraSilenciosamente_();
+    if(!reconectou){ renderImpressoraEtiquetaUI(); throw err; }
+    await _enviarBytesImpressoraDiretaSemRetry_(bytes);
+  }
+}
+async function _enviarBytesImpressoraDiretaSemRetry_(bytes){
   if(_impressoraDireta.tipo==='usb' && _impressoraDireta.writer){
     const baud = Number(DB.settings.etiquetaBaudRate) || 9600;
     const TAMANHO_PEDACO = 256;
@@ -9808,10 +10057,33 @@ async function testarImpressaoSistema(){
     alertModal('Não foi possível abrir a caixa de impressão para o teste.');
   }
 }
+function renderListaDispositivosRecentesImpressora_(){
+  const wrap = document.getElementById('impressoraDispositivosList');
+  if(!wrap) return;
+  const recentes = getDispositivosRecentesImpressora_();
+  if(!recentes.length){
+    wrap.innerHTML = '<div class="dimSmall">Nenhum aparelho conectado antes neste dispositivo ainda — use os botões abaixo pra detectar um.</div>';
+    return;
+  }
+  wrap.innerHTML = recentes.map(function(d, i){
+    const conectadoAgora = impressoraDiretaDisponivel_() && _impressoraDireta.tipo===d.tipo &&
+      (d.tipo==='bluetooth' ? (_impressoraDireta.bleDevice && _impressoraDireta.bleDevice.id===d.bleId)
+        : (d.usbVendorId==null || (_impressoraDireta.port && _impressoraDireta.port.getInfo && _impressoraDireta.port.getInfo().usbVendorId===d.usbVendorId && _impressoraDireta.port.getInfo().usbProductId===d.usbProductId)));
+    const icone = d.tipo==='usb' ? '🔌 USB' : '📶 Bluetooth';
+    return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;border:1px solid var(--glass-border);border-radius:8px;">'
+      + '<div style="min-width:0;">'
+      + '<div style="font-weight:700;font-size:12.5px;">'+icone+' — '+_escapeHtmlPct_(d.nome||'')+'</div>'
+      + '<div class="dimSmall" style="font-size:11px;">'+(conectadoAgora ? '✅ conectado agora' : 'conectado pela última vez '+_tempoRelativoCurtoPct_(d.ts))+'</div>'
+      + '</div>'
+      + (conectadoAgora ? '' : '<button type="button" class="btn secondary small" onclick="conectarImpressoraComToast_(getDispositivosRecentesImpressora_()['+i+'])">Conectar</button>')
+      + '</div>';
+  }).join('');
+}
 function renderImpressoraEtiquetaUI(){
   const wrap = document.getElementById('impressoraEtiquetaStatus');
   if(!wrap) return;
   wrap.textContent = statusImpressoraDiretaTexto_();
+  renderListaDispositivosRecentesImpressora_();
   const modo = DB.settings.etiquetaModoImpressao || 'sistema';
   const btnUsb = document.getElementById('btnConectarImpressoraUSB');
   const btnBt = document.getElementById('btnConectarImpressoraBT');
