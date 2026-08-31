@@ -9600,7 +9600,93 @@ function conectarImpressoraRapidoEstoque(){
     printerConnToastShow('error', 'Nenhum aparelho recente', 'Conecte a impressora uma vez em Configurações → Impressora de Etiquetas.', 6000);
     return;
   }
-  conectarImpressoraComToast_(recentes[0]);
+  abrirPopupConectandoImpressora_(recentes[0]);
+}
+
+/* ---------------- Popup "Conectando à impressora..." ----------------
+   Pedido da loja: em vez do avisinho pequeno no canto, mostra um popup central com
+   barra de progresso tentando conectar a cada 5s; se passar de 25s no total sem
+   conseguir, desiste, fecha qualquer conexão que tenha ficado pela metade, e troca
+   pra um segundo popup de "Não foi possível conectar" com botão "Tentar novamente"
+   (que reinicia o ciclo de 25s do zero ao clicar). Se conectar em qualquer tentativa
+   dentro dos 25s, o popup de progresso fecha sozinho, sem precisar de nenhum clique.
+   "_popupConexaoImpressoraToken" serve pra cancelar um ciclo em andamento (se a loja
+   fechar o popup manualmente, ou abrir outro ciclo por cima) sem precisar de uma
+   flag por chamada — qualquer ciclo cujo token não bate mais com o token atual para
+   de se renderizar e de tentar de novo na próxima verificação. */
+const _POPUP_CONEXAO_LIMITE_MS = 25000;
+const _POPUP_CONEXAO_INTERVALO_MS = 5000;
+let _popupConexaoImpressoraToken = 0;
+
+function _esperarMs_(ms){ return new Promise(function(resolve){ setTimeout(resolve, ms); }); }
+
+function _popupConexaoRenderTentando_(nomeAlvo, tentativa, totalTentativas, pctBarra){
+  showModal(`
+    <button class="modalClose" onclick="_popupConexaoCancelar_()">×</button>
+    <h3>Conectando à impressora...</h3>
+    <div style="margin:2px 0 10px;color:var(--text);line-height:1.5;">Tentando conectar${nomeAlvo?' a '+_escapeHtmlPct_(nomeAlvo):''}... (tentativa ${tentativa} de ${totalTentativas})</div>
+    <div style="height:8px;border-radius:99px;background:var(--panel2);overflow:hidden;margin-bottom:16px;">
+      <div style="height:100%;border-radius:99px;background:var(--orange);transition:width .4s linear;width:${Math.min(100,pctBarra)}%;"></div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn secondary" style="flex:1;" onclick="_popupConexaoCancelar_()">Cancelar</button>
+    </div>
+  `);
+}
+function _popupConexaoRenderFalha_(nomeAlvo, dispositivo){
+  showModal(`
+    <button class="modalClose" onclick="closeModal()">×</button>
+    <h3>Não foi possível conectar</h3>
+    <div style="margin:2px 0 18px;color:var(--text);line-height:1.5;">Não conseguimos conectar${nomeAlvo?' a '+_escapeHtmlPct_(nomeAlvo):' à impressora'} depois de várias tentativas. Verifique se ela está ligada e por perto, e tente de novo.</div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn secondary" style="flex:1;" onclick="closeModal()">Fechar</button>
+      <button class="btn" id="popupConexaoTentarNovoBtn" style="flex:1;">Tentar novamente</button>
+    </div>
+  `);
+  document.getElementById('popupConexaoTentarNovoBtn').onclick = function(){ abrirPopupConectandoImpressora_(dispositivo); };
+}
+// Fecha o popup e invalida o ciclo em andamento (se a pessoa clicar em "Cancelar" ou no ×
+// enquanto ainda está tentando conectar).
+function _popupConexaoCancelar_(){
+  _popupConexaoImpressoraToken++;
+  closeModal();
+}
+// Fluxo principal. "dispositivo" é opcional: se vier de um item da lista de "aparelhos
+// recentes" (Configurações), tenta reconectar NESSE aparelho específico; se não vier
+// (botão rápido do Estoque, ou clique em "Tentar novamente" sem aparelho salvo), tenta
+// no último modo/aparelho configurado (mesma lógica silenciosa usada no resto do sistema).
+async function abrirPopupConectandoImpressora_(dispositivo){
+  const meuToken = ++_popupConexaoImpressoraToken;
+  const nomeAlvo = (dispositivo && dispositivo.nome) ? dispositivo.nome : (_impressoraDireta.nome || '');
+  const totalTentativas = Math.ceil(_POPUP_CONEXAO_LIMITE_MS / _POPUP_CONEXAO_INTERVALO_MS);
+  const inicio = Date.now();
+  let tentativa = 0;
+  let conectou = false;
+
+  while(true){
+    if(meuToken !== _popupConexaoImpressoraToken) return; // popup foi cancelado/substituído
+    const decorrido = Date.now() - inicio;
+    if(decorrido >= _POPUP_CONEXAO_LIMITE_MS) break;
+    tentativa++;
+    _popupConexaoRenderTentando_(nomeAlvo, tentativa, totalTentativas, (decorrido/_POPUP_CONEXAO_LIMITE_MS)*100);
+    try{
+      conectou = dispositivo ? await conectarDispositivoRecenteImpressora_(dispositivo) : await tentarReconectarImpressoraSilenciosamente_();
+    }catch(e){ conectou = false; }
+    if(meuToken !== _popupConexaoImpressoraToken) return; // cancelado durante a tentativa
+    if(conectou) break;
+    const decorridoApos = Date.now() - inicio;
+    if(decorridoApos >= _POPUP_CONEXAO_LIMITE_MS) break;
+    await _esperarMs_(Math.min(_POPUP_CONEXAO_INTERVALO_MS, _POPUP_CONEXAO_LIMITE_MS - decorridoApos));
+  }
+
+  if(meuToken !== _popupConexaoImpressoraToken) return; // cancelado durante a espera
+
+  if(conectou){
+    closeModal(); // conectou dentro dos 25s — fecha sozinho, sem precisar de clique
+  } else {
+    try{ await desconectarImpressoraDireta_semLimparUI_(); }catch(e){} // cancela/libera qualquer conexão que tenha ficado pela metade
+    _popupConexaoRenderFalha_(nomeAlvo, dispositivo);
+  }
 }
 
 function impressoraDiretaDisponivel_(){
@@ -10253,7 +10339,7 @@ function renderListaDispositivosRecentesImpressora_(){
       + '<div style="font-weight:700;font-size:12.5px;">'+icone+' — '+_escapeHtmlPct_(d.nome||'')+'</div>'
       + '<div class="dimSmall" style="font-size:11px;">'+(conectadoAgora ? '✅ conectado agora' : 'conectado pela última vez '+_tempoRelativoCurtoPct_(d.ts))+'</div>'
       + '</div>'
-      + (conectadoAgora ? '' : '<button type="button" class="btn secondary small" onclick="conectarImpressoraComToast_(getDispositivosRecentesImpressora_()['+i+'])">Conectar</button>')
+      + (conectadoAgora ? '' : '<button type="button" class="btn secondary small" onclick="abrirPopupConectandoImpressora_(getDispositivosRecentesImpressora_()['+i+'])">Conectar</button>')
       + '</div>';
   }).join('');
 }
