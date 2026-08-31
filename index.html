@@ -2956,6 +2956,7 @@ html.is-mobile .btn::before{ display:none; }
               <button type="button" class="tabBtn active" id="scannerModeBtnConsulta" onclick="scannerSetMode('consulta')">🔎 Consultar etiqueta</button>
               <button type="button" class="tabBtn active" id="scannerModeBtnNovo" onclick="scannerSetMode('novo')">📷 Código Novo</button>
               <button type="button" class="tabBtn" id="scannerModeBtnAdd" onclick="scannerModeAddClick()">➕ Adicionar Estoque (Código Existente)</button>
+              <button type="button" class="tabBtn" id="scannerModeBtnExcluir" onclick="scannerModeExcluirClick()">🗑️ Excluir Produto (Escanear)</button>
             </div>
 
             <div id="scannerModeConsulta">
@@ -2990,6 +2991,16 @@ html.is-mobile .btn::before{ display:none; }
               </div>
               <div class="dimSmall">Se o código escaneado não pertencer a nenhum produto cadastrado, o sistema abre automaticamente a tela de "Código Novo" com esse código.</div>
               <div id="addEstoqueFeedback" style="margin-top:14px;"></div>
+            </div>
+
+            <div id="scannerModeExcluir" style="display:none;">
+              <h3 style="color:var(--red);">🗑️ Excluir Produto ao Escanear</h3>
+              <div class="dimSmall" style="margin-bottom:10px;color:var(--red);">Modo de exclusão rápida: cada código escaneado aqui <b>exclui o produto na hora</b>, sem pedir confirmação por item. Vá com calma. O produto ainda vai pra lixeira 🗑️ (recuperável por 6h), mas evite escanear à toa nesta tela.</div>
+              <div class="field">
+                <label>Código de barras</label>
+                <input id="scannerExcluirCodeInput" placeholder="Escaneie ou digite o código aqui..." autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();scannerExcluirProcessCode();}">
+              </div>
+              <div id="scannerExcluirFeedback" style="margin-top:14px;"></div>
             </div>
           </div>
         </div>
@@ -8122,6 +8133,7 @@ function scannerAbrirAcoesProduto(productId){
     <div style="display:grid;gap:8px;">
       <button class="btn" onclick="editProduct('${p.id}')">✏️ Modificar nome, preço e dados</button>
       <button class="btn secondary" onclick="closeModal();imprimirEtiquetaAposCadastro('${p.id}')">🖨️ Tentar imprimir novamente</button>
+      <button class="btn danger" onclick="closeModal();deleteProduct('${p.id}')">🗑️ Excluir produto</button>
     </div>
   `);
 }
@@ -8260,21 +8272,27 @@ function scannerSetMode(mode){
   const btnConsulta = document.getElementById('scannerModeBtnConsulta');
   const btnNovo = document.getElementById('scannerModeBtnNovo');
   const btnAdd = document.getElementById('scannerModeBtnAdd');
+  const btnExcluir = document.getElementById('scannerModeBtnExcluir');
   const areaConsulta = document.getElementById('scannerModeConsulta');
   const areaNovo = document.getElementById('scannerModeNovo');
   const areaAdd = document.getElementById('scannerModeAdd');
-  if(!btnConsulta || !btnNovo || !btnAdd || !areaConsulta || !areaNovo || !areaAdd) return;
+  const areaExcluir = document.getElementById('scannerModeExcluir');
+  if(!btnConsulta || !btnNovo || !btnAdd || !btnExcluir || !areaConsulta || !areaNovo || !areaAdd || !areaExcluir) return;
   btnConsulta.classList.toggle('active', mode==='consulta');
   btnNovo.classList.toggle('active', mode==='novo');
   btnAdd.classList.toggle('active', mode==='add');
+  btnExcluir.classList.toggle('active', mode==='excluir');
   areaConsulta.style.display = mode==='consulta' ? '' : 'none';
   areaNovo.style.display = mode==='novo' ? '' : 'none';
   areaAdd.style.display = mode==='add' ? '' : 'none';
+  areaExcluir.style.display = mode==='excluir' ? '' : 'none';
   if(mode==='consulta'){
     renderScannerLookupHistory();
     scannerLookupFocus();
   } else if(mode==='add'){
     setTimeout(()=>{ const i=document.getElementById('addEstoqueCodeInput'); if(i) i.focus(); }, 50);
+  } else if(mode==='excluir'){
+    setTimeout(()=>{ const i=document.getElementById('scannerExcluirCodeInput'); if(i) i.focus(); }, 50);
   } else {
     setTimeout(()=>{ const i=document.getElementById('scannerCodeInput'); if(i) i.focus(); }, 50);
   }
@@ -8316,6 +8334,83 @@ function pedirCodigoConfirmacaoAddEstoque(){
     if(e.key==='Enter'){ e.preventDefault(); tentarConfirmar(); }
   });
   input.focus();
+}
+let scannerExcluirSessionCount = 0;
+function scannerModeExcluirClick(){
+  if(!requirePerm(getPerms().isTotal)) return;
+  if(modoTeste){ alertModal('No modo teste a exclusão de produtos fica bloqueada.'); return; }
+  pedirCodigoConfirmacaoExcluir();
+}
+function pedirCodigoConfirmacaoExcluir(){
+  showModal(`
+    <button class="modalClose" onclick="closeModal()">×</button>
+    <h3 style="color:var(--red);">⚠ Confirme para continuar</h3>
+    <div style="margin:2px 0 14px;color:var(--text);line-height:1.5;">Nesse modo, <b>qualquer código escaneado exclui o produto na hora</b>, sem pedir confirmação item por item. Pra ativar, digite <b>EXX</b> abaixo e pressione <b>Enter</b>.</div>
+    <input id="confExcluirInput" type="text" placeholder="Digite EXX" autocomplete="off" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--text);text-transform:uppercase;">
+    <div class="dimSmall" id="confExcluirErro" style="margin-top:6px;color:var(--red);display:none;">Código incorreto. Digite EXX para confirmar.</div>
+    <div style="display:flex;gap:8px;margin-top:14px;">
+      <button class="btn secondary" style="flex:1;" onclick="closeModal()">Cancelar</button>
+      <button class="btn danger" id="confExcluirOkBtn" style="flex:1;">Confirmar</button>
+    </div>
+  `);
+  const input = document.getElementById('confExcluirInput');
+  const erro = document.getElementById('confExcluirErro');
+  const okBtn = document.getElementById('confExcluirOkBtn');
+  const tentarConfirmar = function(){
+    if(input.value.trim().toUpperCase()==='EXX'){
+      closeModal();
+      scannerExcluirSessionCount = 0;
+      const fb = document.getElementById('scannerExcluirFeedback'); if(fb) fb.innerHTML = '';
+      scannerSetMode('excluir');
+    } else {
+      erro.style.display = 'block';
+      input.focus();
+      input.select();
+    }
+  };
+  okBtn.onclick = tentarConfirmar;
+  input.addEventListener('keydown', function(e){
+    if(e.key==='Enter'){ e.preventDefault(); tentarConfirmar(); }
+  });
+  input.focus();
+}
+/* Exclusão direta ao escanear: sem confirmModal por item (o gate já foi feito
+   uma vez, com o EXX, ao entrar nesse modo) — cada leitura já manda o produto
+   pra lixeira na hora, igual ao deleteProduct(), só que sem popup por peça. */
+function scannerExcluirProcessCode(){
+  if(!requirePerm(getPerms().isTotal)) return;
+  const input = document.getElementById('scannerExcluirCodeInput');
+  if(!input) return;
+  const code = input.value.trim();
+  if(!code) return;
+  input.value = '';
+  const fb = document.getElementById('scannerExcluirFeedback');
+  const prod = findProductByBarcode(code);
+  if(!prod){
+    if(fb) fb.innerHTML = `<div class="panel" style="background:var(--panel2);margin:0 0 8px;border:1px solid var(--yellow);"><div style="font-weight:800;color:var(--yellow);">⚠ Código não encontrado</div><div class="dimSmall" style="margin-top:5px;">Nenhum produto com o código <b>${scannerSafeText(code)}</b>.</div></div>` + (fb.innerHTML||'');
+    toast('Código não encontrado no estoque.', 'erro');
+    setTimeout(()=>{ input.focus(); }, 40);
+    return;
+  }
+  const nome = prod.nome;
+  DB.products = DB.products.filter(x=>x.id!==prod.id);
+  marcarExcluido('products', prod.id);
+  if(!Array.isArray(DB.trashProducts)) DB.trashProducts = [];
+  DB.trashProducts.push({ id: uid('trash'), product: prod, deletedAt: Date.now() });
+  if(prod.foto) marcarFotoAlterada(chaveFotoProduto(prod.id), null);
+  log('Produto excluído por leitura de código: '+nome);
+  flashSaving();
+  atualizarBotaoLixeira();
+  renderEstoqueLista();
+  scannerExcluirSessionCount++;
+  if(fb){
+    fb.innerHTML = `<div class="panel" style="background:var(--panel2);margin:0 0 8px;border:1px solid var(--red);">
+      <div style="font-weight:800;color:var(--red);">🗑️ Excluído: ${scannerSafeText(nome)}</div>
+      <div class="dimSmall" style="margin-top:5px;">Código: <b>${scannerSafeText(code)}</b> · Vai pra lixeira, recuperável por 6h.</div>
+    </div>` + (fb.innerHTML||'');
+  }
+  toast(`Produto excluído: ${nome}`, 'ok');
+  setTimeout(()=>{ input.focus(); }, 40);
 }
 function addEstoqueProcessCode(){
   const input = document.getElementById('addEstoqueCodeInput');
@@ -8713,6 +8808,41 @@ let _etqState = {productId:null, modelo:null};
 const ETQ_FONTES = {padrao:"Arial,Helvetica,sans-serif", elegante:"Georgia,'Times New Roman',serif", moderna:"'Courier New',monospace"};
 const ETQ_TAMANHOS = {pequeno:0.85, medio:1, grande:1.15, extra:1.3};
 
+/* =========================================================
+   TRAVA DE IMPRESSORA OCUPADA + BARRA DE PROGRESSO
+   Enquanto uma impressão estiver rolando (qualquer modo: Caixa do sistema,
+   USB ou Bluetooth), nenhuma outra pode começar — evita duas impressões se
+   embolando na mesma impressora. Mostra um popup com barra de progresso
+   contando quantas etiquetas já saíram, pra quem tá imprimindo um lote saber
+   quanto falta sem ficar adivinhando.
+========================================================= */
+let _impressaoEmAndamento = false;
+function impressoraEstaOcupada(){ return _impressaoEmAndamento; }
+function avisarImpressoraOcupada(){
+  alertModal('A impressora está ocupada imprimindo no momento. Aguarde a impressão atual terminar antes de começar outra.');
+}
+function iniciarProgressoImpressao_(total){
+  _impressaoEmAndamento = true;
+  showModal(`
+    <h3 style="margin-bottom:4px;">🖨️ Imprimindo etiquetas</h3>
+    <div class="dimSmall" style="margin-bottom:14px;">A impressora fica ocupada até terminar. Não feche esta tela nem recarregue a página.</div>
+    <div class="contingProgressTrack"><div class="contingProgressBar" id="etqImpProgressBar" style="width:4%;"></div></div>
+    <div class="contingProgressLegenda" id="etqImpProgressLegenda">0 de ${total} etiqueta${total>1?'s':''} impressa${total>1?'s':''}</div>
+  `);
+}
+function atualizarProgressoImpressao_(feitas, total){
+  const bar = document.getElementById('etqImpProgressBar');
+  const legenda = document.getElementById('etqImpProgressLegenda');
+  if(!bar || !legenda) return;
+  const pct = total>0 ? Math.max(4, Math.round((feitas/total)*100)) : 100;
+  bar.style.width = pct+'%';
+  legenda.textContent = feitas+' de '+total+' etiqueta'+(total>1?'s':'')+' impressa'+(total>1?'s':'');
+}
+function finalizarProgressoImpressao_(){
+  _impressaoEmAndamento = false;
+  closeModal();
+}
+
 function buildEtiquetaHTML(p, modelo, sfx, barcodeValue){
   const preco = Number(p.venda)||0;
   const precoInt = Math.floor(preco);
@@ -9032,6 +9162,7 @@ function aplicarTamanhoFisicoEtiqueta_(item, dims, modelo, deslocamentoVerticalM
   }
 }
 function imprimirEtiquetaFinal(){
+  if(_impressaoEmAndamento){ avisarImpressoraOcupada(); return; }
   const area = document.getElementById('printArea');
   if(!area) return;
   // Quando vem de um cadastro de VÁRIAS peças (ex.: popup "Escolher Qtd. e
@@ -9087,7 +9218,9 @@ function imprimirEtiquetaFinal(){
   // assim cada etiqueta tem o tamanho físico certo em mm pra ser fotografada pelo
   // html2canvas, sem que a pessoa veja essa área "piscando" na tela.
   area.style.cssText = 'display:block;position:fixed;left:-10000px;top:0;';
+  const qtdEtiquetas = itensEtiquetas.length;
   closeModal();
+  iniciarProgressoImpressao_(qtdEtiquetas);
   function limparArea(){
     area.style.cssText = 'display:none;';
     area.innerHTML = '';
@@ -9096,7 +9229,6 @@ function imprimirEtiquetaFinal(){
   // a impressão indefinidamente, ex.: se a internet cair no meio do desenho).
   const tetoSeguranca = new Promise(function(resolve){ setTimeout(resolve, 6000); });
   const modoConfigurado = DB.settings.etiquetaModoImpressao || 'sistema';
-  const qtdEtiquetas = itensEtiquetas.length;
   Promise.race([Promise.all(promessasEtiquetas), tetoSeguranca]).then(async function(){
     // Quando a loja escolheu USB ou Bluetooth direto em Configurações, o app NUNCA
     // cai sozinho na caixa de impressão do navegador (o "Ctrl+P") — isso já
@@ -9115,11 +9247,15 @@ function imprimirEtiquetaFinal(){
       }
       if(!impressoraDiretaDisponivel_()){
         limparArea();
+        finalizarProgressoImpressao_();
         alertModal('Nenhuma impressora ' + (modoConfigurado==='usb'?'USB':'Bluetooth') + ' conectada nesta sessão. Vá em Configurações → Impressora de Etiquetas e clique em "Conectar impressora" antes de imprimir.');
         return;
       }
-      return imprimirEtiquetasViaImpressoraDireta_(itensEtiquetas, dims).then(function(){
+      return imprimirEtiquetasViaImpressoraDireta_(itensEtiquetas, dims, function(feitas){
+        atualizarProgressoImpressao_(feitas, qtdEtiquetas);
+      }).then(function(){
         limparArea();
+        finalizarProgressoImpressao_();
         logSilencioso((qtdEtiquetas>1 ? qtdEtiquetas+' etiquetas enviadas' : 'Etiqueta enviada') + ' para a impressora com sucesso.');
         notificarImpressaoSucesso(
           qtdEtiquetas>1 ? qtdEtiquetas+' etiquetas impressas!' : 'Etiqueta impressa!',
@@ -9128,14 +9264,17 @@ function imprimirEtiquetaFinal(){
       }).catch(function(err){
         console.error('Erro na impressão direta:', err);
         limparArea();
+        finalizarProgressoImpressao_();
         const detalhe = (err && err.message) ? err.message : 'Verifique se a impressora está ligada, conectada e com papel.';
         alertModal('Não foi possível imprimir na impressora ' + (modoConfigurado==='usb'?'USB':'Bluetooth') + '. ' + detalhe);
       });
     }
+    atualizarProgressoImpressao_(qtdEtiquetas, qtdEtiquetas);
     return imprimirEtiquetasViaSistema_(itensEtiquetas, dims, limparArea);
   }).catch(function(err){
     console.error('Erro ao preparar etiquetas para impressão:', err);
     limparArea();
+    finalizarProgressoImpressao_();
     alertModal('Erro ao preparar a impressão das etiquetas.');
   });
 }
@@ -9164,6 +9303,7 @@ function imprimirEtiquetasViaSistema_(itensEtiquetas, dims, limparArea){
       jaFinalizou = true;
       window.removeEventListener('afterprint', finalizar);
       limparArea();
+      finalizarProgressoImpressao_();
       resolve();
     }
     // "afterprint" dispara assim que a pessoa confirma OU cancela a caixa de
@@ -9972,7 +10112,7 @@ async function _enviarBytesImpressoraDiretaSemRetry_(bytes){
 // PAUSA_ENTRE_ETIQUETAS_MS abaixo) além do avanço de papel já embutido em cada
 // comando — é essa combinação que garante o respiro entre etiquetas mesmo em
 // impressoras mais simples.
-function imprimirEtiquetasViaImpressoraDireta_(itensEtiquetas, dims){
+function imprimirEtiquetasViaImpressoraDireta_(itensEtiquetas, dims, onProgresso){
   const PAUSA_ENTRE_ETIQUETAS_MS = 250; // dá tempo da impressora terminar de fato o avanço físico antes de começar a próxima
   return garantirHtml2Canvas().then(function(){
     if(typeof html2canvas==='undefined'){
@@ -9985,6 +10125,8 @@ function imprimirEtiquetasViaImpressoraDireta_(itensEtiquetas, dims){
           const comando = gerarComandoImpressora_(canvas, dims);
           return enviarBytesImpressoraDireta_(comando);
         });
+      }).then(function(){
+        if(typeof onProgresso==='function') onProgresso(index+1);
       });
       if(index < itensEtiquetas.length - 1){
         cadeia = cadeia.then(function(){ return new Promise(r=>setTimeout(r, PAUSA_ENTRE_ETIQUETAS_MS)); });
@@ -9998,6 +10140,7 @@ function imprimirEtiquetasViaImpressoraDireta_(itensEtiquetas, dims){
 // próxima, sem gastar etiqueta de verdade em caso de erro. Desenha um retângulo com
 // borda até a beirada + o texto "TESTE OK".
 async function testarImpressoraDireta(){
+  if(_impressaoEmAndamento){ avisarImpressoraOcupada(); return; }
   if(!impressoraDiretaDisponivel_()){
     alertModal('Conecte a impressora primeiro.');
     return;
@@ -10032,6 +10175,7 @@ async function testarImpressoraDireta(){
 // "Folga extra" em Configurações até acertar, sem precisar abrir a tampa da impressora
 // pra cada teste.
 async function testarImpressaoSistema(){
+  if(_impressaoEmAndamento){ avisarImpressoraOcupada(); return; }
   const area = document.getElementById('printArea');
   if(!area) return;
   area.innerHTML = '';
