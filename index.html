@@ -8828,7 +8828,15 @@ function iniciarProgressoImpressao_(total){
     <div class="dimSmall" style="margin-bottom:14px;">A impressora fica ocupada até terminar. Não feche esta tela nem recarregue a página.</div>
     <div class="contingProgressTrack"><div class="contingProgressBar" id="etqImpProgressBar" style="width:4%;"></div></div>
     <div class="contingProgressLegenda" id="etqImpProgressLegenda">0 de ${total} etiqueta${total>1?'s':''} impressa${total>1?'s':''}</div>
+    <button class="btn secondary small" style="margin-top:16px;" onclick="cancelarImpressaoTravada_()">Travou? Cancelar impressão</button>
   `);
+}
+async function cancelarImpressaoTravada_(){
+  const area = document.getElementById('printArea');
+  if(area){ area.style.cssText = 'display:none;'; area.innerHTML = ''; }
+  try{ await desconectarImpressoraDireta(); }catch(e){}
+  finalizarProgressoImpressao_();
+  alertModal('Impressão cancelada. Se estiver usando USB, verifique o cabo e clique em "Conectar impressora" de novo antes de tentar imprimir.');
 }
 function atualizarProgressoImpressao_(feitas, total){
   const bar = document.getElementById('etqImpProgressBar');
@@ -9506,7 +9514,7 @@ async function conectarDispositivoRecenteImpressora_(dado){
     if(!port) return false;
     try{
       const baud = Number(DB.settings.etiquetaBaudRate) || 9600;
-      await port.open({ baudRate: baud });
+      await _comTimeout_(port.open({ baudRate: baud }), 5000, 'A porta USB não respondeu a tempo — pode estar em uso por outro programa/aba, ou a impressora travou.');
       const writer = port.writable.getWriter();
       await desconectarImpressoraDireta_semLimparUI_();
       _impressoraDireta = { tipo:'usb', port, writer, bleDevice:null, bleChar:null, nome: dado.nome || 'USB' };
@@ -9629,7 +9637,16 @@ async function conectarImpressoraUSB(){
   try{
     const port = await navigator.serial.requestPort();
     const baud = Number(DB.settings.etiquetaBaudRate) || 9600;
-    await port.open({ baudRate: baud });
+    try{
+      await _comTimeout_(port.open({ baudRate: baud }), 5000, 'timeout');
+    }catch(errAbertura){
+      try{ await port.close(); }catch(e2){}
+      if(errAbertura && errAbertura.message==='timeout'){
+        alertModal('A impressora não respondeu ao conectar. Ela pode estar em uso por outro programa/aba, travada, ou precisar ser desligada e ligada de novo. Tente novamente após reiniciar a impressora.');
+        return;
+      }
+      throw errAbertura;
+    }
     const writer = port.writable.getWriter();
     await desconectarImpressoraDireta_semLimparUI_();
     _impressoraDireta = { tipo:'usb', port, writer, bleDevice:null, bleChar:null, nome:(port.getInfo && port.getInfo().usbProductId) ? ('USB '+port.getInfo().usbProductId.toString(16)) : 'USB' };
@@ -9772,7 +9789,7 @@ async function tentarReconectarImpressoraSilenciosamente_(){
       const baud = Number(DB.settings.etiquetaBaudRate) || 9600;
       for(const port of portas){
         try{
-          await port.open({ baudRate: baud });
+          await _comTimeout_(port.open({ baudRate: baud }), 4000, 'timeout');
           const writer = port.writable.getWriter();
           _impressoraDireta = { tipo:'usb', port, writer, bleDevice:null, bleChar:null, nome:(port.getInfo && port.getInfo().usbProductId) ? ('USB '+port.getInfo().usbProductId.toString(16)) : 'USB' };
           port.addEventListener('disconnect', function(){
@@ -10086,7 +10103,10 @@ async function _enviarBytesImpressoraDiretaSemRetry_(bytes){
     const pausaMs = Math.max(4, Math.ceil((TAMANHO_PEDACO * 10 / baud) * 1000 * 1.6));
     for(let i=0; i<bytes.length; i+=TAMANHO_PEDACO){
       const pedaco = bytes.slice(i, i+TAMANHO_PEDACO);
-      await _impressoraDireta.writer.write(pedaco);
+      // Sem esse timeout, um pedaço que a impressora nunca confirma travava a
+      // impressão inteira pra sempre (a promise do write() nunca resolve nem
+      // rejeita sozinha) — era a causa mais provável do "trava e não imprime".
+      await _comTimeout_(_impressoraDireta.writer.write(pedaco), 4000, 'A impressora parou de responder no meio do envio.');
       await new Promise(r=>setTimeout(r, pausaMs));
     }
     return;
@@ -10096,9 +10116,9 @@ async function _enviarBytesImpressoraDiretaSemRetry_(bytes){
     for(let i=0; i<bytes.length; i+=TAMANHO_PEDACO){
       const pedaco = bytes.slice(i, i+TAMANHO_PEDACO);
       if(_impressoraDireta.bleChar.properties.writeWithoutResponse){
-        await _impressoraDireta.bleChar.writeValueWithoutResponse(pedaco);
+        await _comTimeout_(_impressoraDireta.bleChar.writeValueWithoutResponse(pedaco), 4000, 'A impressora parou de responder no meio do envio.');
       } else {
-        await _impressoraDireta.bleChar.writeValue(pedaco);
+        await _comTimeout_(_impressoraDireta.bleChar.writeValue(pedaco), 4000, 'A impressora parou de responder no meio do envio.');
       }
       await new Promise(r=>setTimeout(r, 20)); // dá um respiro pro módulo BLE processar
     }
