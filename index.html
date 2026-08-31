@@ -2714,6 +2714,7 @@ html.is-mobile .btn::before{ display:none; }
     <button class="navBtn active" data-view="vendas" onclick="showView('vendas')"><span class="navIcon">💳</span> Vendas (PDV)</button>
     <button class="navBtn" data-view="estoque" onclick="showView('estoque')"><span class="navIcon">📦</span> Estoque</button>
     <button class="navBtn" data-view="clientes" onclick="showView('clientes')"><span class="navIcon">👥</span> Clientes / Fiado</button>
+    <button class="navBtn" data-view="mensagem" onclick="showView('mensagem')"><span class="navIcon">💬</span> Mensagem</button>
     <button class="navBtn" data-view="caixa" onclick="showView('caixa')"><span class="navIcon">🗄️</span> Caixa / Financeiro</button>
     <button class="navBtn" data-view="relatorios" onclick="showView('relatorios')"><span class="navIcon">📊</span> Relatórios</button>
     <button class="navBtn" data-view="funcionarios" onclick="showView('funcionarios')"><span class="navIcon">🧑‍💼</span> Funcionários</button>
@@ -3142,6 +3143,18 @@ html.is-mobile .btn::before{ display:none; }
           <div class="panel">
             <table><thead><tr><th>Cliente</th><th>Telefone</th><th>Valor devido</th><th>Última compra</th><th></th></tr></thead><tbody id="fiadoOverviewBody"></tbody></table>
           </div>
+        </div>
+      </div>
+
+      <!-- ============ MENSAGEM (WhatsApp) ============ -->
+      <div class="view" id="view-mensagem">
+        <div class="panel">
+          <div class="dimSmall" style="margin-bottom:10px;">Escolha um cliente para abrir o WhatsApp já com a mensagem pronta — sem precisar salvar o número no celular.</div>
+          <input id="msgClienteFilter" placeholder="Buscar cliente..." style="width:280px;margin-bottom:10px;" oninput="debouncedCall('msgClienteFilter',renderMensagemLista)">
+          <table>
+            <thead><tr><th>Nome</th><th>Telefone</th><th></th></tr></thead>
+            <tbody id="mensagemTableBody"></tbody>
+          </table>
         </div>
       </div>
 
@@ -5977,7 +5990,7 @@ function applyPermissions(){
 }
 
 /* ---------------- Navigation ---------------- */
-const viewTitles = {vendas:'Vendas (PDV)', estoque:'Estoque', clientes:'Clientes / Fiado', caixa:'Caixa / Financeiro', relatorios:'Relatórios', funcionarios:'Funcionários', livrovendas:'Livro de Vendas e Receita', rendimento:'Rendimento Total', config:'Configurações', testador:'Testador de Internet'};
+const viewTitles = {vendas:'Vendas (PDV)', estoque:'Estoque', clientes:'Clientes / Fiado', mensagem:'Mensagem', caixa:'Caixa / Financeiro', relatorios:'Relatórios', funcionarios:'Funcionários', livrovendas:'Livro de Vendas e Receita', rendimento:'Rendimento Total', config:'Configurações', testador:'Testador de Internet'};
 function showView(name){
   const staffOnlyViews = ['caixa','relatorios','funcionarios','config','livrovendas','rendimento'];
   if(currentUser && !getPerms().isTotal && staffOnlyViews.includes(name)){
@@ -6007,6 +6020,7 @@ function showView(name){
   if(trashWrap) trashWrap.classList.toggle('visible', name==='estoque');
   if(name==='estoque') atualizarBotaoLixeira();
   if(name==='clientes') renderClientesLista();
+  if(name==='mensagem') renderMensagemLista();
   if(name==='caixa') renderCaixa();
   if(name==='relatorios') renderRelatorios();
   if(name==='funcionarios') renderEmployees();
@@ -11622,6 +11636,56 @@ function renderClientesLista(){
     </tr>`;
   }).join('') || '<tr><td colspan="8" class="dimSmall">Nenhum cliente cadastrado.</td></tr>';
 }
+
+/* ---------------- Mensagem (WhatsApp) ----------------
+   Abre o WhatsApp (app no celular, ou WhatsApp Web no computador) já com o
+   número do cliente e a mensagem preenchidos, através do link wa.me. Isso é
+   diferente de "enviar sem sair do site": o WhatsApp precisa abrir pra
+   pessoa confirmar o envio — não existe um jeito de mandar a mensagem 100%
+   por dentro do site sem usar a API paga oficial do WhatsApp Business. */
+function formatarTelefoneWhats(tel){
+  let d = (tel||'').replace(/\D/g,'');
+  if(!d) return '';
+  // Se vier só com DDD+número (10 ou 11 dígitos), adiciona o código do Brasil.
+  if(d.length===10 || d.length===11) d = '55'+d;
+  return d;
+}
+function renderMensagemLista(){
+  const filter = (document.getElementById('msgClienteFilter').value||'').toLowerCase();
+  const body = document.getElementById('mensagemTableBody');
+  body.innerHTML = DB.customers.filter(c=>c.nome.toLowerCase().includes(filter)).map(c=>{
+    const tel = formatarTelefoneWhats(c.telefone);
+    return `<tr>
+      <td>${c.nome}</td>
+      <td>${c.telefone||'-'}</td>
+      <td style="white-space:nowrap;">
+        <button class="btn small secondary" ${tel?'':'disabled'} onclick="abrirMensagemModal('${c.id}')">💬 Mensagem</button>
+      </td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="3" class="dimSmall">Nenhum cliente cadastrado.</td></tr>';
+}
+function abrirMensagemModal(id){
+  const c = DB.customers.find(x=>x.id===id);
+  if(!c) return;
+  const tel = formatarTelefoneWhats(c.telefone);
+  if(!tel){ alertModal('Este cliente não tem telefone cadastrado.'); return; }
+  showModal(`
+    <button class="modalClose" onclick="closeModal()">×</button>
+    <h3>Enviar mensagem — ${c.nome}</h3>
+    <div class="field"><label>Mensagem</label><textarea id="msgTexto" rows="4" style="width:100%;resize:vertical;font-family:inherit;">Olá ${c.nome}, tudo bem?</textarea></div>
+    <button class="btn" style="width:100%;margin-top:6px;" onclick="enviarMensagemWhats('${c.id}')">Abrir no WhatsApp</button>
+  `);
+}
+function enviarMensagemWhats(id){
+  const c = DB.customers.find(x=>x.id===id);
+  if(!c) return;
+  const tel = formatarTelefoneWhats(c.telefone);
+  if(!tel) return;
+  const texto = document.getElementById('msgTexto').value;
+  window.open('https://wa.me/'+tel+'?text='+encodeURIComponent(texto), '_blank');
+  closeModal();
+}
+
 function editCustomerModal(id){
   if(!requirePerm(getPerms().canEditClientes)) return;
   const c = DB.customers.find(x=>x.id===id);
