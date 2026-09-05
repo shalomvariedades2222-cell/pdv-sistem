@@ -1678,6 +1678,28 @@ html.anim-off-glow .pixQrFrame{animation:none !important;}
 .fiadoPopBtnRow{display:flex;gap:8px;margin-top:14px;}
 .fiadoPopBtnRow .btn{flex:1;}
 
+/* ---------------- Popup "Imprimir via do cliente" (após finalizar venda) ---------------- */
+.viaImprimirPreview{
+  max-height:44vh;overflow-y:auto;margin:10px 0 4px;padding:12px 14px;
+  background:#fff;color:#111;border-radius:10px;font-family:'Courier New',monospace;
+  font-size:12.5px;line-height:1.55;
+}
+.viaImprimirPreview .viaLinha{display:flex;justify-content:space-between;gap:8px;}
+.viaImprimirPreview .viaSep{border-top:1px dashed #999;margin:6px 0;}
+.viaImprimirPreview .viaCentro{text-align:center;}
+.viaImprimirPreview b{font-weight:700;}
+.viaImprimirBtnRow{display:flex;gap:8px;margin-top:14px;}
+.viaImprimirBtnRow .btn{flex:1;}
+/* Conteúdo da via do cliente dentro de #printArea (área já usada por etiquetas —
+   ver "@media print" perto do topo do arquivo, que esconde tudo e mostra só ela) */
+#printArea .via80{width:80mm;padding:2mm 3mm;box-sizing:border-box;font-family:'Courier New',monospace;color:#000;background:#fff;font-size:12px;}
+#printArea .via58{width:58mm;padding:2mm 2mm;box-sizing:border-box;font-family:'Courier New',monospace;color:#000;background:#fff;font-size:10.5px;}
+#printArea .viaLinha{display:flex;justify-content:space-between;gap:6px;}
+#printArea .viaCentro{text-align:center;}
+#printArea .viaSep{border-top:1px dashed #000;margin:4px 0;}
+#printArea .viaTitulo{font-weight:700;font-size:1.15em;}
+#printArea .viaItemNome{flex:1;word-break:break-word;}
+
 .pickerWrap{position:relative;}
 .pickerDropdown{
   position:absolute; top:100%; left:0; right:0; margin-top:4px;
@@ -7219,12 +7241,13 @@ function doFinalizeSale(){
   document.getElementById('fiadoCustomerSearch').value='';
   renderCart();
   renderProductGrid();
-  celebrarVenda(sale.total, sale.change);
+  celebrarVenda(sale.total, sale.change, sale);
   focusSearchBox();
 }
-function celebrarVenda(valorTotal, troco){
+function celebrarVenda(valorTotal, troco, saleParaImprimir){
   if(document.documentElement.classList.contains('anim-off-celebrate')){
     toast('Venda finalizada! '+fmtMoney(valorTotal)+(troco>0.001?(' • Troco: '+fmtMoney(troco)):''));
+    if(saleParaImprimir) abrirPopupImprimirVia(saleParaImprimir);
     return;
   }
   const bg = document.createElement('div');
@@ -7254,10 +7277,138 @@ function celebrarVenda(valorTotal, troco){
     if(fechado) return; fechado = true;
     bg.style.transition = 'opacity .2s ease';
     bg.style.opacity = '0';
-    setTimeout(()=>bg.remove(), 200);
+    setTimeout(()=>{
+      bg.remove();
+      if(saleParaImprimir) abrirPopupImprimirVia(saleParaImprimir);
+    }, 200);
   };
   bg.addEventListener('click', fechar);
   setTimeout(fechar, 2200);
+}
+/* =========================================================
+   VIA DO CLIENTE (recibo impresso ao finalizar a venda) — popup logo após a
+   animação de "Venda finalizada!" perguntando se quer imprimir a via, com a
+   opção explícita "Não imprimir". Usa a mesma área #printArea/@media print já
+   usada pelas etiquetas (ver topo do arquivo), só que com o tamanho de página
+   da Impressora de Recibo (Configurações → largura do papel: 58mm/80mm).
+========================================================= */
+let _viaClienteAtual = null;
+function itemDiscountAmountVia_(it){
+  if(it.discountType==='pct') return (it.price*it.qty)*((Number(it.discount)||0)/100);
+  return Number(it.discount)||0;
+}
+function montarConteudoViaCliente_(sale){
+  const esc = _escapeHtmlPct_;
+  const nomeLoja = esc(DB.settings.nomeLoja||'Loja');
+  const contato = esc(DB.settings.contato||'');
+  const cliente = sale.customerId ? DB.customers.find(c=>c.id===sale.customerId) : null;
+  let itensHtml = '';
+  (sale.items||[]).forEach(function(it){
+    const bruto = (Number(it.price)||0) * (Number(it.qty)||0);
+    const desc = itemDiscountAmountVia_(it);
+    const liquido = bruto - desc;
+    itensHtml += `<div class="viaItemNome">${esc(it.name)}</div>
+      <div class="viaLinha"><span>${it.qty} x ${fmtMoney(it.price)}</span><span>${fmtMoney(liquido)}</span></div>`;
+    if(desc>0.001){
+      itensHtml += `<div class="viaLinha"><span>Desconto item</span><span>-${fmtMoney(desc)}</span></div>`;
+    }
+  });
+  let pagHtml = '';
+  const pagLbl = {dinheiro:'Dinheiro', pix:'Pix', cartao:'Cartão'};
+  Object.keys(pagLbl).forEach(function(k){
+    const v = (sale.payments||{})[k] || 0;
+    if(v>0.001) pagHtml += `<div class="viaLinha"><span>${pagLbl[k]}</span><span>${fmtMoney(v)}</span></div>`;
+  });
+  let extraHtml = '';
+  if(sale.change>0.001){
+    extraHtml += `<div class="viaLinha"><span>Troco</span><span>${fmtMoney(sale.change)}</span></div>`;
+  }
+  if(sale.debt>0.001){
+    extraHtml += `<div class="viaLinha"><span>Ficou devendo (Fiado)</span><span>${fmtMoney(sale.debt)}</span></div>`;
+  }
+  // Cliente só aparece quando a venda está de fato ligada a um cliente cadastrado
+  // (ex.: Venda Fiado) — em venda comum à vista esse campo simplesmente não existe.
+  const clienteHtml = cliente ? `<div class="viaLinha"><span>Cliente</span><span>${esc(cliente.nome)}</span></div>` : '';
+  return `
+    <div class="viaCentro viaTitulo">${nomeLoja}</div>
+    ${contato ? `<div class="viaCentro">${contato}</div>` : ''}
+    <div class="viaSep"></div>
+    <div class="viaLinha"><span>Data</span><span>${fmtDateTime(sale.date)}</span></div>
+    <div class="viaLinha"><span>Venda</span><span>#${(sale.id||'').slice(-5)}</span></div>
+    <div class="viaLinha"><span>Vendedor</span><span>${esc(sale.sellerName||'')}</span></div>
+    ${clienteHtml}
+    <div class="viaSep"></div>
+    ${itensHtml || '<div class="viaCentro">Nenhum item</div>'}
+    <div class="viaSep"></div>
+    <div class="viaLinha"><span>Subtotal</span><span>${fmtMoney(sale.subtotal)}</span></div>
+    ${sale.itemDiscounts>0.001 ? `<div class="viaLinha"><span>Descontos itens</span><span>-${fmtMoney(sale.itemDiscounts)}</span></div>` : ''}
+    ${sale.saleDiscount>0.001 ? `<div class="viaLinha"><span>Desconto na venda</span><span>-${fmtMoney(sale.saleDiscount)}</span></div>` : ''}
+    <div class="viaLinha"><b>TOTAL</b><b>${fmtMoney(sale.total)}</b></div>
+    <div class="viaSep"></div>
+    ${pagHtml}
+    ${extraHtml}
+    <div class="viaSep"></div>
+    <div class="viaCentro">Obrigado pela preferência!</div>
+  `;
+}
+function abrirPopupImprimirVia(sale){
+  if(!sale) return;
+  _viaClienteAtual = sale;
+  const conteudo = montarConteudoViaCliente_(sale);
+  showModal(`
+    <button class="modalClose" onclick="fecharPopupImprimirVia()">×</button>
+    <h3 style="text-align:center;">🧾 Imprimir via do cliente?</h3>
+    <div class="viaImprimirPreview">${conteudo}</div>
+    <div class="viaImprimirBtnRow">
+      <button class="btn secondary" onclick="fecharPopupImprimirVia()">Não imprimir</button>
+      <button class="btn" onclick="imprimirViaClienteConfirmado()">🖨️ Imprimir via</button>
+    </div>
+  `, {extraClass:'calcPixModalBox'});
+}
+function fecharPopupImprimirVia(){
+  _viaClienteAtual = null;
+  closeModal();
+  focusSearchBox();
+}
+function imprimirViaClienteConfirmado(){
+  const sale = _viaClienteAtual;
+  closeModal();
+  if(!sale) return;
+  imprimirViaCliente_(sale);
+}
+function atualizarTamanhoPaginaViaCliente_(larguraMm){
+  let styleEl = document.getElementById('viaClientePrintPageSize');
+  if(!styleEl){
+    styleEl = document.createElement('style');
+    styleEl.id = 'viaClientePrintPageSize';
+    document.head.appendChild(styleEl);
+  }
+  // Altura "auto" porque a impressora de recibo (térmica) trabalha com bobina
+  // contínua, então quem define onde corta é o tamanho real do conteúdo — só a
+  // largura precisa bater com o papel configurado (58mm ou 80mm).
+  styleEl.textContent = `@media print{ @page{size:${larguraMm}mm auto;margin:0;} }`;
+}
+function imprimirViaCliente_(sale){
+  const area = document.getElementById('printArea');
+  if(!area) return;
+  const larguraMm = (DB.settings.papel==='58mm') ? 58 : 80;
+  const wrapClass = larguraMm===58 ? 'via58' : 'via80';
+  area.innerHTML = `<div class="${wrapClass}">${montarConteudoViaCliente_(sale)}</div>`;
+  atualizarTamanhoPaginaViaCliente_(larguraMm);
+  area.style.cssText = 'display:block;position:fixed;left:-10000px;top:0;';
+  let finalizado = false;
+  function finalizar(){
+    if(finalizado) return; finalizado = true;
+    window.removeEventListener('afterprint', finalizar);
+    area.style.cssText = 'display:none;';
+    area.innerHTML = '';
+    focusSearchBox();
+  }
+  window.addEventListener('afterprint', finalizar);
+  setTimeout(function(){
+    window.print();
+    setTimeout(finalizar, 5000);
+  }, 60);
 }
 function cancelSale(){
   if(!requirePerm(getPerms().canSell)) return;
