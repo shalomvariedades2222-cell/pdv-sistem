@@ -3975,6 +3975,11 @@ html.is-mobile .btn::before{ display:none; }
         <div class="panel" style="max-width:420px;">
           <h3>🧾 Histórico de Vendas (canto da tela)</h3>
           <p class="dimSmall" style="margin-top:-6px;">Depois de cada venda finalizada, um painel aparece no canto da tela de Vendas com as últimas vendas feitas (no máximo 3 — ao chegar uma 4ª, a mais antiga é apagada da lista automaticamente), cada uma com um botão para imprimir a via do cliente. Ele some sozinho depois de 1 minuto sem nenhuma venda nova — mas também pode ser fechado na hora pelo ×.</p>
+          <div class="field" style="display:flex;align-items:center;gap:8px;">
+            <input type="checkbox" id="cfg_vendasHistAtivo" data-perm="admin" onchange="saveSettingsLive()" style="width:auto;margin:0;">
+            <label style="margin:0;">Mostrar este painel após cada venda</label>
+          </div>
+          <p class="dimSmall" style="margin-top:4px;">Vem desativado de fábrica. Este é hoje o único lugar do sistema com um botão pra reimprimir a via de uma venda recente — desligado, a via só sai se você aceitar o popup "Imprimir via do cliente?" na hora da venda (opção separada, logo acima em Impressora de Recibo).</p>
           <div class="formGrid">
             <div class="field"><label>Largura do painel (px)</label>
               <input id="cfg_vendasHistLarguraPx" type="number" min="220" max="600" step="10" data-perm="admin" oninput="saveSettingsLive()">
@@ -5734,6 +5739,7 @@ function ensureCatalogDefaults(){
   if(typeof DB.settings.reciboModoCustom !== 'boolean') DB.settings.reciboModoCustom = false; // liga o editor avançado (blocos livres, com imagem) da via do cliente, no lugar das opções fixas acima
   if(!Array.isArray(DB.settings.reciboBlocos)) DB.settings.reciboBlocos = []; // blocos do editor avançado da via do cliente — preenchidos a partir das opções acima na 1ª vez que o editor é aberto (ver garantirReciboBlocosPadrao())
   if(!DB.settings.vendasHistLarguraPx) DB.settings.vendasHistLarguraPx = 300; // largura (px) do painel de histórico de últimas vendas, no canto da tela de Vendas
+  if(typeof DB.settings.vendasHistAtivo !== 'boolean') DB.settings.vendasHistAtivo = false; // padrão de fábrica: DESATIVADO — o painel de últimas vendas (canto da tela, com botão de reimprimir via) só aparece se a loja ligar essa opção em Configurações
   if(!DB.settings.vendasHistAlturaPx) DB.settings.vendasHistAlturaPx = 400; // altura máxima (px) do mesmo painel — padrão 300x400px (proporção 30x40)
   if(!DB.settings.vendasHistCanto) DB.settings.vendasHistCanto = 'br'; // canto da tela onde o painel aparece: 'br' (inferior direito, padrão), 'bl','tr','tl'
   // migração: quem já tinha um layout personalizado solto (versão antiga, sem nome/lista)
@@ -8182,6 +8188,13 @@ let _vendasHistItens = [];
 let _vendasHistAutoOcultarTimer = null;
 function mostrarHistoricoVendasWidget(sale){
   if(!sale) return;
+  // Configurações → Histórico de Vendas (canto da tela) → "Mostrar este painel
+  // após cada venda", desligado (padrão de fábrica): não mostra nada. Esse é,
+  // hoje, o único lugar do sistema com um botão pra reimprimir a via de uma
+  // venda recente — com essa opção desligada, a única forma de imprimir a via
+  // volta a ser aceitar o popup "Imprimir via do cliente?" na hora da venda
+  // (Configurações → Impressora de Recibo → "Perguntar para imprimir...").
+  if(DB.settings.vendasHistAtivo !== true) return;
   _vendasHistItens.unshift(sale);
   if(_vendasHistItens.length > VENDAS_HIST_MAX) _vendasHistItens.length = VENDAS_HIST_MAX;
   renderHistoricoVendasWidget();
@@ -14375,6 +14388,7 @@ function renderConfig(){
   document.getElementById('cfg_reciboMostrarDataHora').checked = DB.settings.reciboMostrarDataHora !== false;
   document.getElementById('cfg_reciboRodape').value = DB.settings.reciboRodape || '';
   document.getElementById('cfg_reciboModoCustom').checked = !!DB.settings.reciboModoCustom;
+  document.getElementById('cfg_vendasHistAtivo').checked = (typeof DB.settings.vendasHistAtivo==='boolean') ? DB.settings.vendasHistAtivo : false;
   document.getElementById('cfg_vendasHistLarguraPx').value = DB.settings.vendasHistLarguraPx || 300;
   document.getElementById('cfg_vendasHistAlturaPx').value = DB.settings.vendasHistAlturaPx || 400;
   document.getElementById('cfg_vendasHistCanto').value = DB.settings.vendasHistCanto || 'br';
@@ -14938,6 +14952,8 @@ function saveSettingsLive(){
   if(reciboRodapeInp) DB.settings.reciboRodape = reciboRodapeInp.value;
   const reciboModoCustomChk = document.getElementById('cfg_reciboModoCustom');
   if(reciboModoCustomChk) DB.settings.reciboModoCustom = reciboModoCustomChk.checked;
+  const vhAtivoChk = document.getElementById('cfg_vendasHistAtivo');
+  if(vhAtivoChk) DB.settings.vendasHistAtivo = vhAtivoChk.checked;
   const vhLargInp = document.getElementById('cfg_vendasHistLarguraPx');
   if(vhLargInp){
     const vhLarg = parseFloat(vhLargInp.value);
