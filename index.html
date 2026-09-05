@@ -7398,6 +7398,20 @@ function atualizarTamanhoPaginaViaCliente_(larguraMm){
   styleEl.textContent = `@media print{ @page{size:${larguraMm}mm auto;margin:0;} }`;
 }
 function imprimirViaCliente_(sale){
+  // Mesma regra usada na impressão de etiquetas: se a loja tem impressora
+  // USB/Bluetooth conectada diretamente (Configurações → Impressora de
+  // Etiquetas → modo USB/Bluetooth), a via do cliente sai por ela também, sem
+  // abrir a caixa de impressão do navegador (Ctrl+P) — só quando o modo
+  // configurado é mesmo "Caixa do sistema" que o Ctrl+P aparece de propósito.
+  const modoConfigurado = DB.settings.etiquetaModoImpressao || 'sistema';
+  if(modoConfigurado === 'usb' || modoConfigurado === 'bluetooth'){
+    imprimirViaClienteImpressoraDireta_(sale);
+  } else {
+    imprimirViaClienteViaSistema_(sale);
+  }
+}
+// Modo "Caixa do sistema" — igual ao que já existia, abre o Ctrl+P do navegador.
+function imprimirViaClienteViaSistema_(sale){
   const area = document.getElementById('printArea');
   if(!area) return;
   const larguraMm = (DB.settings.papel==='58mm') ? 58 : 80;
@@ -7418,6 +7432,66 @@ function imprimirViaCliente_(sale){
     window.print();
     setTimeout(finalizar, 5000);
   }, 60);
+}
+// Modo USB/Bluetooth direto — usa exatamente o mesmo canal já conectado pra
+// etiquetas (_impressoraDireta) e as mesmas funções que convertem um desenho
+// em comando de impressora (gerarComandoImpressora_/ESC-POS ou TSPL, conforme
+// o protocolo escolhido em Configurações) e mandam os bytes pra ela
+// (enviarBytesImpressoraDireta_) — nenhuma caixa de impressão do navegador
+// chega a ser aberta neste caminho.
+async function imprimirViaClienteImpressoraDireta_(sale){
+  if(_impressaoEmAndamento){ avisarImpressoraOcupada(); return; }
+  const modoConfigurado = DB.settings.etiquetaModoImpressao;
+  if(!impressoraDiretaDisponivel_()){
+    await tentarReconectarImpressoraSilenciosamente_();
+  }
+  if(!impressoraDiretaDisponivel_()){
+    alertModal('Nenhuma impressora ' + (modoConfigurado==='usb'?'USB':'Bluetooth') + ' conectada nesta sessão. Vá em Configurações → Impressora de Etiquetas e clique em "Conectar impressora" antes de imprimir a via — ou troque o modo de impressão para "Caixa do sistema" se preferir usar o Ctrl+P.');
+    focusSearchBox();
+    return;
+  }
+  _impressaoEmAndamento = true;
+  const larguraMm = (DB.settings.papel==='58mm') ? 58 : 80;
+  const wrapClass = larguraMm===58 ? 'via58' : 'via80';
+  // Usa a mesma área #printArea das etiquetas (já existe escondida na página) — assim
+  // o CSS da via (fonte, tamanho, espaçamento) se aplica igual, sem precisar duplicar
+  // regras fora dali. Aqui ela só serve de "mesa de trabalho" pro html2canvas: como
+  // este caminho não chama window.print(), o @media print nunca chega a entrar em ação.
+  const area = document.getElementById('printArea');
+  if(!area){ _impressaoEmAndamento = false; return; }
+  area.innerHTML = `<div class="${wrapClass}">${montarConteudoViaCliente_(sale)}</div>`;
+  area.style.cssText = 'display:block;position:fixed;left:-10000px;top:0;';
+  const item = area.querySelector('.'+wrapClass);
+  function limpar(){
+    area.style.cssText = 'display:none;';
+    area.innerHTML = '';
+    _impressaoEmAndamento = false;
+  }
+  try{
+    await garantirHtml2Canvas();
+    if(typeof html2canvas==='undefined'){
+      throw new Error('Recurso de impressão indisponível (html2canvas).');
+    }
+    // Mede o tamanho real renderizado (largura já é a do papel; a altura varia
+    // conforme a quantidade de itens da venda) pra manter a proporção certinha
+    // ao converter pro bitmap da impressora — sem isso a via sairia esticada
+    // ou espremida.
+    const rect = item.getBoundingClientRect();
+    const alturaMm = larguraMm * (rect.height / rect.width);
+    const dims = {w:larguraMm, h:alturaMm};
+    const canvas = await html2canvas(item, {scale:4, backgroundColor:'#ffffff'});
+    const comando = gerarComandoImpressora_(canvas, dims);
+    await enviarBytesImpressoraDireta_(comando);
+    limpar();
+    logSilencioso('Via do cliente enviada para a impressora com sucesso.');
+    notificarImpressaoSucesso('Via impressa!', 'Enviada com sucesso para a impressora.');
+    focusSearchBox();
+  }catch(err){
+    limpar();
+    console.error('Erro ao imprimir via do cliente:', err);
+    alertModal('Não foi possível imprimir a via na impressora ' + (modoConfigurado==='usb'?'USB':'Bluetooth') + '. ' + ((err && err.message) ? err.message : 'Falha na impressão.'));
+    focusSearchBox();
+  }
 }
 function cancelSale(){
   if(!requirePerm(getPerms().canSell)) return;
