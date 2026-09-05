@@ -3923,7 +3923,7 @@ html.is-mobile .btn::before{ display:none; }
           <div id="reciboPreviewLive"></div>
           <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:14px;">
             <div class="field" style="display:flex;align-items:center;gap:8px;">
-              <input type="checkbox" id="cfg_reciboModoCustom" data-perm="admin" onchange="saveSettingsLive()" style="width:auto;margin:0;">
+              <input type="checkbox" id="cfg_reciboModoCustom" data-perm="admin" onchange="saveSettingsLive();atualizarPreviewReciboConfig();" style="width:auto;margin:0;">
               <label style="margin:0;">Usar via personalizada (editor avançado, substitui as opções acima)</label>
             </div>
             <button class="btn secondary small" style="margin-top:8px;" onclick="abrirEditorReciboBlocos()">🎨 Abrir editor da via do cliente</button>
@@ -3932,7 +3932,7 @@ html.is-mobile .btn::before{ display:none; }
         </div>
         <div class="panel" style="max-width:420px;">
           <h3>🧾 Histórico de Vendas (canto da tela)</h3>
-          <p class="dimSmall" style="margin-top:-6px;">Depois de cada venda finalizada, um painel aparece no canto da tela de Vendas com as últimas vendas feitas (até 10), cada uma com um botão para reimprimir o recibo. Ele some sozinho depois de 1 minuto sem nenhuma venda nova — mas também pode ser fechado na hora pelo ×.</p>
+          <p class="dimSmall" style="margin-top:-6px;">Depois de cada venda finalizada, um painel aparece no canto da tela de Vendas com as últimas vendas feitas (no máximo 3 — ao chegar uma 4ª, a mais antiga é apagada da lista automaticamente), cada uma com um botão para imprimir a via do cliente. Ele some sozinho depois de 1 minuto sem nenhuma venda nova — mas também pode ser fechado na hora pelo ×.</p>
           <div class="formGrid">
             <div class="field"><label>Largura do painel (px)</label>
               <input id="cfg_vendasHistLarguraPx" type="number" min="220" max="600" step="10" data-perm="admin" oninput="saveSettingsLive()">
@@ -7428,6 +7428,7 @@ function doFinalizeSale(){
   renderCart();
   renderProductGrid();
   celebrarVenda(sale.total, sale.change, sale);
+  mostrarHistoricoVendasWidget(sale);
   focusSearchBox();
 }
 function celebrarVenda(valorTotal, troco, saleParaImprimir){
@@ -7953,17 +7954,24 @@ function imprimirViaClienteConfirmado(){
 // etiqueta!), bagunçando o tamanho. Usando a mesma tag e sempre atualizando o
 // conteúdo dela bem antes de cada window.print(), cada impressão sempre sai
 // com o tamanho certo pro que está sendo impresso naquele momento.
-function atualizarTamanhoPaginaViaCliente_(larguraMm){
+function atualizarTamanhoPaginaViaCliente_(larguraMm, alturaMm){
   let styleEl = document.getElementById('etqPrintPageSize');
   if(!styleEl){
     styleEl = document.createElement('style');
     styleEl.id = 'etqPrintPageSize';
     document.head.appendChild(styleEl);
   }
-  // Altura "auto" porque a impressora de recibo (térmica) trabalha com bobina
-  // contínua, então quem define onde corta é o tamanho real do conteúdo — só a
-  // largura precisa bater com o papel configurado (58mm ou 80mm).
-  styleEl.textContent = `@media print{ @page{size:${larguraMm}mm auto;margin:0;} }`;
+  // IMPORTANTE: "size" do @page NÃO aceita misturar um comprimento fixo com a
+  // palavra "auto" (ex.: "80mm auto") — isso é CSS inválido, e quando o
+  // navegador descarta essa declaração ele volta a valer a última regra
+  // @page válida que existir na página, que é a das ETIQUETAS (50mm x 30mm,
+  // ver topo do arquivo) — e É EXATAMENTE POR ISSO que a via saía cortada
+  // (impressa como se fosse uma etiqueta pequena). A correção é sempre medir
+  // a altura real do conteúdo já renderizado (ver imprimirViaClienteViaSistema_
+  // logo abaixo, que faz isso antes de chamar esta função) e usar essa altura
+  // como um valor numérico de verdade, nunca a palavra "auto".
+  const alt = (Number(alturaMm)>0) ? Math.ceil(Number(alturaMm)) : 1000; // 1000mm só como rede de segurança caso a medição falhe
+  styleEl.textContent = `@media print{ @page{size:${larguraMm}mm ${alt}mm;margin:0;} }`;
 }
 function imprimirViaCliente_(sale){
   // Mesma regra usada na impressão de etiquetas: se a loja tem impressora
@@ -7985,8 +7993,19 @@ function imprimirViaClienteViaSistema_(sale){
   const larguraMm = (DB.settings.papel==='58mm') ? 58 : 80;
   const wrapClass = larguraMm===58 ? 'via58' : 'via80';
   area.innerHTML = `<div class="${wrapClass}" style="font-size:${reciboFontSizePx_(larguraMm)}px;">${montarConteudoViaCliente_(sale)}</div>`;
-  atualizarTamanhoPaginaViaCliente_(larguraMm);
+  // Precisa deixar a área VISÍVEL (fora da tela) antes de medir — com
+  // display:none o navegador não calcula layout nenhum e a altura sempre
+  // daria 0. Só depois de medir de verdade é que fixamos o tamanho da
+  // página de impressão (ver comentário em atualizarTamanhoPaginaViaCliente_
+  // sobre por que isso precisa ser um número, nunca "auto").
   area.style.cssText = 'display:block;position:fixed;left:-10000px;top:0;';
+  const item = area.querySelector('.'+wrapClass);
+  const rect = item ? item.getBoundingClientRect() : null;
+  // +5mm de folga no final, pra nunca cortar a última linha por causa de
+  // arredondamento entre px e mm (mesma ideia do campo "Espaço extra no
+  // final", só que aqui é só uma margem técnica de segurança).
+  const alturaMm = (rect && rect.width>0) ? (larguraMm * (rect.height/rect.width)) + 5 : 0;
+  atualizarTamanhoPaginaViaCliente_(larguraMm, alturaMm);
   let finalizado = false;
   function finalizar(){
     if(finalizado) return; finalizado = true;
@@ -8074,6 +8093,62 @@ function cancelSale(){
   confirmModal('Cancelar a venda atual (limpar carrinho)?', function(){
     cart=[]; pixConfirmedValue = 0; renderCart();
   });
+}
+
+/* =========================================================
+   HISTÓRICO DE VENDAS (painel flutuante no canto da tela de Vendas)
+   Guarda só em memória (some ao recarregar a página, de propósito — é um
+   atalho rápido pós-venda, não um relatório) as últimas vendas finalizadas
+   nesta sessão, no MÁXIMO 3: a cada venda nova a mais antiga é descartada
+   (ver "unshift + length=3" abaixo). Cada item tem um botão pra reimprimir a
+   via do cliente na hora (usa imprimirViaCliente_(), a mesma função da
+   impressão normal — respeita o modo configurado em Configurações: caixa do
+   sistema ou impressora USB/Bluetooth direta). O painel some sozinho depois
+   de 1 minuto sem nenhuma venda nova (o timer reinicia a cada venda) ou na
+   hora pelo botão ×.
+========================================================= */
+const VENDAS_HIST_MAX = 3;
+let _vendasHistItens = [];
+let _vendasHistAutoOcultarTimer = null;
+function mostrarHistoricoVendasWidget(sale){
+  if(!sale) return;
+  _vendasHistItens.unshift(sale);
+  if(_vendasHistItens.length > VENDAS_HIST_MAX) _vendasHistItens.length = VENDAS_HIST_MAX;
+  renderHistoricoVendasWidget();
+  const w = document.getElementById('vendasHistWidget');
+  if(w) w.style.display = 'flex';
+  agendarAutoOcultarHistoricoVendas();
+}
+function renderHistoricoVendasWidget(){
+  const w = document.getElementById('vendasHistWidget');
+  const list = document.getElementById('vendasHistList');
+  if(!w || !list) return;
+  w.classList.remove('br','bl','tr','tl');
+  w.classList.add(['br','bl','tr','tl'].includes(DB.settings.vendasHistCanto) ? DB.settings.vendasHistCanto : 'br');
+  w.style.width = (DB.settings.vendasHistLarguraPx || 300) + 'px';
+  w.style.maxHeight = (DB.settings.vendasHistAlturaPx || 400) + 'px';
+  if(!_vendasHistItens.length){ list.innerHTML = ''; return; }
+  list.innerHTML = _vendasHistItens.map(function(s){
+    const hora = new Date(s.date).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    return `<div class="vendasHistItem">
+      <div class="vendasHistItemTop"><span>#${String(s.id).slice(-5)} • ${hora}</span><span class="vendasHistItemVal">${fmtMoney(s.total)}</span></div>
+      <button type="button" class="vendasHistPrintBtn" onclick="reimprimirViaHistoricoVendas_('${s.id}')">🖨️ Imprimir via do cliente</button>
+    </div>`;
+  }).join('');
+}
+function reimprimirViaHistoricoVendas_(saleId){
+  const sale = _vendasHistItens.find(s=>s.id===saleId) || DB.sales.find(s=>s.id===saleId);
+  if(!sale) return;
+  imprimirViaCliente_(sale);
+}
+function agendarAutoOcultarHistoricoVendas(){
+  if(_vendasHistAutoOcultarTimer) clearTimeout(_vendasHistAutoOcultarTimer);
+  _vendasHistAutoOcultarTimer = setTimeout(fecharHistoricoVendasWidget, 60000);
+}
+function fecharHistoricoVendasWidget(){
+  const w = document.getElementById('vendasHistWidget');
+  if(w) w.style.display = 'none';
+  if(_vendasHistAutoOcultarTimer){ clearTimeout(_vendasHistAutoOcultarTimer); _vendasHistAutoOcultarTimer = null; }
 }
 
 /* =========================================================
