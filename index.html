@@ -3901,6 +3901,11 @@ html.is-mobile .btn::before{ display:none; }
         </div>
         <div class="panel" style="max-width:520px;">
           <h3>Impressora de Recibo</h3>
+          <div class="field" style="display:flex;align-items:center;gap:8px;">
+            <input type="checkbox" id="cfg_reciboPerguntarAposVenda" data-perm="admin" onchange="saveSettingsLive()" style="width:auto;margin:0;">
+            <label style="margin:0;">Perguntar para imprimir a via do cliente ao finalizar uma venda</label>
+          </div>
+          <p class="dimSmall" style="margin-top:4px;">Quando desligado, nenhum popup aparece sozinho depois de finalizar a venda — a impressão da via continua disponível a qualquer momento pelo botão "🖨️ Imprimir via do cliente" no painel de Histórico de Vendas, no canto da tela.</p>
           <div class="field"><label>Nome da impressora</label><input id="cfg_impressora" data-perm="admin" oninput="saveSettingsLive()"></div>
           <div class="field"><label>Largura do papel</label>
             <select id="cfg_papel" data-perm="admin" onchange="saveSettingsLive();atualizarPreviewReciboConfig();">
@@ -5715,6 +5720,7 @@ function ensureCatalogDefaults(){
      de pausa e o espaço extra são específicos de cada tipo de impressão; a
      conexão em si — modo/baud/protocolo — continua compartilhada). */
   if(!DB.settings.reciboEscalaFonte) DB.settings.reciboEscalaFonte = 'normal'; // 'pequeno' | 'normal' | 'grande' — escala do tamanho da letra impressa na via do cliente
+  if(typeof DB.settings.reciboPerguntarAposVenda !== 'boolean') DB.settings.reciboPerguntarAposVenda = false; // padrão de fábrica: DESATIVADO — o popup "Imprimir via do cliente?" só aparece sozinho após uma venda se a loja ligar essa opção em Configurações; a impressão continua disponível manualmente pelo botão no painel de Histórico de Vendas, no canto da tela
   if(typeof DB.settings.reciboPausaAposProcessarMs !== 'number' || !isFinite(DB.settings.reciboPausaAposProcessarMs)) DB.settings.reciboPausaAposProcessarMs = 500; // folga (ms) entre a via terminar de ser processada e o app começar a mandar pra impressora USB/Bluetooth direta — só vale nesses dois modos, mesmo princípio da etiqueta mas com valor próprio
   if(typeof DB.settings.reciboEspacoExtraMm !== 'number' || !isFinite(DB.settings.reciboEspacoExtraMm)) DB.settings.reciboEspacoExtraMm = 0; // mm de folga em branco deixados no fim da via (útil pra impressora não cortar/esconder a última linha ao rasgar o papel)
   if(typeof DB.settings.reciboMostrarLogo !== 'boolean') DB.settings.reciboMostrarLogo = false; // mostra a logo já cadastrada em "Dados da Loja" no topo do recibo
@@ -7964,6 +7970,12 @@ function reciboFontSizePx_(larguraMm){
 }
 function abrirPopupImprimirVia(sale){
   if(!sale) return;
+  // Configurações → Impressora de Recibo → "Perguntar para imprimir a via do
+  // cliente ao finalizar uma venda", desligado: não mostra nada sozinho. A via
+  // continua disponível manualmente pelo botão no painel de Histórico de
+  // Vendas (ver reimprimirViaHistoricoVendas_, que chama imprimirViaCliente_
+  // direto e não passa por aqui, então não é afetado por essa opção).
+  if(DB.settings.reciboPerguntarAposVenda === false) return;
   _viaClienteAtual = sale;
   const conteudo = montarConteudoViaCliente_(sale);
   const larguraMmPreview = (DB.settings.papel==='58mm') ? 58 : 80;
@@ -14348,6 +14360,7 @@ function renderConfig(){
   document.getElementById('cfg_pixQrAutoDisable').checked = !!DB.settings.pixQrAutoDisabled;
   document.getElementById('cfg_pixQrDelay').value = (typeof DB.settings.pixQrAutoDelay==='number' ? DB.settings.pixQrAutoDelay : 1800)/1000;
   toggleCfgPixQrDelayField();
+  document.getElementById('cfg_reciboPerguntarAposVenda').checked = (typeof DB.settings.reciboPerguntarAposVenda==='boolean') ? DB.settings.reciboPerguntarAposVenda : false;
   document.getElementById('cfg_impressora').value = DB.settings.impressora;
   document.getElementById('cfg_papel').value = DB.settings.papel;
   document.getElementById('cfg_reciboEscalaFonte').value = DB.settings.reciboEscalaFonte || 'normal';
@@ -14891,6 +14904,8 @@ function saveSettingsLive(){
   DB.settings.pixQrAutoDisabled = document.getElementById('cfg_pixQrAutoDisable').checked;
   const delaySeg = parseFloat(document.getElementById('cfg_pixQrDelay').value.replace(',','.'));
   DB.settings.pixQrAutoDelay = (isFinite(delaySeg) && delaySeg>=0) ? Math.round(delaySeg*1000) : 1800;
+  const reciboPerguntarChk = document.getElementById('cfg_reciboPerguntarAposVenda');
+  if(reciboPerguntarChk) DB.settings.reciboPerguntarAposVenda = reciboPerguntarChk.checked;
   DB.settings.impressora = document.getElementById('cfg_impressora').value;
   DB.settings.papel = document.getElementById('cfg_papel').value;
   const reciboEscalaSel = document.getElementById('cfg_reciboEscalaFonte');
