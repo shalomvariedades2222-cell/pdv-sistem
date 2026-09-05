@@ -9712,7 +9712,14 @@ async function conectarDispositivoRecenteImpressora_(dado){
       await desconectarImpressoraDireta_semLimparUI_();
       _impressoraDireta = { tipo:'usb', port, writer, bleDevice:null, bleChar:null, nome: dado.nome || 'USB' };
       port.addEventListener('disconnect', function(){
-        if(_impressoraDireta.port===port){ _impressoraDireta = { tipo:null, port:null, writer:null, bleDevice:null, bleChar:null, nome:'' }; renderImpressoraEtiquetaUI(); }
+        if(_impressoraDireta.port===port){
+          _impressoraDireta = { tipo:null, port:null, writer:null, bleDevice:null, bleChar:null, nome:'' };
+          renderImpressoraEtiquetaUI();
+          // Mesma lógica do Bluetooth: tenta reconectar sozinha assim que o cabo voltar
+          // (ou a impressora ligar de novo), sem esperar a próxima impressão ou reabertura
+          // de tela pra perceber que ela sumiu.
+          setTimeout(tentarReconectarImpressoraSilenciosamente_, 1500);
+        }
       });
       DB.settings.etiquetaModoImpressao = 'usb';
       try{ saveSettingsLive(); }catch(e){}
@@ -9935,7 +9942,11 @@ async function conectarImpressoraUSB(){
     // valendo (não precisa escolher de novo), então tentarReconectarImpressoraSilenciosamente_
     // consegue voltar a conectar sozinha assim que a impressora reaparecer.
     port.addEventListener('disconnect', function(){
-      if(_impressoraDireta.port===port){ _impressoraDireta = { tipo:null, port:null, writer:null, bleDevice:null, bleChar:null, nome:'' }; renderImpressoraEtiquetaUI(); }
+      if(_impressoraDireta.port===port){
+        _impressoraDireta = { tipo:null, port:null, writer:null, bleDevice:null, bleChar:null, nome:'' };
+        renderImpressoraEtiquetaUI();
+        setTimeout(tentarReconectarImpressoraSilenciosamente_, 1500);
+      }
     });
     log('Impressora de etiquetas conectada via USB (' + baud + ' bps).');
     const infoUsb = port.getInfo ? port.getInfo() : {};
@@ -10072,7 +10083,11 @@ async function tentarReconectarImpressoraSilenciosamente_(){
           const writer = port.writable.getWriter();
           _impressoraDireta = { tipo:'usb', port, writer, bleDevice:null, bleChar:null, nome:(port.getInfo && port.getInfo().usbProductId) ? ('USB '+port.getInfo().usbProductId.toString(16)) : 'USB' };
           port.addEventListener('disconnect', function(){
-            if(_impressoraDireta.port===port){ _impressoraDireta = { tipo:null, port:null, writer:null, bleDevice:null, bleChar:null, nome:'' }; renderImpressoraEtiquetaUI(); }
+            if(_impressoraDireta.port===port){
+              _impressoraDireta = { tipo:null, port:null, writer:null, bleDevice:null, bleChar:null, nome:'' };
+              renderImpressoraEtiquetaUI();
+              setTimeout(tentarReconectarImpressoraSilenciosamente_, 1500);
+            }
           });
           log('Impressora de etiquetas reconectada sozinha via USB.');
           const infoUsbRec = port.getInfo ? port.getInfo() : {};
@@ -10363,10 +10378,17 @@ async function enviarBytesImpressoraDireta_(bytes){
   try{
     await _enviarBytesImpressoraDiretaSemRetry_(bytes);
   }catch(err){
-    // Zera o estado de conexão antes de tentar reconectar — se não fizer isso, o writer/
-    // característica antigos (já mortos) continuam "parecendo" conectados e a tentativa de
-    // reconexão silenciosa desiste achando que já está tudo certo.
+    // Fecha DE VERDADE a conexão anterior (solta o writer, fecha a porta serial / desconecta
+    // o GATT) antes de zerar o estado — sem isso, o navegador ainda enxergava a porta/
+    // característica antiga como "aberta" por baixo dos panos, e a tentativa de reconexão
+    // logo abaixo falhava sempre (o Web Serial recusa reabrir uma porta que já está aberta),
+    // mesmo com a impressora ligada e por perto. Esse era o motivo de "tenta reconectar e não
+    // reconecta": antes só zerávamos a variável _impressoraDireta, sem soltar a conexão real.
+    const antiga = _impressoraDireta;
     _impressoraDireta = { tipo:null, port:null, writer:null, bleDevice:null, bleChar:null, nome:'' };
+    try{ if(antiga.writer) antiga.writer.releaseLock(); }catch(e){}
+    try{ if(antiga.port) await antiga.port.close(); }catch(e){}
+    try{ if(antiga.bleDevice && antiga.bleDevice.gatt && antiga.bleDevice.gatt.connected) antiga.bleDevice.gatt.disconnect(); }catch(e){}
     const reconectou = await tentarReconectarImpressoraSilenciosamente_();
     if(!reconectou){ renderImpressoraEtiquetaUI(); throw err; }
     // Se o envio caiu NO MEIO de um pedaço, é bem provável que a impressora já tenha
@@ -10564,9 +10586,32 @@ function renderListaDispositivosRecentesImpressora_(){
       + '<div style="font-weight:700;font-size:12.5px;">'+icone+' — '+_escapeHtmlPct_(d.nome||'')+'</div>'
       + '<div class="dimSmall" style="font-size:11px;">'+(conectadoAgora ? '✅ conectado agora' : 'conectado pela última vez '+_tempoRelativoCurtoPct_(d.ts))+'</div>'
       + '</div>'
+      + '<div style="display:flex;gap:6px;flex-shrink:0;">'
       + (conectadoAgora ? '' : '<button type="button" class="btn secondary small" onclick="abrirPopupConectandoImpressora_(getDispositivosRecentesImpressora_()['+i+'])">Conectar</button>')
+      + '<button type="button" class="btn danger small" title="Remover da lista de aparelhos recentes" onclick="excluirDispositivoRecenteImpressora_('+i+')">🗑️</button>'
+      + '</div>'
       + '</div>';
   }).join('');
+}
+// Remove um aparelho da lista de "recentes" (localStorage deste aparelho/navegador). Se for
+// o que está conectado agora, desconecta primeiro. Isso NÃO revoga a permissão que o próprio
+// navegador guarda pra essa porta/Bluetooth (Web Serial/Web Bluetooth não dão esse controle
+// pra página) — só tira ele da listinha de atalhos do app; se reaparecer sozinho depois (o
+// navegador ainda lembra dele), é só conectar de novo que ele volta pra lista.
+async function excluirDispositivoRecenteImpressora_(i){
+  const recentes = getDispositivosRecentesImpressora_();
+  const dado = recentes[i];
+  if(!dado) return;
+  confirmModal('Remover "'+_escapeHtmlPct_(dado.nome||'')+'" da lista de aparelhos recentes? Se ele estiver conectado agora, a conexão também é encerrada. Isso não desfaz o pareamento no navegador/sistema — só tira o atalho daqui.', async function(){
+    const conectadoAgora = impressoraDiretaDisponivel_() && _impressoraDireta.tipo===dado.tipo &&
+      (dado.tipo==='bluetooth' ? (_impressoraDireta.bleDevice && _impressoraDireta.bleDevice.id===dado.bleId)
+        : (dado.usbVendorId==null || (_impressoraDireta.port && _impressoraDireta.port.getInfo && _impressoraDireta.port.getInfo().usbVendorId===dado.usbVendorId && _impressoraDireta.port.getInfo().usbProductId===dado.usbProductId)));
+    if(conectadoAgora){ try{ await desconectarImpressoraDireta(); }catch(e){} }
+    const listaNova = getDispositivosRecentesImpressora_().filter(function(_, idx){ return idx!==i; });
+    salvarDispositivosRecentesImpressora_(listaNova);
+    renderImpressoraEtiquetaUI();
+    toast('Aparelho removido da lista.');
+  }, {titulo:'Remover aparelho?', textoBtn:'Remover'});
 }
 function renderImpressoraEtiquetaUI(){
   const wrap = document.getElementById('impressoraEtiquetaStatus');
