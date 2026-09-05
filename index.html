@@ -1269,10 +1269,11 @@ html.is-mobile #stockSavedPopup .stockSavedName{font-size:16px;}
 /* ---------- CARDS / GRID ---------- */
 .cardRow{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:18px;}
 .statCard{
+  /* Otimização de performance: sem backdrop-filter aqui (ver nota igual em
+     .panel, logo abaixo — mesmo motivo, mesmo efeito colateral visual quase
+     zero, e statCard se repete várias vezes em algumas telas). */
   background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius);
   padding:14px 18px;min-width:150px;flex:1;position:relative;overflow:hidden;
-  backdrop-filter:blur(var(--glass-blur)) saturate(150%);
-  -webkit-backdrop-filter:blur(var(--glass-blur)) saturate(150%);
   box-shadow:inset 0 1px 0 rgba(255,255,255,.06), 0 8px 22px rgba(0,0,0,.25);
 }
 .statCard::before{
@@ -1286,10 +1287,20 @@ html.is-mobile #stockSavedPopup .stockSavedName{font-size:16px;}
 .statCard.red .val{color:var(--red);}
 
 .panel{
+  /* Otimização de performance (rolagem travando): .panel se repete dezenas de
+     vezes em telas como Configurações, e ficava com backdrop-filter:blur
+     ligado em TODOS eles ao mesmo tempo, dentro da área que rola (#content) e
+     por cima do fundo animado (body::before/::after, que nunca para de se
+     mexer). Isso obriga o navegador a recalcular o desfoque de cada painel a
+     cada quadro, o tempo todo (parado ou rolando) — o principal motivo do
+     travamento. Como o fundo por trás é só um gradiente bem suave (sem
+     detalhe nenhum pra "desfocar" de verdade), tirar o blur daqui quase não
+     muda a aparência, só o desempenho. O efeito de vidro continua vindo do
+     fundo semitransparente (--glass-bg) + brilho interno + sombra abaixo.
+     Blur "de verdade" continua só em popups/modais que aparecem por cima de
+     conteúdo variado (poucos de cada vez, custo bem menor). */
   background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius);
   padding:16px;margin-bottom:16px;position:relative;overflow:hidden;
-  backdrop-filter:blur(var(--glass-blur)) saturate(150%);
-  -webkit-backdrop-filter:blur(var(--glass-blur)) saturate(150%);
   box-shadow:inset 0 1px 0 rgba(255,255,255,.05), 0 10px 26px rgba(0,0,0,.22);
 }
 .panel::before{
@@ -2924,9 +2935,12 @@ html.is-mobile .btn::before{ display:none; }
             </table>
           </div>
           <div class="panel recentAddsPanel" id="recentAddsListaWrap">
-            <h3 style="margin-top:0;">🆕 Adicionados agora</h3>
-            <div class="dimSmall" style="margin-bottom:10px;">Fica visível por 30 segundos, sem precisar sair desta aba. O produto já está salvo normalmente no estoque — isso é só pra saber o que acabou de entrar.</div>
-            <div id="recentAddsLista"><div class="recentAddsEmpty">Nenhum produto cadastrado nos últimos 30 segundos.</div></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+              <h3 style="margin:0;">🆕 Adicionados agora</h3>
+              <button type="button" class="btn secondary small" onclick="limparRecentAdds()">🗑️ Limpar</button>
+            </div>
+            <div class="dimSmall" style="margin:8px 0 10px;">Fica na lista até você limpar manualmente. O produto já está salvo normalmente no estoque — isso é só pra saber o que entrou nesta sessão.</div>
+            <div id="recentAddsLista"><div class="recentAddsEmpty">Nenhum produto adicionado ainda nesta sessão.</div></div>
           </div>
           </div>
         </div>
@@ -2977,9 +2991,12 @@ html.is-mobile .btn::before{ display:none; }
             <div class="dimSmall" style="margin-top:4px;">Atalho <b>Alt+Enter</b>: abre a janela para escolher quantas peças, e ao pressionar Enter nela o produto já é salvo e imprime na hora.</div>
           </div>
           <div class="panel recentAddsPanel" id="recentAddsCadastroWrap">
-            <h3 style="margin-top:0;">🆕 Adicionados agora</h3>
-            <div class="dimSmall" style="margin-bottom:10px;">Fica visível por pelo menos 30 segundos. Enquanto você continuar nesta aba, o aviso não some sozinho — some só quando você sair daqui. O produto já está salvo normalmente no estoque — isso é só pra saber o que acabou de entrar.</div>
-            <div id="recentAddsCadastro"><div class="recentAddsEmpty">Nenhum produto cadastrado nos últimos 30 segundos.</div></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+              <h3 style="margin:0;">🆕 Adicionados agora</h3>
+              <button type="button" class="btn secondary small" onclick="limparRecentAdds()">🗑️ Limpar</button>
+            </div>
+            <div class="dimSmall" style="margin:8px 0 10px;">Fica na lista até você limpar manualmente, mesmo trocando de aba. O produto já está salvo normalmente no estoque — isso é só pra saber o que entrou nesta sessão.</div>
+            <div id="recentAddsCadastro"><div class="recentAddsEmpty">Nenhum produto adicionado ainda nesta sessão.</div></div>
           </div>
           </div>
         </div>
@@ -6063,9 +6080,6 @@ function showView(name){
   if(currentUser && getPerms().level==='restrito' && name!=='vendas' && name!=='testador'){
     name = 'vendas';
   }
-  // Saiu da tela de Estoque estando na aba "Cadastrar": mesma regra do
-  // destaque de 30s — some agora se o tempo já tinha estourado.
-  if(name!=='estoque' && estaNaAreaCadastro()) limparAdicoesRecentesExpiradas();
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.getElementById('view-'+name).classList.add('active');
   document.querySelectorAll('.navBtn').forEach(b=>b.classList.toggle('active', b.dataset.view===name));
@@ -7430,11 +7444,7 @@ function setEstoqueTab(tab){
     requirePerm(false);
     tab = 'lista';
   }
-  const estoqueTabAnterior = estoqueTab;
   estoqueTab = tab;
-  // Saiu da aba "Cadastrar": se algum destaque já tinha estourado os 30s
-  // enquanto a pessoa ainda estava lá, some com ele agora.
-  if(estoqueTabAnterior==='novo' && tab!=='novo') limparAdicoesRecentesExpiradas();
   const tabs = ['lista','novo','scanner','categorias','lote','ajuste','entrada','saida','kits'];
   tabs.forEach(t=>{
     document.getElementById('estoqueTab-'+t).style.display = (t===tab)?'':'none';
@@ -7576,27 +7586,18 @@ async function decidirAcessoDispositivo(id,status){
 /* =========================================================
    PAINEL "ADICIONADOS AGORA" (aparece ao lado, nas abas Produtos e Cadastrar)
    Mostra, em tempo real e sem precisar sair/entrar na aba, os produtos
-   cadastrados nesta sessão. Cada item some sozinho da lista 30 segundos
-   depois de ter sido adicionado — isso é só um aviso do que acabou de
-   entrar; o produto continua salvo normalmente no estoque.
-========================================================= */
+   cadastrados nesta sessão. NUNCA some sozinho por tempo — fica na lista até
+   a própria pessoa clicar em "Limpar" (ver limparRecentAdds()), ou excluir um
+   item específico (ver excluirRecemAdicionado()); o produto continua salvo
+   normalmente no estoque o tempo todo, isso é só um aviso do que entrou. */
 let recentAdds = [];
-const RECENT_ADD_MS = 30000;
 // Duração da aura (borda laranja + "Item adicionado recentemente") na LISTA
-// de Estoque (tabela). Por padrão, igual aos 5 minutos já usados na grade de
-// Produtos (Vendas) — ajuste aqui caso queira igualar aos 30s do Cadastro.
+// de Estoque (tabela).
 const ESTOQUE_AURA_RECENTE_MS = 5*60*1000;
-// A pessoa está na Área de Cadastro quando a view de Estoque está ativa E a
-// aba aberta é "Cadastrar" (estoqueTab === 'novo').
-function estaNaAreaCadastro(){
-  const viewEstoque = document.getElementById('view-estoque');
-  return !!(viewEstoque && viewEstoque.classList.contains('active') && estoqueTab==='novo');
-}
 function registrarAdicaoRecente(p){
   const item = { id:p.id, nome:p.nome, barcode:p.barcode||'', ts:Date.now() };
   recentAdds.unshift(item);
   renderRecentAdds();
-  setTimeout(function(){ expirarAdicaoRecente(item.id); }, RECENT_ADD_MS);
 }
 // Formata um intervalo em milissegundos como HH:MM:SS (sempre com as 3 partes,
 // mesmo quando ainda não passou 1 minuto), pra mostrar há quanto tempo cada
@@ -7621,21 +7622,15 @@ function atualizarTemposRecentAdds(){
     });
   });
 }
-// Passados os 30s: se a pessoa ainda estiver na Área de Cadastro, o destaque
-// NÃO some agora — continua visível até ela sair de lá (ver
-// limparAdicoesRecentesExpiradas, chamada ao trocar de aba/tela).
-function expirarAdicaoRecente(id){
-  if(estaNaAreaCadastro()) return;
-  recentAdds = recentAdds.filter(function(x){ return x.id !== id; });
-  renderRecentAdds();
-}
-// Chamada no momento em que a pessoa sai da Área de Cadastro: remove agora
-// qualquer item cujo tempo de 30s já tinha estourado enquanto ela ainda
-// estava lá dentro.
-function limparAdicoesRecentesExpiradas(){
-  const antes = recentAdds.length;
-  recentAdds = recentAdds.filter(function(x){ return (Date.now()-x.ts) < RECENT_ADD_MS; });
-  if(recentAdds.length !== antes) renderRecentAdds();
+// Limpa TODO o painel "Adicionados agora" de propósito (botão "🗑️ Limpar" ao
+// lado do título) — nunca acontece sozinho por tempo, só quando a pessoa pede.
+function limparRecentAdds(){
+  if(!recentAdds.length){ renderRecentAdds(); return; }
+  confirmModal('Limpar a lista de "Adicionados agora"? Os produtos continuam normalmente no estoque — isso só limpa este aviso.', function(){
+    recentAdds = [];
+    renderRecentAdds();
+    toast('Lista de "Adicionados agora" limpa.');
+  }, {titulo:'Limpar "Adicionados agora"?', textoBtn:'Limpar'});
 }
 function renderRecentAdds(){
   ['recentAddsCadastro','recentAddsLista'].forEach(function(containerId){
@@ -7657,7 +7652,7 @@ function renderRecentAdds(){
             <button type="button" class="btn danger small" onclick="excluirRecemAdicionado('${item.id}')">🗑️ Excluir</button>
           </div>`;
         }).join('')
-      : '<div class="recentAddsEmpty">Nenhum produto cadastrado nos últimos 30 segundos.</div>';
+      : '<div class="recentAddsEmpty">Nenhum produto adicionado ainda nesta sessão.</div>';
   });
 }
 function saveNewProduct(imprimirDireto){
@@ -14909,15 +14904,34 @@ function mostrarStatusConexaoPopup(x, y){
      nativos do navegador — foram todos trocados pelos popups
      confirmModal()/alertModal() com a cara do sistema (ver mais abaixo). */
 
-/* ---------------- Efeito: luz que acompanha o mouse (spotlight) ---------------- */
+/* ---------------- Efeito: luz que acompanha o mouse (spotlight) ----------------
+   Otimização: o mousemove pode disparar dezenas de vezes por segundo, e cada
+   disparo antes já calculava e aplicava a posição na hora (getBoundingClientRect
+   força o navegador a recalcular o layout ali mesmo, no meio do movimento). Agora
+   só guardamos a posição mais recente a cada mousemove, e um único
+   requestAnimationFrame por quadro de tela é quem realmente lê o layout e aplica
+   o resultado — no máximo uma vez por quadro, em vez de várias. Visualmente
+   idêntico (a luz continua acompanhando o mouse suavemente), só muda a
+   frequência de trabalho pesado por trás. */
+let _spotlightPendente = null;
+let _spotlightRafAgendado_ = false;
 document.addEventListener('mousemove', function(e){
   if(document.documentElement.classList.contains('anim-off-glow')) return;
   if(document.documentElement.classList.contains('is-mobile')) return;
   const host = e.target.closest('.btn, .panel, .statCard, .prodTile');
   if(!host) return;
-  const rect = host.getBoundingClientRect();
-  host.style.setProperty('--mx', ((e.clientX-rect.left)/rect.width*100)+'%');
-  host.style.setProperty('--my', ((e.clientY-rect.top)/rect.height*100)+'%');
+  _spotlightPendente = { host, x: e.clientX, y: e.clientY };
+  if(_spotlightRafAgendado_) return;
+  _spotlightRafAgendado_ = true;
+  requestAnimationFrame(function(){
+    _spotlightRafAgendado_ = false;
+    if(!_spotlightPendente) return;
+    const { host, x, y } = _spotlightPendente;
+    _spotlightPendente = null;
+    const rect = host.getBoundingClientRect();
+    host.style.setProperty('--mx', ((x-rect.left)/rect.width*100)+'%');
+    host.style.setProperty('--my', ((y-rect.top)/rect.height*100)+'%');
+  });
 });
 
 /* ---------------- Efeito ripple (onda) ao clicar em qualquer botão ---------------- */
