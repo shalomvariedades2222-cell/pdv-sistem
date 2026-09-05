@@ -915,6 +915,40 @@ html.is-mobile .navBtnRestartMobile{display:flex;}
 .contingProgressTrack{width:100%;height:8px;border-radius:6px;background:var(--panel2);border:1px solid var(--line);overflow:hidden;}
 .contingProgressBar{height:100%;width:0%;background:linear-gradient(90deg,var(--orange-deep),var(--orange));transition:width .3s ease;border-radius:6px;}
 .contingProgressLegenda{margin-top:6px;font-size:12.5px;color:var(--text-dim);}
+
+/* ---------------- Popup de impressão de etiquetas (fica fixo no canto direito da
+   tela, sem tampar o resto do app, com a prévia da etiqueta que está sendo mandada
+   pra impressora naquele momento — diferente do modal centralizado padrão) ---------------- */
+#etqImpWidget{
+  position:fixed;top:16px;right:16px;width:280px;max-width:92vw;z-index:950;
+  background:var(--glass-bg-strong);border:1px solid var(--glass-border-strong);border-radius:16px;
+  padding:16px;backdrop-filter:blur(var(--glass-blur-lg)) saturate(160%);-webkit-backdrop-filter:blur(var(--glass-blur-lg)) saturate(160%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.07), 0 20px 45px rgba(0,0,0,.45);
+  animation:etqImpWidgetIn .25s ease;
+}
+@keyframes etqImpWidgetIn{ from{opacity:0;transform:translateX(24px);} to{opacity:1;transform:translateX(0);} }
+#etqImpWidget h4{margin:0 0 10px;color:var(--orange);font-size:14px;}
+#etqImpPreviewBox{
+  width:100%;min-height:80px;background:#fff;border:1px solid var(--line);border-radius:10px;
+  display:flex;align-items:center;justify-content:center;overflow:hidden;margin-bottom:8px;padding:6px;
+}
+#etqImpPreviewBox img{max-width:100%;max-height:150px;display:block;}
+#etqImpPreviewCodigo{text-align:center;font-family:monospace;font-size:12px;letter-spacing:.5px;color:var(--text-dim);margin-bottom:10px;word-break:break-all;min-height:14px;}
+#etqImpWidget .btn{width:100%;}
+html.is-mobile #etqImpWidget{top:auto;bottom:86px;right:10px;left:10px;width:auto;}
+
+/* ---------------- Histórico de Impressão de Etiquetas (Configurações) ----------------
+   Fica registrado etiqueta por etiqueta, com o status de cada uma (impressa ou não),
+   e NUNCA é limpo sozinho por tempo — só some quando a própria pessoa clica em
+   "Limpar histórico", de propósito. */
+.historicoEtiquetaItem{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);
+}
+.historicoEtiquetaItem .nome{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.historicoEtiquetaItem .status{font-size:11px;font-weight:700;white-space:nowrap;flex-shrink:0;}
+.historicoEtiquetaItem .status.ok{color:var(--green);}
+.historicoEtiquetaItem .status.falhou{color:var(--red);}
 #saveStatus .backupBtn{
   background:var(--orange);border:none;color:#1a1110;font-weight:700;font-size:11px;
   padding:6px 10px;border-radius:6px;
@@ -3680,6 +3714,15 @@ html.is-mobile .btn::before{ display:none; }
             </div>
           </div>
           <p class="dimSmall">USB só funciona no Chrome/Edge do computador, e só se a impressora aparecer como porta serial/COM. Bluetooth só funciona com impressoras Bluetooth LE — a maioria das térmicas baratas usa Bluetooth clássico (SPP), que nenhum navegador consegue acessar direto; se sua impressora não aparecer na lista, use USB ou "Caixa do sistema". A conexão direta vale só para este aparelho — mas, uma vez conectada aqui, ela fica na lista de "aparelhos recentes" acima (e também disponível no botão rápido da tela de Estoque), e o sistema reconecta nela sozinho ao entrar, ao recarregar a página, ou se ela cair e voltar no meio de uma impressão, sem precisar clicar de novo.</p>
+          <div class="field" style="margin-top:8px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+              <label style="margin-bottom:0;">Histórico de Impressão de Etiquetas</label>
+              <button type="button" class="btn secondary small" onclick="limparHistoricoEtiquetas()">🗑️ Limpar histórico</button>
+            </div>
+            <div class="dimSmall" style="margin:4px 0 8px;">Cada etiqueta enviada pra impressão fica registrada aqui, com "Impressa" ou "Não impressa" (quando a impressão foi interrompida ou deu erro no meio do caminho) — fica guardado até você mesmo limpar, não some sozinho.</div>
+            <div id="historicoEtiquetasList" style="display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto;"></div>
+            <div class="dimSmall" id="historicoEtiquetasVazio">Nenhuma impressão registrada ainda.</div>
+          </div>
         </div>
         <div class="panel" style="max-width:520px;">
           <h3>Impressora de Recibo</h3>
@@ -3847,6 +3890,7 @@ let DB = {
   categories: [],      // categorias {id, nome, groupId}
   productNames: [],    // catálogo de nomes de peças {id, nome}
   trashProducts: [],   // lixeira: cópias completas de produtos excluídos {id, product, deletedAt} — recuperáveis por 6h, ver limparLixeiraExpirada()
+  historicoEtiquetas: [], // histórico de impressão de etiquetas {id, data, horaTexto, nome, codigo, status:'impressa'|'nao_impressa', motivo} — não expira sozinho, só é apagado pelo botão "Limpar histórico"
   deleted: {},         // "lápides" de exclusão: deleted[campo][id] = timestamp — ver garantirEstruturaDeletados()
   settings: { nomeLoja:'Shalom Variedades', contato:'', logo:'', impressora:'', papel:'80mm', etiquetaQr:'', etiquetaMostrarQr:true, pixChave:'', pixNome:'', pixCidade:'' }
 };
@@ -3867,7 +3911,7 @@ let modoTeste = false; // true quando conectado com a chave "teste" — nada é 
 (function restoreFromLocalStorage(){
   try{
     const raw = localStorage.getItem('slmsys_db');
-    if(raw){ DB = JSON.parse(raw); if(!DB.deleted) DB.deleted = {}; if(!Array.isArray(DB.trashProducts)) DB.trashProducts = []; }
+    if(raw){ DB = JSON.parse(raw); if(!DB.deleted) DB.deleted = {}; if(!Array.isArray(DB.trashProducts)) DB.trashProducts = []; if(!Array.isArray(DB.historicoEtiquetas)) DB.historicoEtiquetas = []; }
   }catch(e){ console.error('Falha ao restaurar dados salvos:', e); }
 })();
 
@@ -4259,6 +4303,7 @@ async function loadFromGitHub(){
     DB = json.data;
     if(!DB.deleted) DB.deleted = {};
     if(!Array.isArray(DB.trashProducts)) DB.trashProducts = [];
+    if(!Array.isArray(DB.historicoEtiquetas)) DB.historicoEtiquetas = [];
     if(tombstonesAntesDoPull) aplicarTombstonesLocais_(tombstonesAntesDoPull);
     resolverIdsDuplicados(DB);
     driveVersion = json.version || 0;
@@ -4309,7 +4354,7 @@ async function loadFromGitHub(){
    nas listas principais; por conteúdo, nas listas tipo log/caixa),
    e tenta salvar de novo com o resultado combinado.
 ------------------------------------------------------------ */
-const CAMPOS_POR_ID = ['products','customers','sales','employees','cashSessions','contas','incomingStock','outgoingStock','kits','categoryGroups','categories','productNames','stockRequests','accessRequests','trashProducts','ledger'];
+const CAMPOS_POR_ID = ['products','customers','sales','employees','cashSessions','contas','incomingStock','outgoingStock','kits','categoryGroups','categories','productNames','stockRequests','accessRequests','trashProducts','ledger','historicoEtiquetas'];
 const CAMPOS_SEM_ID = ['logs'];
 
 /* ------------------------------------------------------------
@@ -8821,24 +8866,76 @@ function impressoraEstaOcupada(){ return _impressaoEmAndamento; }
 function avisarImpressoraOcupada(){
   alertModal('A impressora está ocupada imprimindo no momento. Aguarde a impressão atual terminar antes de começar outra.');
 }
-function iniciarProgressoImpressao_(total){
+// Enquanto dura o lote, guarda quem são as etiquetas (nome+código, na mesma ordem
+// enviada pra impressora) e quantas já foram de fato impressas — usado tanto pelo
+// botão "Parar impressão" quanto pelo "Travou? Cancelar", pra registrar certinho no
+// Histórico de Impressão de Etiquetas quais saíram e quais não saíram.
+let _impressaoAtualCtx_ = null; // {metaEtiquetas:[{nome,codigo}], concluidas:number, qtdEtiquetas:number}
+let _pararImpressaoSolicitado = false;
+function iniciarProgressoImpressao_(total, metaEtiquetas, permiteParar){
   _impressaoEmAndamento = true;
-  showModal(`
-    <h3 style="margin-bottom:4px;">🖨️ Imprimindo etiquetas</h3>
-    <div class="dimSmall" style="margin-bottom:14px;">A impressora fica ocupada até terminar. Não feche esta tela nem recarregue a página.</div>
+  _pararImpressaoSolicitado = false;
+  _impressaoAtualCtx_ = { metaEtiquetas: metaEtiquetas || [], concluidas: 0, qtdEtiquetas: total };
+  removerWidgetImpressaoEtiqueta_();
+  const widget = document.createElement('div');
+  widget.id = 'etqImpWidget';
+  widget.innerHTML = `
+    <h4>🖨️ Imprimindo etiquetas</h4>
+    <div id="etqImpPreviewBox"><span class="dimSmall" style="font-size:11px;">Preparando…</span></div>
+    <div id="etqImpPreviewCodigo"></div>
     <div class="contingProgressTrack"><div class="contingProgressBar" id="etqImpProgressBar" style="width:4%;"></div></div>
     <div class="contingProgressLegenda" id="etqImpProgressLegenda">0 de ${total} etiqueta${total>1?'s':''} impressa${total>1?'s':''}</div>
-    <button class="btn secondary small" style="margin-top:16px;" onclick="cancelarImpressaoTravada_()">Travou? Cancelar impressão</button>
-  `);
+    ${permiteParar ? `<button class="btn danger small" style="margin-top:12px;" onclick="pararImpressaoAtual_()">⏹ Parar impressão</button>` : ''}
+    <button class="btn secondary small" style="margin-top:8px;" onclick="cancelarImpressaoTravada_()">Travou? Cancelar impressão</button>
+  `;
+  document.body.appendChild(widget);
+}
+function removerWidgetImpressaoEtiqueta_(){
+  const el = document.getElementById('etqImpWidget');
+  if(el) el.remove();
+}
+// Mostra, dentro do próprio popup, a etiqueta que está sendo mandada pra impressora
+// NESTE exato momento (a foto/imagem real que virou o comando enviado) + o código
+// dela logo abaixo — só é chamada no modo USB/Bluetooth direto, onde dá pra saber
+// exatamente qual etiqueta está indo agora (no modo "Caixa do sistema" o navegador
+// manda tudo de uma vez só, sem esse controle etiqueta-por-etiqueta).
+function atualizarPreviewImpressaoEtiqueta_(dataUrl, meta){
+  const box = document.getElementById('etqImpPreviewBox');
+  const cod = document.getElementById('etqImpPreviewCodigo');
+  if(box) box.innerHTML = `<img src="${dataUrl}" alt="Etiqueta sendo impressa">`;
+  if(cod) cod.textContent = (meta && meta.codigo) ? meta.codigo : '';
+}
+// Pede pra impressão PARAR depois da etiqueta que está sendo enviada agora (não dá
+// pra interromper no meio de uma etiqueta já em transmissão, só antes da próxima
+// começar) — as etiquetas que ainda faltavam ficam registradas no Histórico de
+// Impressão de Etiquetas como "não impressa", em vez de simplesmente sumirem sem
+// explicação.
+function pararImpressaoAtual_(){
+  if(!_impressaoEmAndamento) return;
+  _pararImpressaoSolicitado = true;
+  const legenda = document.getElementById('etqImpProgressLegenda');
+  if(legenda) legenda.textContent += ' — parando após esta etiqueta…';
+  const btn = document.querySelector('#etqImpWidget .btn.danger');
+  if(btn){ btn.disabled = true; btn.textContent = 'Parando…'; }
 }
 async function cancelarImpressaoTravada_(){
   const area = document.getElementById('printArea');
   if(area){ area.style.cssText = 'display:none;'; area.innerHTML = ''; }
   try{ await desconectarImpressoraDireta(); }catch(e){}
+  // Registra no histórico tudo que ainda não tinha sido confirmado como impresso
+  // até este momento, já que a impressão travada não vai continuar sozinha.
+  if(_impressaoAtualCtx_){
+    const ctx = _impressaoAtualCtx_;
+    for(let i=ctx.concluidas; i<ctx.metaEtiquetas.length; i++){
+      registrarHistoricoEtiqueta_(ctx.metaEtiquetas[i], 'nao_impressa', 'Impressão cancelada manualmente (impressora travada).');
+    }
+    if(ctx.metaEtiquetas.length) { flashSaving(); renderHistoricoEtiquetas_(); }
+  }
   finalizarProgressoImpressao_();
   alertModal('Impressão cancelada. Se estiver usando USB, verifique o cabo e clique em "Conectar impressora" de novo antes de tentar imprimir.');
 }
 function atualizarProgressoImpressao_(feitas, total){
+  if(_impressaoAtualCtx_) _impressaoAtualCtx_.concluidas = feitas;
   const bar = document.getElementById('etqImpProgressBar');
   const legenda = document.getElementById('etqImpProgressLegenda');
   if(!bar || !legenda) return;
@@ -8848,7 +8945,66 @@ function atualizarProgressoImpressao_(feitas, total){
 }
 function finalizarProgressoImpressao_(){
   _impressaoEmAndamento = false;
-  closeModal();
+  _pararImpressaoSolicitado = false;
+  _impressaoAtualCtx_ = null;
+  removerWidgetImpressaoEtiqueta_();
+}
+
+/* ---------------- Histórico de Impressão de Etiquetas ----------------
+   Um registro por etiqueta (impressa ou não), guardado em DB.historicoEtiquetas.
+   Nunca expira ou é limpo sozinho — só some quando a pessoa clica de propósito
+   em "Limpar histórico" (ver limparHistoricoEtiquetas()), em Configurações. */
+function registrarHistoricoEtiqueta_(meta, status, motivo){
+  if(!meta) return;
+  if(!Array.isArray(DB.historicoEtiquetas)) DB.historicoEtiquetas = [];
+  DB.historicoEtiquetas.unshift({
+    id: uid('hetq'),
+    data: todayISO(),
+    horaTexto: fmtAgora(),
+    nome: meta.nome || '',
+    codigo: meta.codigo || '',
+    status: status, // 'impressa' | 'nao_impressa'
+    motivo: motivo || ''
+  });
+  // Não deixa crescer sem limite pra sempre — mantém os 300 mais recentes; a
+  // pessoa pode limpar tudo manualmente a qualquer momento pelo botão dedicado.
+  if(DB.historicoEtiquetas.length > 300) DB.historicoEtiquetas.length = 300;
+}
+function renderHistoricoEtiquetas_(){
+  const wrap = document.getElementById('historicoEtiquetasList');
+  const vazio = document.getElementById('historicoEtiquetasVazio');
+  if(!wrap) return; // tela de Configurações pode não estar aberta agora
+  const lista = Array.isArray(DB.historicoEtiquetas) ? DB.historicoEtiquetas : [];
+  if(!lista.length){
+    wrap.innerHTML = '';
+    if(vazio) vazio.style.display = '';
+    return;
+  }
+  if(vazio) vazio.style.display = 'none';
+  wrap.innerHTML = lista.slice(0, 200).map(function(h){
+    const ok = h.status === 'impressa';
+    const nome = (h.nome || '(sem nome)').replace(/</g,'&lt;');
+    return `
+      <div class="historicoEtiquetaItem">
+        <div style="min-width:0;">
+          <div class="nome">${nome}</div>
+          <div class="dimSmall" style="font-size:11px;">${(h.codigo||'').replace(/</g,'&lt;')} • ${h.horaTexto||''}</div>
+        </div>
+        <div class="status ${ok?'ok':'falhou'}">${ok?'✔ Impressa':'✖ Não impressa'}</div>
+      </div>`;
+  }).join('');
+}
+function limparHistoricoEtiquetas(){
+  if(!Array.isArray(DB.historicoEtiquetas) || !DB.historicoEtiquetas.length){
+    renderHistoricoEtiquetas_();
+    return;
+  }
+  confirmModal('Limpar todo o histórico de impressão de etiquetas? Essa ação não pode ser desfeita.', function(){
+    DB.historicoEtiquetas = [];
+    flashSaving();
+    renderHistoricoEtiquetas_();
+    toast('Histórico de etiquetas limpo.');
+  }, {titulo:'Limpar histórico de etiquetas?', textoBtn:'Limpar histórico'});
 }
 
 function buildEtiquetaHTML(p, modelo, sfx, barcodeValue){
@@ -9192,6 +9348,7 @@ function imprimirEtiquetaFinal(){
   // correspondente, na mesma ordem, pra depois capturar cada um em uma página do PDF.
   const promessasEtiquetas = [];
   const itensEtiquetas = [];
+  const metaEtiquetas = []; // {nome, codigo} na mesma ordem de itensEtiquetas — usado no popup (prévia) e no Histórico de Impressão
   const modoAtual_ = DB.settings.etiquetaModoImpressao || 'sistema';
   const ajusteVerticalSistema_ = (modoAtual_==='sistema') ? (Number(DB.settings.etiquetaAjusteVerticalSistemaMm)||0) : 0;
   if(produtosMultiplos && produtosMultiplos.length){
@@ -9202,6 +9359,7 @@ function imprimirEtiquetaFinal(){
       aplicarTamanhoFisicoEtiqueta_(item, dims, _etqState.modelo, ajusteVerticalSistema_);
       area.appendChild(item);
       itensEtiquetas.push(item);
+      metaEtiquetas.push({nome: prod.nome || '', codigo: prod.barcode || ''});
     });
   } else {
     const qtd = Math.max(1, Number(_etqState.quantidade)||1);
@@ -9220,6 +9378,7 @@ function imprimirEtiquetaFinal(){
       aplicarTamanhoFisicoEtiqueta_(item, dims, _etqState.modelo, ajusteVerticalSistema_);
       area.appendChild(item);
       itensEtiquetas.push(item);
+      metaEtiquetas.push({nome: p.nome || '', codigo: codigo || ''});
     });
   }
   // A área fica fora da tela (position:fixed, fora da viewport) mas com layout real —
@@ -9228,7 +9387,13 @@ function imprimirEtiquetaFinal(){
   area.style.cssText = 'display:block;position:fixed;left:-10000px;top:0;';
   const qtdEtiquetas = itensEtiquetas.length;
   closeModal();
-  iniciarProgressoImpressao_(qtdEtiquetas);
+  const modoConfigurado = DB.settings.etiquetaModoImpressao || 'sistema';
+  // "Parar impressão" só é oferecido no USB/Bluetooth direto — é o único modo que manda
+  // etiqueta por etiqueta e consegue de fato interromper entre uma e outra. No modo
+  // "Caixa do sistema" o navegador recebe o lote inteiro de uma vez só (window.print()),
+  // então não tem como o app parar no meio depois de já ter mandado pra caixa nativa.
+  const permiteParar_ = (modoConfigurado === 'usb' || modoConfigurado === 'bluetooth');
+  iniciarProgressoImpressao_(qtdEtiquetas, metaEtiquetas, permiteParar_);
   function limparArea(){
     area.style.cssText = 'display:none;';
     area.innerHTML = '';
@@ -9236,7 +9401,6 @@ function imprimirEtiquetaFinal(){
   // Espera todos os desenhos terminarem (com um teto de segurança de 6s pra nunca travar
   // a impressão indefinidamente, ex.: se a internet cair no meio do desenho).
   const tetoSeguranca = new Promise(function(resolve){ setTimeout(resolve, 6000); });
-  const modoConfigurado = DB.settings.etiquetaModoImpressao || 'sistema';
   Promise.race([Promise.all(promessasEtiquetas), tetoSeguranca]).then(async function(){
     // Quando a loja escolheu USB ou Bluetooth direto em Configurações, o app NUNCA
     // cai sozinho na caixa de impressão do navegador (o "Ctrl+P") — isso já
@@ -9263,7 +9427,14 @@ function imprimirEtiquetaFinal(){
       return imprimirEtiquetasViaImpressoraDireta_(itensEtiquetas, dims, function(feitas){
         etiquetasConcluidas_ = feitas;
         atualizarProgressoImpressao_(feitas, qtdEtiquetas);
-      }).then(function(){
+      }, metaEtiquetas).then(function(){
+        // Se _impressaoAtualCtx_ já é null, o "Travou? Cancelar" forçou o fim antes
+        // desta promise resolver sozinha — o histórico já foi registrado lá, não
+        // registra de novo aqui pra não duplicar.
+        if(!_impressaoAtualCtx_){ limparArea(); return; }
+        metaEtiquetas.forEach(function(meta){ registrarHistoricoEtiqueta_(meta, 'impressa'); });
+        flashSaving();
+        renderHistoricoEtiquetas_();
         limparArea();
         finalizarProgressoImpressao_();
         logSilencioso((qtdEtiquetas>1 ? qtdEtiquetas+' etiquetas enviadas' : 'Etiqueta enviada') + ' para a impressora com sucesso.');
@@ -9272,19 +9443,36 @@ function imprimirEtiquetaFinal(){
           qtdEtiquetas>1 ? 'Todas enviadas com espaço certinho entre elas.' : 'Enviada com sucesso para a impressora.'
         );
       }).catch(function(err){
-        console.error('Erro na impressão direta:', err);
+        // Mesma lógica: se o "Travou? Cancelar" já fechou tudo, não mexe de novo.
+        if(!_impressaoAtualCtx_){ limparArea(); return; }
+        const parouPeloUsuario = !!(err && err.__paradaPeloUsuario);
+        // Registra no histórico: as que já saíram como "impressa", o resto (incluindo
+        // a que falhou/foi interrompida) como "não impressa" — em vez de deixar o
+        // lote inteiro sem nenhum rastro de até onde chegou.
+        const motivo = parouPeloUsuario ? 'Impressão interrompida pelo usuário.' : ((err && err.message) ? err.message : 'Falha na impressão.');
+        metaEtiquetas.forEach(function(meta, i){
+          registrarHistoricoEtiqueta_(meta, i < etiquetasConcluidas_ ? 'impressa' : 'nao_impressa', i < etiquetasConcluidas_ ? '' : motivo);
+        });
+        flashSaving();
+        renderHistoricoEtiquetas_();
         limparArea();
         finalizarProgressoImpressao_();
-        const detalhe = (err && err.message) ? err.message : 'Verifique se a impressora está ligada, conectada e com papel.';
+        if(parouPeloUsuario){
+          logSilencioso('Impressão de etiquetas interrompida: '+etiquetasConcluidas_+' de '+qtdEtiquetas+' impressas.');
+          return;
+        }
+        console.error('Erro na impressão direta:', err);
         // Antes a mensagem não dizia quantas etiquetas já tinham saído, então uma
         // interrupção no meio do lote parecia ter "parado do nada" sem explicação —
-        // agora deixamos claro até onde chegou, pra ficar óbvio que faltou o resto.
+        // agora deixamos claro até onde chegou, pra ficar óbvio que faltou o resto
+        // (e o Histórico de Impressão de Etiquetas, em Configurações, mostra
+        // exatamente quais).
         const progressoTxt = (qtdEtiquetas>1)
           ? (etiquetasConcluidas_>0
               ? etiquetasConcluidas_+' de '+qtdEtiquetas+' etiquetas foram impressas antes do problema. As demais não saíram — '
               : 'Nenhuma das '+qtdEtiquetas+' etiquetas chegou a ser impressa — ')
           : '';
-        alertModal('Não foi possível imprimir na impressora ' + (modoConfigurado==='usb'?'USB':'Bluetooth') + '. ' + progressoTxt + detalhe);
+        alertModal('Não foi possível imprimir na impressora ' + (modoConfigurado==='usb'?'USB':'Bluetooth') + '. ' + progressoTxt + motivo);
       });
     }
     atualizarProgressoImpressao_(qtdEtiquetas, qtdEtiquetas);
@@ -10193,14 +10381,19 @@ async function enviarBytesImpressoraDireta_(bytes){
     // que gerava o sintoma "a etiqueta sai com a posição de impressão errada" depois de
     // uma reconexão. Por isso mandamos um reset (ESC @) primeiro, de forma silenciosa,
     // pra descartar qualquer lixo de buffer da tentativa anterior antes de reenviar tudo.
-    try{
-      await _enviarBytesImpressoraDiretaSemRetry_(new Uint8Array([0x1B, 0x40]));
-      await new Promise(r=>setTimeout(r, 50));
-    }catch(errReset){
-      // Se nem o reset foi aceito, a conexão "reconectada" não presta de verdade —
-      // melhor falhar aqui com o erro original do que reenviar tudo às cegas.
-      renderImpressoraEtiquetaUI();
-      throw err;
+    // O ESC @ (0x1B 0x40) é comando de reset do protocolo ESC/POS — em impressoras TSPL
+    // (DB.settings.etiquetaProtocoloDireto==='tspl') ele não existe/não se aplica, então
+    // só mandamos quando o protocolo configurado for realmente ESC/POS.
+    if((DB.settings.etiquetaProtocoloDireto || 'escpos') !== 'tspl'){
+      try{
+        await _enviarBytesImpressoraDiretaSemRetry_(new Uint8Array([0x1B, 0x40]));
+        await new Promise(r=>setTimeout(r, 50));
+      }catch(errReset){
+        // Se nem o reset foi aceito, a conexão "reconectada" não presta de verdade —
+        // melhor falhar aqui com o erro original do que reenviar tudo às cegas.
+        renderImpressoraEtiquetaUI();
+        throw err;
+      }
     }
     await _enviarBytesImpressoraDiretaSemRetry_(bytes);
   }
@@ -10244,7 +10437,7 @@ async function _enviarBytesImpressoraDiretaSemRetry_(bytes){
 // PAUSA_ENTRE_ETIQUETAS_MS abaixo) além do avanço de papel já embutido em cada
 // comando — é essa combinação que garante o respiro entre etiquetas mesmo em
 // impressoras mais simples.
-function imprimirEtiquetasViaImpressoraDireta_(itensEtiquetas, dims, onProgresso){
+function imprimirEtiquetasViaImpressoraDireta_(itensEtiquetas, dims, onProgresso, metaEtiquetas){
   const PAUSA_ENTRE_ETIQUETAS_MS = 250; // dá tempo da impressora terminar de fato o avanço físico antes de começar a próxima
   return garantirHtml2Canvas().then(function(){
     if(typeof html2canvas==='undefined'){
@@ -10253,7 +10446,18 @@ function imprimirEtiquetasViaImpressoraDireta_(itensEtiquetas, dims, onProgresso
     let cadeia = Promise.resolve();
     itensEtiquetas.forEach(function(item, index){
       cadeia = cadeia.then(function(){
+        // Verifica ANTES de começar a próxima etiqueta se a pessoa clicou em "Parar
+        // impressão" no popup — nunca no meio de uma já em transmissão, só entre
+        // uma e outra. O erro especial (__paradaPeloUsuario) avisa quem chamou essa
+        // função que isso foi um pedido da pessoa, não uma falha de verdade.
+        if(_pararImpressaoSolicitado){
+          const erroParada = new Error('Impressão interrompida pelo usuário.');
+          erroParada.__paradaPeloUsuario = true;
+          return Promise.reject(erroParada);
+        }
         return html2canvas(item, {scale:4, backgroundColor:'#ffffff'}).then(function(canvas){
+          const meta = metaEtiquetas ? metaEtiquetas[index] : null;
+          atualizarPreviewImpressaoEtiqueta_(canvas.toDataURL('image/png'), meta);
           const comando = gerarComandoImpressora_(canvas, dims);
           return enviarBytesImpressoraDireta_(comando);
         });
@@ -13085,6 +13289,7 @@ function renderConfig(){
   document.getElementById('cfg_etiquetaGapMm').value = (typeof DB.settings.etiquetaGapMm==='number') ? DB.settings.etiquetaGapMm : 2;
   document.getElementById('cfg_etiquetaAjusteVerticalSistemaMm').value = (typeof DB.settings.etiquetaAjusteVerticalSistemaMm==='number') ? DB.settings.etiquetaAjusteVerticalSistemaMm : 0;
   document.getElementById('cfg_etiquetaEspacoExtraSistemaMm').value = (typeof DB.settings.etiquetaEspacoExtraSistemaMm==='number') ? DB.settings.etiquetaEspacoExtraSistemaMm : 0;
+  renderHistoricoEtiquetas_();
   renderImpressoraEtiquetaUI();
   // Ao abrir essa tela, tenta sozinha reconectar na impressora já autorizada antes
   // (cobre o caso de ter desconectado o cabo/saído de alcance e plugado de novo).
