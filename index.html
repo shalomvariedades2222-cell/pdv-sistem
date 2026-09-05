@@ -3676,6 +3676,11 @@ html.is-mobile .btn::before{ display:none; }
             </select>
             <div class="dimSmall" style="margin-top:4px;">Só vale pra USB. Precisa bater com a velocidade real da impressora — se estiver errada, os bytes chegam embaralhados nela e é uma das causas mais comuns de sair "letra bugada sem parar". Se 9600 não funcionar, desconecte, troque aqui e conecte de novo pra testar as outras.</div>
           </div>
+          <div class="field" id="cfg_etiquetaPausaWrap">
+            <label>Pausa antes de enviar cada etiqueta (ms)</label>
+            <input id="cfg_etiquetaPausaAposProcessarMs" type="number" min="0" max="3000" step="50" data-perm="admin" oninput="saveSettingsLive()">
+            <div class="dimSmall" style="margin-top:4px;">Tempo de espera entre a etiqueta terminar de ser processada (desenho pronto) e o app começar de fato a mandar os dados pra impressora USB/Bluetooth. Existe pra evitar que o envio comece bem na hora em que o aparelho ainda está ocupado terminando o desenho anterior, o que pode fazer a transmissão parar no meio e a impressora voltar com erro/lixo impresso. Padrão: 500ms. Se sua impressora for rápida e nunca engasgar, pode baixar (inclusive pra 0) pra imprimir mais rápido; se ainda engasgar de vez em quando, aumente.</div>
+          </div>
           <div class="field" id="cfg_etiquetaSistemaWrap">
             <div class="dimSmall" style="margin-bottom:8px;">
               <b>Etiquetas saindo com espaçamento errado / desalinhadas?</b> No modo "Caixa do sistema" é o driver de impressão do próprio computador/celular que manda o papel andar — o app não tem controle sobre isso (diferente do USB/Bluetooth direto, que ajusta certinho pela distância exata a cada etiqueta). Antes de mexer nos ajustes abaixo, confira nesta ordem:
@@ -5474,6 +5479,7 @@ function ensureCatalogDefaults(){
   if(!DB.settings.etiquetaModoImpressao) DB.settings.etiquetaModoImpressao = 'sistema'; // 'sistema' (PDF+caixa de impressão), 'usb' (Web Serial) ou 'bluetooth' (Web Bluetooth)
   if(typeof DB.settings.etiquetaAvancoEscposMm !== 'number' || !isFinite(DB.settings.etiquetaAvancoEscposMm)) DB.settings.etiquetaAvancoEscposMm = 6; // avanço fixo (mm) de papel após cada etiqueta, usado só no protocolo ESC/POS (sem sensor de gap) — sempre a mesma distância exata, calibrada manualmente uma vez. Aumentado de 3 pra 6mm por padrão pra sempre sobrar um espaço visível antes da próxima etiqueta.
   if(!DB.settings.etiquetaBaudRate) DB.settings.etiquetaBaudRate = 9600; // velocidade da porta serial (USB) — precisa bater com a da impressora, senão os bytes chegam embaralhados (sintoma: letras bugadas sem parar)
+  if(typeof DB.settings.etiquetaPausaAposProcessarMs !== 'number' || !isFinite(DB.settings.etiquetaPausaAposProcessarMs)) DB.settings.etiquetaPausaAposProcessarMs = 500; // folga (ms) entre a etiqueta terminar de ser processada (canvas pronto) e começar a ser mandada pra impressora USB/Bluetooth direta — só vale nesses dois modos. Padrão: 500ms.
   if(!DB.settings.etiquetaProtocoloDireto) DB.settings.etiquetaProtocoloDireto = 'escpos'; // 'escpos' (padrão, avanço fixo) ou 'tspl' (comando TSC/TSPL — usa o sensor de gap/marca preta da própria impressora pra achar o começo de cada etiqueta sozinha)
   if(!DB.settings.etiquetaSensorTspl) DB.settings.etiquetaSensorTspl = 'gap'; // só vale com protocolo 'tspl': 'gap' (sensor de espaço entre etiquetas — o mais comum), 'blackmark' (sensor de marca preta impressa no verso do papel) ou 'continuo' (sem sensor, papel contínuo/bobina sem separação)
   if(typeof DB.settings.etiquetaGapMm !== 'number' || !isFinite(DB.settings.etiquetaGapMm)) DB.settings.etiquetaGapMm = 2; // distância (mm) do espaço/marca entre uma etiqueta e a próxima — só vale com protocolo 'tspl'; é o valor que a impressora usa como referência pro sensor achar o gap
@@ -10508,6 +10514,21 @@ async function _enviarBytesImpressoraDiretaSemRetry_(bytes){
 // impressoras mais simples.
 function imprimirEtiquetasViaImpressoraDireta_(itensEtiquetas, dims, onProgresso, metaEtiquetas){
   const PAUSA_ENTRE_ETIQUETAS_MS = 250; // dá tempo da impressora terminar de fato o avanço físico antes de começar a próxima
+  // Pausa de "assentamento" depois que a etiqueta terminou de ser processada (canvas
+  // pronto + comando ESC/POS/TSPL já montado em memória) e ANTES de começar a mandar
+  // qualquer byte pra impressora. Existe pra separar bem no tempo duas coisas que antes
+  // podiam ficar coladas uma na outra: o trabalho pesado de desenhar a etiqueta
+  // (html2canvas, que pode segurar a aba ocupada por uma fração de segundo, ainda mais
+  // em celular fraco) e o início de fato da transmissão pela porta serial/BLE. Sem essa
+  // folga, o primeiro pedaço de dado podia sair bem na hora em que o navegador ainda
+  // estava ocupado terminando o desenho anterior — e é esse tipo de disputa de tempo
+  // (o processo "parar do nada" por uma fração de segundo bem no meio do envio) que
+  // deixa a porta/módulo BLE fora de sincronia e faz a impressora voltar depois com erro
+  // ou lixo impresso. 500ms (padrão, ajustável em Configurações → Impressora de
+  // Etiquetas → "Pausa antes de enviar cada etiqueta") é uma folga generosa mesmo pra
+  // aparelhos mais lentos, sem dar pra notar demora perceptível entre uma etiqueta e outra.
+  const pausaConfigurada_ = Number(DB.settings.etiquetaPausaAposProcessarMs);
+  const PAUSA_APOS_PROCESSAR_MS = (isFinite(pausaConfigurada_) && pausaConfigurada_>=0) ? pausaConfigurada_ : 500;
   return garantirHtml2Canvas().then(function(){
     if(typeof html2canvas==='undefined'){
       throw new Error('html2canvas indisponível');
@@ -10528,7 +10549,23 @@ function imprimirEtiquetasViaImpressoraDireta_(itensEtiquetas, dims, onProgresso
           const meta = metaEtiquetas ? metaEtiquetas[index] : null;
           atualizarPreviewImpressaoEtiqueta_(canvas.toDataURL('image/png'), meta);
           const comando = gerarComandoImpressora_(canvas, dims);
-          return enviarBytesImpressoraDireta_(comando);
+          // Etiqueta já processada (canvas pronto + comando montado) — espera a folga de
+          // "assentamento" antes de começar a mandar de fato pra impressora. Também
+          // respeita "Parar impressão" aqui: se a pessoa pediu pra parar bem durante essa
+          // pausa, cancela ANTES de gastar etiqueta em vez de mandar mesmo assim.
+          return new Promise(function(resolve, reject){
+            setTimeout(function(){
+              if(_pararImpressaoSolicitado){
+                const erroParada = new Error('Impressão interrompida pelo usuário.');
+                erroParada.__paradaPeloUsuario = true;
+                reject(erroParada);
+                return;
+              }
+              resolve();
+            }, PAUSA_APOS_PROCESSAR_MS);
+          }).then(function(){
+            return enviarBytesImpressoraDireta_(comando);
+          });
         });
       }).then(function(){
         if(typeof onProgresso==='function') onProgresso(index+1);
@@ -10564,6 +10601,12 @@ async function testarImpressoraDireta(){
     }
     const canvas = await html2canvas(el, {scale:4, backgroundColor:'#ffffff'});
     const comando = gerarComandoImpressora_(canvas, dims);
+    // Mesma folga de "assentamento" usada na impressão de verdade (configurável em
+    // Configurações → Impressora de Etiquetas → "Pausa antes de enviar cada etiqueta";
+    // ver PAUSA_APOS_PROCESSAR_MS em imprimirEtiquetasViaImpressoraDireta_) — o teste
+    // segue o mesmo caminho de código até a impressora, então também se beneficia dela.
+    const pausaTeste_ = Number(DB.settings.etiquetaPausaAposProcessarMs);
+    await new Promise(r=>setTimeout(r, (isFinite(pausaTeste_) && pausaTeste_>=0) ? pausaTeste_ : 500));
     await enviarBytesImpressoraDireta_(comando);
     notificarImpressaoSucesso('Teste enviado!', 'Se saiu alinhado e com espaço da próxima, tá tudo certo. ✅');
   }catch(err){
@@ -10682,6 +10725,8 @@ function renderImpressoraEtiquetaUI(){
   if(btnTestar) btnTestar.style.display = (modo!=='sistema' && conectada) ? '' : 'none';
   const baudWrap = document.getElementById('cfg_etiquetaBaudWrap');
   if(baudWrap) baudWrap.style.display = modo==='usb' ? '' : 'none';
+  const pausaWrap = document.getElementById('cfg_etiquetaPausaWrap');
+  if(pausaWrap) pausaWrap.style.display = modo==='sistema' ? 'none' : '';
   const sistemaWrap = document.getElementById('cfg_etiquetaSistemaWrap');
   if(sistemaWrap) sistemaWrap.style.display = modo==='sistema' ? '' : 'none';
   const protocolo = DB.settings.etiquetaProtocoloDireto || 'escpos';
@@ -13376,6 +13421,7 @@ function renderConfig(){
   document.getElementById('cfg_etiquetaModoImpressao').value = DB.settings.etiquetaModoImpressao || 'sistema';
   document.getElementById('cfg_etiquetaAvancoEscposMm').value = (typeof DB.settings.etiquetaAvancoEscposMm==='number') ? DB.settings.etiquetaAvancoEscposMm : 6;
   document.getElementById('cfg_etiquetaBaudRate').value = String(DB.settings.etiquetaBaudRate || 9600);
+  document.getElementById('cfg_etiquetaPausaAposProcessarMs').value = (typeof DB.settings.etiquetaPausaAposProcessarMs==='number') ? DB.settings.etiquetaPausaAposProcessarMs : 500;
   document.getElementById('cfg_etiquetaProtocoloDireto').value = (DB.settings.etiquetaProtocoloDireto==='tspl') ? 'tspl' : 'escpos';
   document.getElementById('cfg_etiquetaSensorTspl').value = DB.settings.etiquetaSensorTspl || 'gap';
   document.getElementById('cfg_etiquetaGapMm').value = (typeof DB.settings.etiquetaGapMm==='number') ? DB.settings.etiquetaGapMm : 2;
@@ -13911,6 +13957,11 @@ function saveSettingsLive(){
     const baud = Number(baudSel.value);
     DB.settings.etiquetaBaudRate = [9600,19200,38400,57600,115200].includes(baud) ? baud : 9600;
   }
+  const pausaProcessarInp = document.getElementById('cfg_etiquetaPausaAposProcessarMs');
+  if(pausaProcessarInp){
+    const pausaProcessar = parseFloat(pausaProcessarInp.value);
+    DB.settings.etiquetaPausaAposProcessarMs = (isFinite(pausaProcessar) && pausaProcessar>=0 && pausaProcessar<=3000) ? pausaProcessar : 500;
+  }
   const gapMmInp = document.getElementById('cfg_etiquetaGapMm');
   if(gapMmInp){
     const gapMm = parseFloat(gapMmInp.value);
@@ -14330,7 +14381,7 @@ async function apagarTudoExecutar(){
     });
   }
   if(manterEtiqueta){
-    ['etiquetaModelos','etiquetaLayout','etiquetaOrientacao','etiquetaModoCustom','etiquetaMostrarBarras','etiquetaMostrarFoto','etiquetaFonte','etiquetaTamanho','etiquetaCor','etiquetaLarguraMm','etiquetaAlturaMm','etiquetaModoImpressao','etiquetaAvancoEscposMm','etiquetaBaudRate','etiquetaProtocoloDireto','etiquetaSensorTspl','etiquetaGapMm','etiquetaAjusteVerticalSistemaMm','etiquetaEspacoExtraSistemaMm'].forEach(k=>{
+    ['etiquetaModelos','etiquetaLayout','etiquetaOrientacao','etiquetaModoCustom','etiquetaMostrarBarras','etiquetaMostrarFoto','etiquetaFonte','etiquetaTamanho','etiquetaCor','etiquetaLarguraMm','etiquetaAlturaMm','etiquetaModoImpressao','etiquetaAvancoEscposMm','etiquetaBaudRate','etiquetaPausaAposProcessarMs','etiquetaProtocoloDireto','etiquetaSensorTspl','etiquetaGapMm','etiquetaAjusteVerticalSistemaMm','etiquetaEspacoExtraSistemaMm'].forEach(k=>{
       if(typeof settingsAntigos[k]!=='undefined') novoSettings[k] = settingsAntigos[k];
     });
   }
