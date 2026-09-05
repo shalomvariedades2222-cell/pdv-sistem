@@ -1699,6 +1699,21 @@ html.anim-off-glow .pixQrFrame{animation:none !important;}
 #printArea .viaSep{border-top:1px dashed #000;margin:4px 0;}
 #printArea .viaTitulo{font-weight:700;font-size:1.15em;}
 #printArea .viaItemNome{flex:1;word-break:break-word;}
+/* Quebra de palavra/linha GLOBAL dentro da via (impressão real e as duas
+   prévias) — qualquer texto que não caiba na largura do papel (nome de
+   produto grande, texto livre digitado no editor, nome/contato da loja etc.)
+   quebra pra linha de baixo sozinho, em vez de estourar pro lado e sair
+   cortado na hora de imprimir. "overflow-wrap:anywhere" quebra até palavra
+   única sem espaço (ex.: um código bem comprido); "min-width:0" nos filhos
+   de .viaLinha é necessário porque, por padrão, itens dentro de flexbox se
+   recusam a encolher abaixo do tamanho do próprio conteúdo, mesmo com
+   quebra de palavra ligada — sem isso a quebra não tinha efeito nenhum ali. */
+#printArea .via80 *, #printArea .via58 *,
+#reciboPreviewLive .via80 *, #reciboPreviewLive .via58 *,
+#reciboBlocosPreview .via80 *, #reciboBlocosPreview .via58 *,
+.viaImprimirPreview .via80 *, .viaImprimirPreview .via58 *{
+  overflow-wrap:anywhere;word-break:break-word;min-width:0;
+}
 /* Logo/foto no topo do recibo (via do cliente) — usada tanto na impressão real
    (dentro de #printArea) quanto nas duas pré-visualizações (popup de "Imprimir
    via do cliente" e a prévia ao vivo em Configurações → Personalizar Via do
@@ -1722,6 +1737,23 @@ html.anim-off-glow .pixQrFrame{animation:none !important;}
 #reciboPreviewLive .viaTitulo{font-weight:700;font-size:1.15em;}
 #reciboPreviewLive .viaItemNome{word-break:break-word;}
 #reciboPreviewLive b{font-weight:700;}
+/* ---------- Alça de ajuste fino (arrastar com o mouse) da folga final da via ----------
+   Fica logo abaixo de cada prévia (Configurações e editor de blocos) — arrastar
+   pra baixo aumenta o espaço em branco deixado no fim da via (mesmo valor do
+   campo "Espaço extra no final (mm)"), e o resultado aparece na hora na
+   prévia acima. É um jeito visual/manual de compensar impressoras que cortam
+   ou escondem a última linha, sem precisar digitar número nenhum. */
+.reciboAjusteFinoWrap{margin-top:8px;display:flex;align-items:center;gap:10px;}
+.reciboAjusteFinoHandle{
+  flex:1;height:26px;border-radius:8px;background:var(--panel2);border:1px dashed var(--line);
+  display:flex;align-items:center;justify-content:center;cursor:ns-resize;user-select:none;
+  color:var(--text-dim);font-size:.78em;gap:6px;touch-action:none;
+}
+.reciboAjusteFinoHandle:hover{border-color:var(--orange);color:var(--text);}
+.reciboAjusteFinoHandle.arrastando{border-color:var(--orange);background:#2f2419;color:var(--orange);}
+.reciboAjusteFinoValor{font-weight:700;color:var(--orange);flex-shrink:0;min-width:64px;text-align:right;}
+
+
 
 /* ---------- Editor da Via do Cliente (blocos personalizados) ----------
    Prévia ao vivo dentro do modal do editor avançado (Configurações →
@@ -3921,6 +3953,11 @@ html.is-mobile .btn::before{ display:none; }
             <input id="cfg_reciboRodape" placeholder="Ex: Obrigado pela preferência!" data-perm="admin" oninput="saveSettingsLive();atualizarPreviewReciboConfig();">
           </div>
           <div id="reciboPreviewLive"></div>
+          <div class="reciboAjusteFinoWrap">
+            <div class="reciboAjusteFinoHandle" id="reciboAjusteFinoSimples" onmousedown="iniciarArrastoEspacoExtra(event,'reciboAjusteFinoSimples')" ontouchstart="iniciarArrastoEspacoExtra(event,'reciboAjusteFinoSimples')">↕ Arraste aqui para ajustar a folga no fim da via</div>
+            <span class="reciboAjusteFinoValor" id="reciboAjusteFinoSimplesValor">0mm</span>
+          </div>
+          <p class="dimSmall" style="margin-top:6px;">Se a impressora estiver cortando ou escondendo a última linha da via, arraste a régua acima pra baixo até sobrar uma folga em branco no fim (mesmo efeito do campo "Espaço extra no final" mais acima — os dois estão ligados).</p>
           <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:14px;">
             <div class="field" style="display:flex;align-items:center;gap:8px;">
               <input type="checkbox" id="cfg_reciboModoCustom" data-perm="admin" onchange="saveSettingsLive();atualizarPreviewReciboConfig();" style="width:auto;margin:0;">
@@ -7717,6 +7754,10 @@ function renderReciboBlocosEditorHTML(){
     <div class="etqEditorLayout">
       <div style="background:#2a221d;border-radius:10px;padding:14px;flex-shrink:0;max-width:100%;overflow:auto;max-height:560px;">
         <div id="reciboBlocosPreview"></div>
+        <div class="reciboAjusteFinoWrap">
+          <div class="reciboAjusteFinoHandle" id="reciboAjusteFinoEditor" onmousedown="iniciarArrastoEspacoExtra(event,'reciboAjusteFinoEditor')" ontouchstart="iniciarArrastoEspacoExtra(event,'reciboAjusteFinoEditor')">↕ Arraste para ajustar a folga no fim</div>
+          <span class="reciboAjusteFinoValor" id="reciboAjusteFinoEditorValor">0mm</span>
+        </div>
       </div>
       <div class="etqEditorSidebar">
         <h4>Adicionar bloco</h4>
@@ -7888,6 +7929,8 @@ function renderReciboBlocosPreview(){
   const wrapClass = larguraMm===58 ? 'via58' : 'via80';
   const conteudo = montarConteudoViaClienteCustom_(_vbVendaExemplo_());
   wrap.innerHTML = `<div class="${wrapClass}" style="font-size:${reciboFontSizePx_(larguraMm)}px;">${conteudo}</div>`;
+  const rotulo = document.getElementById('reciboAjusteFinoEditorValor');
+  if(rotulo) rotulo.textContent = (Number(DB.settings.reciboEspacoExtraMm)||0)+'mm';
 }
 function restaurarReciboBlocosPadraoConfirm(){
   confirmModal('Restaurar a via para o modelo padrão? Isso apaga os blocos personalizados atuais (imagens e textos livres adicionados aqui no editor).', function(){
@@ -8000,25 +8043,40 @@ function imprimirViaClienteViaSistema_(sale){
   // sobre por que isso precisa ser um número, nunca "auto").
   area.style.cssText = 'display:block;position:fixed;left:-10000px;top:0;';
   const item = area.querySelector('.'+wrapClass);
-  const rect = item ? item.getBoundingClientRect() : null;
-  // +5mm de folga no final, pra nunca cortar a última linha por causa de
-  // arredondamento entre px e mm (mesma ideia do campo "Espaço extra no
-  // final", só que aqui é só uma margem técnica de segurança).
-  const alturaMm = (rect && rect.width>0) ? (larguraMm * (rect.height/rect.width)) + 5 : 0;
-  atualizarTamanhoPaginaViaCliente_(larguraMm, alturaMm);
-  let finalizado = false;
-  function finalizar(){
-    if(finalizado) return; finalizado = true;
-    window.removeEventListener('afterprint', finalizar);
-    area.style.cssText = 'display:none;';
-    area.innerHTML = '';
-    focusSearchBox();
-  }
-  window.addEventListener('afterprint', finalizar);
-  setTimeout(function(){
-    window.print();
-    setTimeout(finalizar, 5000);
-  }, 60);
+  // Se a via tem logo/imagem de bloco, precisa esperar ela CARREGAR antes de
+  // medir a altura — senão a imagem ainda conta como altura 0 no momento da
+  // medição, o cálculo sai menor que o real, e a via acaba cortada bem na
+  // altura da imagem (ou logo depois dela). Como o src já é base64 (data:),
+  // isso normalmente é rápido, mas ainda assim não é instantâneo.
+  const imgs = item ? Array.from(item.querySelectorAll('img')) : [];
+  const prontas = imgs.map(function(img){
+    if(img.complete) return Promise.resolve();
+    return new Promise(function(resolve){
+      img.addEventListener('load', resolve, {once:true});
+      img.addEventListener('error', resolve, {once:true});
+    });
+  });
+  Promise.all(prontas).then(function(){
+    const rect = item ? item.getBoundingClientRect() : null;
+    // +5mm de folga no final, pra nunca cortar a última linha por causa de
+    // arredondamento entre px e mm (mesma ideia do campo "Espaço extra no
+    // final", só que aqui é só uma margem técnica de segurança).
+    const alturaMm = (rect && rect.width>0) ? (larguraMm * (rect.height/rect.width)) + 5 : 0;
+    atualizarTamanhoPaginaViaCliente_(larguraMm, alturaMm);
+    let finalizado = false;
+    function finalizar(){
+      if(finalizado) return; finalizado = true;
+      window.removeEventListener('afterprint', finalizar);
+      area.style.cssText = 'display:none;';
+      area.innerHTML = '';
+      focusSearchBox();
+    }
+    window.addEventListener('afterprint', finalizar);
+    setTimeout(function(){
+      window.print();
+      setTimeout(finalizar, 5000);
+    }, 60);
+  });
 }
 // Modo USB/Bluetooth direto — usa exatamente o mesmo canal já conectado pra
 // etiquetas (_impressoraDireta) e as mesmas funções que convertem um desenho
@@ -14998,6 +15056,55 @@ function atualizarPreviewReciboConfig(){
   const larguraMm = (DB.settings.papel==='58mm') ? 58 : 80;
   const wrapClass = larguraMm===58 ? 'via58' : 'via80';
   alvo.innerHTML = `<div class="${wrapClass}" style="font-size:${reciboFontSizePx_(larguraMm)}px;">${montarConteudoViaCliente_(_vendaExemploRecibo_())}</div>`;
+  const rotulo = document.getElementById('reciboAjusteFinoSimplesValor');
+  if(rotulo) rotulo.textContent = (Number(DB.settings.reciboEspacoExtraMm)||0)+'mm';
+}
+/* ---------- Alça de ajuste fino da via (arrastar com o mouse/dedo) ----------
+   Fica logo abaixo da prévia, tanto em Configurações → Personalizar Via do
+   Cliente quanto dentro do editor avançado de blocos. Arrastar pra baixo
+   aumenta a folga em branco no fim da via (o mesmo valor do campo "Espaço
+   extra no final (mm)" — os dois ficam sempre sincronizados, mexer em um
+   atualiza o outro), o que ajuda quando a impressora corta ou esconde a
+   última linha na hora de rasgar o papel. Funciona também no celular
+   (touchstart/touchmove/touchend), não só com mouse de verdade. */
+let _reciboArrastoEspacoExtra = null;
+function iniciarArrastoEspacoExtra(ev, idHandle){
+  const handle = document.getElementById(idHandle);
+  if(!handle) return;
+  ev.preventDefault();
+  const y0 = ev.touches ? ev.touches[0].clientY : ev.clientY;
+  _reciboArrastoEspacoExtra = { y0, valorInicial: Number(DB.settings.reciboEspacoExtraMm)||0 };
+  handle.classList.add('arrastando');
+  function mover(e){
+    if(!_reciboArrastoEspacoExtra) return;
+    const y = e.touches ? e.touches[0].clientY : e.clientY;
+    const deltaPx = y - _reciboArrastoEspacoExtra.y0;
+    // ~3px de arrasto pra cada 1mm de folga — cobre a faixa toda (0 a 40mm)
+    // arrastando uns 12cm, sem ficar sensível demais nem exigir um arrasto gigante.
+    const novoValor = Math.round(Math.max(0, Math.min(40, _reciboArrastoEspacoExtra.valorInicial + deltaPx/3)));
+    aplicarEspacoExtraViaArrasto_(novoValor);
+    if(e.cancelable) e.preventDefault();
+  }
+  function soltar(){
+    handle.classList.remove('arrastando');
+    document.removeEventListener('mousemove', mover);
+    document.removeEventListener('mouseup', soltar);
+    document.removeEventListener('touchmove', mover);
+    document.removeEventListener('touchend', soltar);
+    _reciboArrastoEspacoExtra = null;
+    autoSaveLocal();
+  }
+  document.addEventListener('mousemove', mover);
+  document.addEventListener('mouseup', soltar);
+  document.addEventListener('touchmove', mover, {passive:false});
+  document.addEventListener('touchend', soltar);
+}
+function aplicarEspacoExtraViaArrasto_(mm){
+  DB.settings.reciboEspacoExtraMm = mm;
+  const inp = document.getElementById('cfg_reciboEspacoExtraMm');
+  if(inp) inp.value = mm;
+  if(document.getElementById('reciboPreviewLive')) atualizarPreviewReciboConfig();
+  if(document.getElementById('reciboBlocosPreview')) renderReciboBlocosPreview();
 }
 function renderConfigLog(){
   const body = document.getElementById('configLogBody');
