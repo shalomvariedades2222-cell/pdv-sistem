@@ -7376,11 +7376,20 @@ function imprimirViaClienteConfirmado(){
   if(!sale) return;
   imprimirViaCliente_(sale);
 }
+// Reaproveita a MESMA tag de estilo/mesma função de tamanho de página que a
+// impressão de etiquetas já usa (ver "atualizarTamanhoPaginaImpressao_" acima) —
+// os dois tipos de impressão (etiqueta e via do cliente) compartilham a
+// regra @page do navegador, e ela vale pra impressão inteira, não só pra um
+// pedaço da página. Se cada uma tivesse sua própria tag de estilo, a última
+// criada "venceria" pra sempre (inclusive nas próximas impressões de
+// etiqueta!), bagunçando o tamanho. Usando a mesma tag e sempre atualizando o
+// conteúdo dela bem antes de cada window.print(), cada impressão sempre sai
+// com o tamanho certo pro que está sendo impresso naquele momento.
 function atualizarTamanhoPaginaViaCliente_(larguraMm){
-  let styleEl = document.getElementById('viaClientePrintPageSize');
+  let styleEl = document.getElementById('etqPrintPageSize');
   if(!styleEl){
     styleEl = document.createElement('style');
-    styleEl.id = 'viaClientePrintPageSize';
+    styleEl.id = 'etqPrintPageSize';
     document.head.appendChild(styleEl);
   }
   // Altura "auto" porque a impressora de recibo (térmica) trabalha com bobina
