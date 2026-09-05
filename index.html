@@ -1699,6 +1699,29 @@ html.anim-off-glow .pixQrFrame{animation:none !important;}
 #printArea .viaSep{border-top:1px dashed #000;margin:4px 0;}
 #printArea .viaTitulo{font-weight:700;font-size:1.15em;}
 #printArea .viaItemNome{flex:1;word-break:break-word;}
+/* Logo/foto no topo do recibo (via do cliente) — usada tanto na impressão real
+   (dentro de #printArea) quanto nas duas pré-visualizações (popup de "Imprimir
+   via do cliente" e a prévia ao vivo em Configurações → Personalizar Via do
+   Cliente), por isso a regra fica fora do escopo "#printArea " (sem seletor pai). */
+.viaLogo{display:block;max-width:65%;max-height:70px;object-fit:contain;margin:0 auto 6px;}
+.viaCabecalhoExtra{white-space:pre-wrap;word-break:break-word;}
+/* Prévia ao vivo do recibo em Configurações → Personalizar Via do Cliente —
+   mesma cara da prévia usada no popup pós-venda (.viaImprimirPreview), só que
+   fixa dentro do painel em vez de dentro de um modal. */
+#reciboPreviewLive{
+  max-height:480px;overflow-y:auto;margin-top:10px;padding:12px 14px;
+  background:#fff;color:#111;border-radius:10px;font-family:'Courier New',monospace;
+  line-height:1.55;border:1px solid var(--line);
+}
+#reciboPreviewLive .via80,#reciboPreviewLive .via58{margin:0 auto;box-sizing:border-box;font-family:'Courier New',monospace;color:#000;background:#fff;padding:8px 10px;}
+#reciboPreviewLive .via80{width:80mm;}
+#reciboPreviewLive .via58{width:58mm;}
+#reciboPreviewLive .viaLinha{display:flex;justify-content:space-between;gap:8px;}
+#reciboPreviewLive .viaSep{border-top:1px dashed #999;margin:6px 0;}
+#reciboPreviewLive .viaCentro{text-align:center;}
+#reciboPreviewLive .viaTitulo{font-weight:700;font-size:1.15em;}
+#reciboPreviewLive .viaItemNome{word-break:break-word;}
+#reciboPreviewLive b{font-weight:700;}
 
 .pickerWrap{position:relative;}
 .pickerDropdown{
@@ -3785,8 +3808,56 @@ html.is-mobile .btn::before{ display:none; }
           <h3>Impressora de Recibo</h3>
           <div class="field"><label>Nome da impressora</label><input id="cfg_impressora" data-perm="admin" oninput="saveSettingsLive()"></div>
           <div class="field"><label>Largura do papel</label>
-            <select id="cfg_papel" data-perm="admin" onchange="saveSettingsLive()"><option value="58mm">58mm</option><option value="80mm">80mm</option></select>
+            <select id="cfg_papel" data-perm="admin" onchange="saveSettingsLive();atualizarPreviewReciboConfig();">
+              <option value="58mm">58mm</option><option value="80mm">80mm</option>
+            </select>
           </div>
+          <div class="field">
+            <label>Tamanho do texto</label>
+            <select id="cfg_reciboEscalaFonte" data-perm="admin" onchange="saveSettingsLive();atualizarPreviewReciboConfig();">
+              <option value="pequeno">Pequeno (economiza papel)</option>
+              <option value="normal">Normal</option>
+              <option value="grande">Grande (mais fácil de ler)</option>
+            </select>
+            <div class="dimSmall" style="margin-top:4px;">Ajusta o tamanho da letra impressa na via do cliente. "Grande" ocupa mais papel por venda; "Pequeno" economiza bobina em vendas com muitos itens.</div>
+          </div>
+          <div class="field">
+            <label>Velocidade de impressão (pausa antes de enviar, ms)</label>
+            <input id="cfg_reciboPausaAposProcessarMs" type="number" min="0" max="3000" step="50" data-perm="admin" oninput="saveSettingsLive()">
+            <div class="dimSmall" style="margin-top:4px;">Só vale quando a impressora está conectada direto por USB ou Bluetooth (Configurações → Impressora de Etiquetas → modo de impressão). É a folga entre o recibo terminar de ser processado e o app começar a mandar os dados pra impressora — aumente se a via sair com letra bugada ou incompleta; diminua (até 0) se sua impressora for rápida e você quiser ganhar velocidade. Padrão: 500ms.</div>
+          </div>
+          <div class="field">
+            <label>Espaço extra no final (mm)</label>
+            <input id="cfg_reciboEspacoExtraMm" type="number" min="0" max="40" step="1" data-perm="admin" oninput="saveSettingsLive();atualizarPreviewReciboConfig();">
+            <div class="dimSmall" style="margin-top:4px;">Folga em branco deixada no fim da via, antes do corte/rasgo do papel — aumente se a impressora estiver cortando ou escondendo a última linha do recibo. Padrão: 0mm.</div>
+          </div>
+        </div>
+        <div class="panel" style="max-width:560px;">
+          <h3>Personalizar Via do Cliente</h3>
+          <p class="dimSmall" style="margin-top:-6px;">Escolha o que aparece impresso no recibo entregue ao cliente. A prévia abaixo se atualiza sozinha conforme você muda as opções.</p>
+          <div class="field">
+            <label><input type="checkbox" id="cfg_reciboMostrarLogo" data-perm="admin" onchange="saveSettingsLive();atualizarPreviewReciboConfig();" style="width:auto;margin-right:6px;">Mostrar a logo da loja no topo do recibo</label>
+            <div class="dimSmall" style="margin-top:4px;">Usa a mesma foto/logo cadastrada em "Dados da Loja" acima.</div>
+          </div>
+          <div class="field">
+            <label>Texto extra abaixo do nome da loja</label>
+            <input id="cfg_reciboCabecalho" placeholder="Ex: endereço, slogan, redes sociais..." data-perm="admin" oninput="saveSettingsLive();atualizarPreviewReciboConfig();">
+          </div>
+          <div class="field">
+            <label style="margin-bottom:6px;">Informações da venda a exibir</label>
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              <label style="font-weight:400;"><input type="checkbox" id="cfg_reciboMostrarContato" data-perm="admin" onchange="saveSettingsLive();atualizarPreviewReciboConfig();" style="width:auto;margin-right:6px;">Contato da loja</label>
+              <label style="font-weight:400;"><input type="checkbox" id="cfg_reciboMostrarNumeroVenda" data-perm="admin" onchange="saveSettingsLive();atualizarPreviewReciboConfig();" style="width:auto;margin-right:6px;">Número da venda</label>
+              <label style="font-weight:400;"><input type="checkbox" id="cfg_reciboMostrarVendedor" data-perm="admin" onchange="saveSettingsLive();atualizarPreviewReciboConfig();" style="width:auto;margin-right:6px;">Vendedor</label>
+              <label style="font-weight:400;"><input type="checkbox" id="cfg_reciboMostrarCliente" data-perm="admin" onchange="saveSettingsLive();atualizarPreviewReciboConfig();" style="width:auto;margin-right:6px;">Cliente (quando a venda tiver um vinculado)</label>
+              <label style="font-weight:400;"><input type="checkbox" id="cfg_reciboMostrarDataHora" data-perm="admin" onchange="saveSettingsLive();atualizarPreviewReciboConfig();" style="width:auto;margin-right:6px;">Data e hora</label>
+            </div>
+          </div>
+          <div class="field">
+            <label>Mensagem final (rodapé)</label>
+            <input id="cfg_reciboRodape" placeholder="Ex: Obrigado pela preferência!" data-perm="admin" oninput="saveSettingsLive();atualizarPreviewReciboConfig();">
+          </div>
+          <div id="reciboPreviewLive"></div>
         </div>
         <div class="panel" style="max-width:560px;">
           <h3>Backup Manual e Importação</h3>
@@ -5507,6 +5578,23 @@ function ensureCatalogDefaults(){
   if(typeof DB.settings.etiquetaGapMm !== 'number' || !isFinite(DB.settings.etiquetaGapMm)) DB.settings.etiquetaGapMm = 2; // distância (mm) do espaço/marca entre uma etiqueta e a próxima — só vale com protocolo 'tspl'; é o valor que a impressora usa como referência pro sensor achar o gap
   if(typeof DB.settings.etiquetaAjusteVerticalSistemaMm !== 'number' || !isFinite(DB.settings.etiquetaAjusteVerticalSistemaMm)) DB.settings.etiquetaAjusteVerticalSistemaMm = 0; // deslocamento fino (mm, pode ser negativo) só do modo "Caixa do sistema" — empurra o desenho da etiqueta um pouco pra cima/baixo DENTRO do tamanho físico já configurado, pra compensar o desalinhamento comum desse modo (o driver do sistema não usa o sensor de gap da própria impressora, só empurra o papel pelo tamanho de página informado) sem precisar abrir a tampa da impressora pra ajustar manualmente
   if(typeof DB.settings.etiquetaEspacoExtraSistemaMm !== 'number' || !isFinite(DB.settings.etiquetaEspacoExtraSistemaMm)) DB.settings.etiquetaEspacoExtraSistemaMm = 0; // mm extra somados à ALTURA de página enviada pro driver no modo "Caixa do sistema" (só a folha/página fica maior, o desenho da etiqueta continua do tamanho configurado) — cria uma folga em branco no fim de cada etiqueta pra absorver pequena imprecisão do driver/impressora, reduzindo o efeito de "foi perdendo o lugar" que obriga abrir a tampa pra reajustar
+
+  /* ---- Impressora de Recibo / Personalizar Via do Cliente (Configurações) ----
+     Ajustes próprios da via do cliente — independentes dos de Etiqueta acima,
+     mesmo quando a impressão sai pela mesma conexão USB/Bluetooth (só o tempo
+     de pausa e o espaço extra são específicos de cada tipo de impressão; a
+     conexão em si — modo/baud/protocolo — continua compartilhada). */
+  if(!DB.settings.reciboEscalaFonte) DB.settings.reciboEscalaFonte = 'normal'; // 'pequeno' | 'normal' | 'grande' — escala do tamanho da letra impressa na via do cliente
+  if(typeof DB.settings.reciboPausaAposProcessarMs !== 'number' || !isFinite(DB.settings.reciboPausaAposProcessarMs)) DB.settings.reciboPausaAposProcessarMs = 500; // folga (ms) entre a via terminar de ser processada e o app começar a mandar pra impressora USB/Bluetooth direta — só vale nesses dois modos, mesmo princípio da etiqueta mas com valor próprio
+  if(typeof DB.settings.reciboEspacoExtraMm !== 'number' || !isFinite(DB.settings.reciboEspacoExtraMm)) DB.settings.reciboEspacoExtraMm = 0; // mm de folga em branco deixados no fim da via (útil pra impressora não cortar/esconder a última linha ao rasgar o papel)
+  if(typeof DB.settings.reciboMostrarLogo !== 'boolean') DB.settings.reciboMostrarLogo = false; // mostra a logo já cadastrada em "Dados da Loja" no topo do recibo
+  if(typeof DB.settings.reciboCabecalho !== 'string') DB.settings.reciboCabecalho = ''; // linha de texto livre abaixo do nome da loja (endereço, slogan, redes sociais...)
+  if(typeof DB.settings.reciboMostrarContato !== 'boolean') DB.settings.reciboMostrarContato = true;
+  if(typeof DB.settings.reciboMostrarNumeroVenda !== 'boolean') DB.settings.reciboMostrarNumeroVenda = true;
+  if(typeof DB.settings.reciboMostrarVendedor !== 'boolean') DB.settings.reciboMostrarVendedor = true;
+  if(typeof DB.settings.reciboMostrarCliente !== 'boolean') DB.settings.reciboMostrarCliente = true;
+  if(typeof DB.settings.reciboMostrarDataHora !== 'boolean') DB.settings.reciboMostrarDataHora = true;
+  if(typeof DB.settings.reciboRodape !== 'string') DB.settings.reciboRodape = 'Obrigado pela preferência!';
   // migração: quem já tinha um layout personalizado solto (versão antiga, sem nome/lista)
   // vira automaticamente o primeiro modelo salvo, pra não perder o trabalho já feito
   if(!DB.settings.etiquetaModelos.length && DB.settings.etiquetaLayout.length){
@@ -7300,8 +7388,11 @@ function itemDiscountAmountVia_(it){
 function montarConteudoViaCliente_(sale){
   const esc = _escapeHtmlPct_;
   const nomeLoja = esc(DB.settings.nomeLoja||'Loja');
-  const contato = esc(DB.settings.contato||'');
-  const cliente = sale.customerId ? DB.customers.find(c=>c.id===sale.customerId) : null;
+  const contato = (DB.settings.reciboMostrarContato!==false) ? esc(DB.settings.contato||'') : '';
+  const cliente = (sale.customerId && DB.settings.reciboMostrarCliente!==false) ? DB.customers.find(c=>c.id===sale.customerId) : null;
+  const logoHtml = (DB.settings.reciboMostrarLogo && DB.settings.logo) ? `<img class="viaLogo" src="${DB.settings.logo}">` : '';
+  const cabecalhoExtra = (DB.settings.reciboCabecalho||'').trim();
+  const cabecalhoHtml = cabecalhoExtra ? `<div class="viaCentro viaCabecalhoExtra">${esc(cabecalhoExtra)}</div>` : '';
   let itensHtml = '';
   (sale.items||[]).forEach(function(it){
     const bruto = (Number(it.price)||0) * (Number(it.qty)||0);
@@ -7329,13 +7420,20 @@ function montarConteudoViaCliente_(sale){
   // Cliente só aparece quando a venda está de fato ligada a um cliente cadastrado
   // (ex.: Venda Fiado) — em venda comum à vista esse campo simplesmente não existe.
   const clienteHtml = cliente ? `<div class="viaLinha"><span>Cliente</span><span>${esc(cliente.nome)}</span></div>` : '';
+  const dataHtml = (DB.settings.reciboMostrarDataHora!==false) ? `<div class="viaLinha"><span>Data</span><span>${fmtDateTime(sale.date)}</span></div>` : '';
+  const numeroVendaHtml = (DB.settings.reciboMostrarNumeroVenda!==false) ? `<div class="viaLinha"><span>Venda</span><span>#${(sale.id||'').slice(-5)}</span></div>` : '';
+  const vendedorHtml = (DB.settings.reciboMostrarVendedor!==false) ? `<div class="viaLinha"><span>Vendedor</span><span>${esc(sale.sellerName||'')}</span></div>` : '';
+  const rodape = esc((DB.settings.reciboRodape||'').trim() || 'Obrigado pela preferência!');
+  const espacoExtraMm = Number(DB.settings.reciboEspacoExtraMm)||0;
   return `
+    ${logoHtml}
     <div class="viaCentro viaTitulo">${nomeLoja}</div>
     ${contato ? `<div class="viaCentro">${contato}</div>` : ''}
+    ${cabecalhoHtml}
     <div class="viaSep"></div>
-    <div class="viaLinha"><span>Data</span><span>${fmtDateTime(sale.date)}</span></div>
-    <div class="viaLinha"><span>Venda</span><span>#${(sale.id||'').slice(-5)}</span></div>
-    <div class="viaLinha"><span>Vendedor</span><span>${esc(sale.sellerName||'')}</span></div>
+    ${dataHtml}
+    ${numeroVendaHtml}
+    ${vendedorHtml}
     ${clienteHtml}
     <div class="viaSep"></div>
     ${itensHtml || '<div class="viaCentro">Nenhum item</div>'}
@@ -7348,17 +7446,30 @@ function montarConteudoViaCliente_(sale){
     ${pagHtml}
     ${extraHtml}
     <div class="viaSep"></div>
-    <div class="viaCentro">Obrigado pela preferência!</div>
+    <div class="viaCentro">${rodape}</div>
+    ${espacoExtraMm>0 ? `<div style="height:${espacoExtraMm}mm"></div>` : ''}
   `;
+}
+// Escala de fonte configurável (Configurações → Impressora de Recibo → "Tamanho
+// do texto"), aplicada por cima do tamanho-base de cada largura de papel — ver
+// classes .via58/.via80 (font-size base fixo) logo no topo do arquivo. Usada
+// tanto na impressão de verdade (system/USB/Bluetooth) quanto nas duas prévias
+// (popup pós-venda e a prévia ao vivo em Configurações).
+function reciboFontSizePx_(larguraMm){
+  const base = larguraMm===58 ? 10.5 : 12;
+  const escalas = {pequeno:0.85, normal:1, grande:1.18};
+  const escala = escalas[DB.settings.reciboEscalaFonte] || 1;
+  return Math.round(base*escala*100)/100;
 }
 function abrirPopupImprimirVia(sale){
   if(!sale) return;
   _viaClienteAtual = sale;
   const conteudo = montarConteudoViaCliente_(sale);
+  const larguraMmPreview = (DB.settings.papel==='58mm') ? 58 : 80;
   showModal(`
     <button class="modalClose" onclick="fecharPopupImprimirVia()">×</button>
     <h3 style="text-align:center;">🧾 Imprimir via do cliente?</h3>
-    <div class="viaImprimirPreview">${conteudo}</div>
+    <div class="viaImprimirPreview" style="font-size:${reciboFontSizePx_(larguraMmPreview)}px;">${conteudo}</div>
     <div class="viaImprimirBtnRow">
       <button class="btn secondary" onclick="fecharPopupImprimirVia()">Não imprimir</button>
       <button class="btn" onclick="imprimirViaClienteConfirmado()">🖨️ Imprimir via</button>
@@ -7416,7 +7527,7 @@ function imprimirViaClienteViaSistema_(sale){
   if(!area) return;
   const larguraMm = (DB.settings.papel==='58mm') ? 58 : 80;
   const wrapClass = larguraMm===58 ? 'via58' : 'via80';
-  area.innerHTML = `<div class="${wrapClass}">${montarConteudoViaCliente_(sale)}</div>`;
+  area.innerHTML = `<div class="${wrapClass}" style="font-size:${reciboFontSizePx_(larguraMm)}px;">${montarConteudoViaCliente_(sale)}</div>`;
   atualizarTamanhoPaginaViaCliente_(larguraMm);
   area.style.cssText = 'display:block;position:fixed;left:-10000px;top:0;';
   let finalizado = false;
@@ -7459,7 +7570,7 @@ async function imprimirViaClienteImpressoraDireta_(sale){
   // este caminho não chama window.print(), o @media print nunca chega a entrar em ação.
   const area = document.getElementById('printArea');
   if(!area){ _impressaoEmAndamento = false; return; }
-  area.innerHTML = `<div class="${wrapClass}">${montarConteudoViaCliente_(sale)}</div>`;
+  area.innerHTML = `<div class="${wrapClass}" style="font-size:${reciboFontSizePx_(larguraMm)}px;">${montarConteudoViaCliente_(sale)}</div>`;
   area.style.cssText = 'display:block;position:fixed;left:-10000px;top:0;';
   const item = area.querySelector('.'+wrapClass);
   function limpar(){
@@ -7481,6 +7592,13 @@ async function imprimirViaClienteImpressoraDireta_(sale){
     const dims = {w:larguraMm, h:alturaMm};
     const canvas = await html2canvas(item, {scale:4, backgroundColor:'#ffffff'});
     const comando = gerarComandoImpressora_(canvas, dims);
+    // Folga de "assentamento" (Configurações → Impressora de Recibo →
+    // "Velocidade de impressão") entre a via terminar de ser processada e
+    // começar de fato a ser mandada pra impressora USB/Bluetooth — mesmo
+    // princípio já usado na impressão de etiquetas, com valor próprio pra via.
+    const pausaRecibo_ = Number(DB.settings.reciboPausaAposProcessarMs);
+    const PAUSA_RECIBO_MS_ = (isFinite(pausaRecibo_) && pausaRecibo_>=0) ? pausaRecibo_ : 500;
+    await new Promise(function(resolve){ setTimeout(resolve, PAUSA_RECIBO_MS_); });
     await enviarBytesImpressoraDireta_(comando);
     limpar();
     logSilencioso('Via do cliente enviada para a impressora com sucesso.');
@@ -13642,6 +13760,18 @@ function renderConfig(){
   toggleCfgPixQrDelayField();
   document.getElementById('cfg_impressora').value = DB.settings.impressora;
   document.getElementById('cfg_papel').value = DB.settings.papel;
+  document.getElementById('cfg_reciboEscalaFonte').value = DB.settings.reciboEscalaFonte || 'normal';
+  document.getElementById('cfg_reciboPausaAposProcessarMs').value = (typeof DB.settings.reciboPausaAposProcessarMs==='number') ? DB.settings.reciboPausaAposProcessarMs : 500;
+  document.getElementById('cfg_reciboEspacoExtraMm').value = (typeof DB.settings.reciboEspacoExtraMm==='number') ? DB.settings.reciboEspacoExtraMm : 0;
+  document.getElementById('cfg_reciboMostrarLogo').checked = !!DB.settings.reciboMostrarLogo;
+  document.getElementById('cfg_reciboCabecalho').value = DB.settings.reciboCabecalho || '';
+  document.getElementById('cfg_reciboMostrarContato').checked = DB.settings.reciboMostrarContato !== false;
+  document.getElementById('cfg_reciboMostrarNumeroVenda').checked = DB.settings.reciboMostrarNumeroVenda !== false;
+  document.getElementById('cfg_reciboMostrarVendedor').checked = DB.settings.reciboMostrarVendedor !== false;
+  document.getElementById('cfg_reciboMostrarCliente').checked = DB.settings.reciboMostrarCliente !== false;
+  document.getElementById('cfg_reciboMostrarDataHora').checked = DB.settings.reciboMostrarDataHora !== false;
+  document.getElementById('cfg_reciboRodape').value = DB.settings.reciboRodape || '';
+  atualizarPreviewReciboConfig();
   document.getElementById('cfg_etiquetaQr').value = DB.settings.etiquetaQr || '';
   document.getElementById('cfg_etiquetaMostrarQr').checked = DB.settings.etiquetaMostrarQr !== false;
   document.getElementById('cfg_etiquetaMostrarBarras').checked = DB.settings.etiquetaMostrarBarras !== false;
@@ -14169,6 +14299,34 @@ function saveSettingsLive(){
   DB.settings.pixQrAutoDelay = (isFinite(delaySeg) && delaySeg>=0) ? Math.round(delaySeg*1000) : 1800;
   DB.settings.impressora = document.getElementById('cfg_impressora').value;
   DB.settings.papel = document.getElementById('cfg_papel').value;
+  const reciboEscalaSel = document.getElementById('cfg_reciboEscalaFonte');
+  if(reciboEscalaSel) DB.settings.reciboEscalaFonte = ['pequeno','normal','grande'].includes(reciboEscalaSel.value) ? reciboEscalaSel.value : 'normal';
+  const reciboPausaInp = document.getElementById('cfg_reciboPausaAposProcessarMs');
+  if(reciboPausaInp){
+    const reciboPausa = parseFloat(reciboPausaInp.value);
+    DB.settings.reciboPausaAposProcessarMs = (isFinite(reciboPausa) && reciboPausa>=0 && reciboPausa<=3000) ? reciboPausa : 500;
+  }
+  const reciboEspacoInp = document.getElementById('cfg_reciboEspacoExtraMm');
+  if(reciboEspacoInp){
+    const reciboEspaco = parseFloat(reciboEspacoInp.value);
+    DB.settings.reciboEspacoExtraMm = (isFinite(reciboEspaco) && reciboEspaco>=0 && reciboEspaco<=40) ? reciboEspaco : 0;
+  }
+  const reciboLogoChk = document.getElementById('cfg_reciboMostrarLogo');
+  if(reciboLogoChk) DB.settings.reciboMostrarLogo = reciboLogoChk.checked;
+  const reciboCabecalhoInp = document.getElementById('cfg_reciboCabecalho');
+  if(reciboCabecalhoInp) DB.settings.reciboCabecalho = reciboCabecalhoInp.value;
+  const reciboMostrarContatoChk = document.getElementById('cfg_reciboMostrarContato');
+  if(reciboMostrarContatoChk) DB.settings.reciboMostrarContato = reciboMostrarContatoChk.checked;
+  const reciboMostrarNumeroChk = document.getElementById('cfg_reciboMostrarNumeroVenda');
+  if(reciboMostrarNumeroChk) DB.settings.reciboMostrarNumeroVenda = reciboMostrarNumeroChk.checked;
+  const reciboMostrarVendedorChk = document.getElementById('cfg_reciboMostrarVendedor');
+  if(reciboMostrarVendedorChk) DB.settings.reciboMostrarVendedor = reciboMostrarVendedorChk.checked;
+  const reciboMostrarClienteChk = document.getElementById('cfg_reciboMostrarCliente');
+  if(reciboMostrarClienteChk) DB.settings.reciboMostrarCliente = reciboMostrarClienteChk.checked;
+  const reciboMostrarDataChk = document.getElementById('cfg_reciboMostrarDataHora');
+  if(reciboMostrarDataChk) DB.settings.reciboMostrarDataHora = reciboMostrarDataChk.checked;
+  const reciboRodapeInp = document.getElementById('cfg_reciboRodape');
+  if(reciboRodapeInp) DB.settings.reciboRodape = reciboRodapeInp.value;
   DB.settings.etiquetaQr = document.getElementById('cfg_etiquetaQr').value;
   DB.settings.etiquetaMostrarQr = document.getElementById('cfg_etiquetaMostrarQr').checked;
   DB.settings.etiquetaMostrarBarras = document.getElementById('cfg_etiquetaMostrarBarras').checked;
@@ -14229,6 +14387,7 @@ function useLogoFabrica(){
   applyBrandLogo();
   flashSaving();
   log('Logo da loja: opção de fábrica (sacola)');
+  atualizarPreviewReciboConfig();
 }
 function updateLogoOptionUI(){
   const preview = document.getElementById('cfg_logoPreview');
@@ -14250,7 +14409,41 @@ function previewLogo(input){
     applyBrandLogo();
     flashSaving();
     log('Logo da loja: foto personalizada');
+    atualizarPreviewReciboConfig();
   });
+}
+/* ---------------- Prévia ao vivo do recibo (Configurações → Personalizar Via
+   do Cliente) — monta uma venda de exemplo (fictícia, nunca salva em lugar
+   nenhum) e reaproveita a MESMA função que gera o recibo de verdade
+   (montarConteudoViaCliente_), pra prévia ficar sempre idêntica ao que sai na
+   impressora de verdade, sem manter dois templates diferentes pra manter
+   sincronizados. Chamada sempre que qualquer campo de personalização muda. */
+function _vendaExemploRecibo_(){
+  const agora = Date.now();
+  return {
+    id: 'exemplo12345',
+    date: agora,
+    sellerName: 'Maria Vendedora',
+    customerId: null,
+    items: [
+      {name:'Camiseta Estampada P', price:39.9, qty:2, discountType:'value', discount:0},
+      {name:'Boné Aba Reta', price:29.9, qty:1, discountType:'value', discount:0}
+    ],
+    subtotal: 109.7,
+    itemDiscounts: 0,
+    saleDiscount: 0,
+    total: 109.7,
+    payments: {dinheiro:0, pix:109.7, cartao:0},
+    change: 0,
+    debt: 0
+  };
+}
+function atualizarPreviewReciboConfig(){
+  const alvo = document.getElementById('reciboPreviewLive');
+  if(!alvo) return;
+  const larguraMm = (DB.settings.papel==='58mm') ? 58 : 80;
+  const wrapClass = larguraMm===58 ? 'via58' : 'via80';
+  alvo.innerHTML = `<div class="${wrapClass}" style="font-size:${reciboFontSizePx_(larguraMm)}px;">${montarConteudoViaCliente_(_vendaExemploRecibo_())}</div>`;
 }
 function renderConfigLog(){
   const body = document.getElementById('configLogBody');
