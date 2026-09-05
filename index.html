@@ -9259,7 +9259,9 @@ function imprimirEtiquetaFinal(){
         alertModal('Nenhuma impressora ' + (modoConfigurado==='usb'?'USB':'Bluetooth') + ' conectada nesta sessão. Vá em Configurações → Impressora de Etiquetas e clique em "Conectar impressora" antes de imprimir.');
         return;
       }
+      let etiquetasConcluidas_ = 0;
       return imprimirEtiquetasViaImpressoraDireta_(itensEtiquetas, dims, function(feitas){
+        etiquetasConcluidas_ = feitas;
         atualizarProgressoImpressao_(feitas, qtdEtiquetas);
       }).then(function(){
         limparArea();
@@ -9274,7 +9276,15 @@ function imprimirEtiquetaFinal(){
         limparArea();
         finalizarProgressoImpressao_();
         const detalhe = (err && err.message) ? err.message : 'Verifique se a impressora está ligada, conectada e com papel.';
-        alertModal('Não foi possível imprimir na impressora ' + (modoConfigurado==='usb'?'USB':'Bluetooth') + '. ' + detalhe);
+        // Antes a mensagem não dizia quantas etiquetas já tinham saído, então uma
+        // interrupção no meio do lote parecia ter "parado do nada" sem explicação —
+        // agora deixamos claro até onde chegou, pra ficar óbvio que faltou o resto.
+        const progressoTxt = (qtdEtiquetas>1)
+          ? (etiquetasConcluidas_>0
+              ? etiquetasConcluidas_+' de '+qtdEtiquetas+' etiquetas foram impressas antes do problema. As demais não saíram — '
+              : 'Nenhuma das '+qtdEtiquetas+' etiquetas chegou a ser impressa — ')
+          : '';
+        alertModal('Não foi possível imprimir na impressora ' + (modoConfigurado==='usb'?'USB':'Bluetooth') + '. ' + progressoTxt + detalhe);
       });
     }
     atualizarProgressoImpressao_(qtdEtiquetas, qtdEtiquetas);
@@ -10176,6 +10186,22 @@ async function enviarBytesImpressoraDireta_(bytes){
     _impressoraDireta = { tipo:null, port:null, writer:null, bleDevice:null, bleChar:null, nome:'' };
     const reconectou = await tentarReconectarImpressoraSilenciosamente_();
     if(!reconectou){ renderImpressoraEtiquetaUI(); throw err; }
+    // Se o envio caiu NO MEIO de um pedaço, é bem provável que a impressora já tenha
+    // recebido e começado a processar parte do comando anterior (init/bitmap/avanço).
+    // Reenviar "bytes" inteiro por cima disso, sem mais nada, faz a impressora enxergar
+    // um comando truncado seguido de um comando novo colado nele — e é exatamente isso
+    // que gerava o sintoma "a etiqueta sai com a posição de impressão errada" depois de
+    // uma reconexão. Por isso mandamos um reset (ESC @) primeiro, de forma silenciosa,
+    // pra descartar qualquer lixo de buffer da tentativa anterior antes de reenviar tudo.
+    try{
+      await _enviarBytesImpressoraDiretaSemRetry_(new Uint8Array([0x1B, 0x40]));
+      await new Promise(r=>setTimeout(r, 50));
+    }catch(errReset){
+      // Se nem o reset foi aceito, a conexão "reconectada" não presta de verdade —
+      // melhor falhar aqui com o erro original do que reenviar tudo às cegas.
+      renderImpressoraEtiquetaUI();
+      throw err;
+    }
     await _enviarBytesImpressoraDiretaSemRetry_(bytes);
   }
 }
