@@ -1723,6 +1723,59 @@ html.anim-off-glow .pixQrFrame{animation:none !important;}
 #reciboPreviewLive .viaItemNome{word-break:break-word;}
 #reciboPreviewLive b{font-weight:700;}
 
+/* ---------- Editor da Via do Cliente (blocos personalizados) ----------
+   Prévia ao vivo dentro do modal do editor avançado (Configurações →
+   Personalizar Via do Cliente → Abrir editor da via do cliente) — mesma
+   cara da prévia de Configurações (#reciboPreviewLive) acima, só com outro
+   id porque os dois painéis podem existir na página ao mesmo tempo (o de
+   Configurações fica por baixo do modal, escondido). */
+#reciboBlocosPreview{font-family:'Courier New',monospace;}
+#reciboBlocosPreview .via80,#reciboBlocosPreview .via58{margin:0 auto;box-sizing:border-box;font-family:'Courier New',monospace;color:#000;background:#fff;padding:8px 10px;border-radius:4px;}
+#reciboBlocosPreview .via80{width:80mm;}
+#reciboBlocosPreview .via58{width:58mm;}
+#reciboBlocosPreview .viaLinha{display:flex;justify-content:space-between;gap:8px;}
+#reciboBlocosPreview .viaSep{border-top:1px dashed #999;margin:6px 0;}
+#reciboBlocosPreview .viaTitulo{font-weight:700;font-size:1.15em;}
+#reciboBlocosPreview .viaItemNome{word-break:break-word;}
+#reciboBlocosPreview b{font-weight:700;}
+
+/* ---------- Histórico de Vendas (painel flutuante no canto da tela de Vendas) ----------
+   Aparece sozinho depois de cada venda finalizada (ver mostrarHistoricoVendasWidget(),
+   chamada no fim de doFinalizeSale()) e some sozinho depois de 1 minuto sem
+   nenhuma venda nova (agendarAutoOcultarHistoricoVendas()), ou na hora pelo
+   botão ×. Fica de propósito dentro de #view-vendas: assim ele já herda o
+   display:none da view quando ela não está ativa, sem precisar de nenhum
+   código extra em showView() pra escondê-lo ao trocar de tela. Tamanho e
+   canto são ajustáveis em Configurações → Histórico de Vendas. */
+.vendasHistWidget{
+  position:fixed; z-index:70; display:none; flex-direction:column;
+  background:var(--panel); border:1px solid var(--line); border-radius:12px;
+  box-shadow:0 14px 34px rgba(0,0,0,.4); overflow:hidden;
+  animation:vendasHistIn .28s cubic-bezier(.2,.8,.3,1);
+}
+@keyframes vendasHistIn{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:translateY(0);}}
+.vendasHistWidget.br{right:16px;bottom:16px;}
+.vendasHistWidget.bl{left:16px;bottom:16px;}
+.vendasHistWidget.tr{right:16px;top:80px;}
+.vendasHistWidget.tl{left:16px;top:80px;}
+.vendasHistHeader{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:9px 10px;background:var(--panel2);border-bottom:1px solid var(--line);
+  font-weight:700;font-size:.86em;color:var(--orange);flex-shrink:0;
+}
+.vendasHistCloseBtn{background:none;border:none;color:var(--text-dim);font-size:1.25em;line-height:1;cursor:pointer;padding:0 4px;}
+.vendasHistCloseBtn:hover{color:var(--text);}
+.vendasHistList{overflow-y:auto;padding:7px;display:flex;flex-direction:column;gap:6px;}
+.vendasHistItem{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:7px 9px;font-size:.82em;}
+.vendasHistItemTop{display:flex;justify-content:space-between;gap:8px;color:var(--text-dim);margin-bottom:2px;}
+.vendasHistItemVal{font-weight:700;color:var(--orange);}
+.vendasHistPrintBtn{
+  margin-top:5px;width:100%;background:var(--orange-dim);color:#fff;border:none;
+  border-radius:7px;padding:5px 8px;font-size:.86em;cursor:pointer;
+}
+.vendasHistPrintBtn:hover{background:var(--orange);}
+html.is-mobile .vendasHistWidget{max-width:calc(100vw - 24px);}
+
 .pickerWrap{position:relative;}
 .pickerDropdown{
   position:absolute; top:100%; left:0; right:0; margin-top:4px;
@@ -2949,6 +3002,16 @@ html.is-mobile .btn::before{ display:none; }
             </div>
           </div>
         </div>
+        <!-- Histórico de últimas vendas (canto da tela) — ver JS "HISTÓRICO DE
+             VENDAS" e CSS .vendasHistWidget. Fica escondido por padrão (display:none
+             no CSS) e só aparece depois de uma venda finalizada. -->
+        <div id="vendasHistWidget" class="vendasHistWidget br">
+          <div class="vendasHistHeader">
+            <span>🧾 Últimas vendas</span>
+            <button type="button" class="vendasHistCloseBtn" title="Fechar" onclick="fecharHistoricoVendasWidget()">×</button>
+          </div>
+          <div class="vendasHistList" id="vendasHistList"></div>
+        </div>
       </div>
 
 
@@ -3858,6 +3921,36 @@ html.is-mobile .btn::before{ display:none; }
             <input id="cfg_reciboRodape" placeholder="Ex: Obrigado pela preferência!" data-perm="admin" oninput="saveSettingsLive();atualizarPreviewReciboConfig();">
           </div>
           <div id="reciboPreviewLive"></div>
+          <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:14px;">
+            <div class="field" style="display:flex;align-items:center;gap:8px;">
+              <input type="checkbox" id="cfg_reciboModoCustom" data-perm="admin" onchange="saveSettingsLive()" style="width:auto;margin:0;">
+              <label style="margin:0;">Usar via personalizada (editor avançado, substitui as opções acima)</label>
+            </div>
+            <button class="btn secondary small" style="margin-top:8px;" onclick="abrirEditorReciboBlocos()">🎨 Abrir editor da via do cliente</button>
+            <p class="dimSmall">No editor você adiciona os blocos que quiser (textos livres, imagens, logo, campos da venda...), muda a ordem deles com as setas e ajusta alinhamento e negrito de cada um individualmente — igual ao editor de etiquetas, só que numa lista de cima pra baixo (o jeito que uma via de bobina é impressa de verdade), em vez de um desenho livre. Ideal pra colocar uma imagem extra (selo, aviso, QR de avaliação) ou reorganizar a via do seu jeito.</p>
+          </div>
+        </div>
+        <div class="panel" style="max-width:420px;">
+          <h3>🧾 Histórico de Vendas (canto da tela)</h3>
+          <p class="dimSmall" style="margin-top:-6px;">Depois de cada venda finalizada, um painel aparece no canto da tela de Vendas com as últimas vendas feitas (até 10), cada uma com um botão para reimprimir o recibo. Ele some sozinho depois de 1 minuto sem nenhuma venda nova — mas também pode ser fechado na hora pelo ×.</p>
+          <div class="formGrid">
+            <div class="field"><label>Largura do painel (px)</label>
+              <input id="cfg_vendasHistLarguraPx" type="number" min="220" max="600" step="10" data-perm="admin" oninput="saveSettingsLive()">
+            </div>
+            <div class="field"><label>Altura máxima do painel (px)</label>
+              <input id="cfg_vendasHistAlturaPx" type="number" min="200" max="800" step="10" data-perm="admin" oninput="saveSettingsLive()">
+            </div>
+          </div>
+          <div class="field">
+            <label>Canto da tela</label>
+            <select id="cfg_vendasHistCanto" data-perm="admin" onchange="saveSettingsLive()">
+              <option value="br">Inferior direito (padrão)</option>
+              <option value="bl">Inferior esquerdo</option>
+              <option value="tr">Superior direito</option>
+              <option value="tl">Superior esquerdo</option>
+            </select>
+          </div>
+          <p class="dimSmall">Tamanho padrão: 300x400px (proporção 30x40). Ajuste aqui se quiser um painel maior, menor, mais largo ou mais alto.</p>
         </div>
         <div class="panel" style="max-width:560px;">
           <h3>Backup Manual e Importação</h3>
@@ -5595,6 +5688,11 @@ function ensureCatalogDefaults(){
   if(typeof DB.settings.reciboMostrarCliente !== 'boolean') DB.settings.reciboMostrarCliente = true;
   if(typeof DB.settings.reciboMostrarDataHora !== 'boolean') DB.settings.reciboMostrarDataHora = true;
   if(typeof DB.settings.reciboRodape !== 'string') DB.settings.reciboRodape = 'Obrigado pela preferência!';
+  if(typeof DB.settings.reciboModoCustom !== 'boolean') DB.settings.reciboModoCustom = false; // liga o editor avançado (blocos livres, com imagem) da via do cliente, no lugar das opções fixas acima
+  if(!Array.isArray(DB.settings.reciboBlocos)) DB.settings.reciboBlocos = []; // blocos do editor avançado da via do cliente — preenchidos a partir das opções acima na 1ª vez que o editor é aberto (ver garantirReciboBlocosPadrao())
+  if(!DB.settings.vendasHistLarguraPx) DB.settings.vendasHistLarguraPx = 300; // largura (px) do painel de histórico de últimas vendas, no canto da tela de Vendas
+  if(!DB.settings.vendasHistAlturaPx) DB.settings.vendasHistAlturaPx = 400; // altura máxima (px) do mesmo painel — padrão 300x400px (proporção 30x40)
+  if(!DB.settings.vendasHistCanto) DB.settings.vendasHistCanto = 'br'; // canto da tela onde o painel aparece: 'br' (inferior direito, padrão), 'bl','tr','tl'
   // migração: quem já tinha um layout personalizado solto (versão antiga, sem nome/lista)
   // vira automaticamente o primeiro modelo salvo, pra não perder o trabalho já feito
   if(!DB.settings.etiquetaModelos.length && DB.settings.etiquetaLayout.length){
@@ -7385,7 +7483,15 @@ function itemDiscountAmountVia_(it){
   if(it.discountType==='pct') return (it.price*it.qty)*((Number(it.discount)||0)/100);
   return Number(it.discount)||0;
 }
+// Ponto de entrada usado em todo lugar que precisa do conteúdo da via do
+// cliente (popup pós-venda, reimpressão pelo histórico de vendas, impressão
+// de verdade e a prévia de Configurações) — decide sozinho se usa o modelo
+// fixo de sempre ou o editor avançado de blocos (Configurações → Personalizar
+// Via do Cliente → "Usar via personalizada").
 function montarConteudoViaCliente_(sale){
+  return DB.settings.reciboModoCustom ? montarConteudoViaClienteCustom_(sale) : montarConteudoViaClienteLegado_(sale);
+}
+function montarConteudoViaClienteLegado_(sale){
   const esc = _escapeHtmlPct_;
   const nomeLoja = esc(DB.settings.nomeLoja||'Loja');
   const contato = (DB.settings.reciboMostrarContato!==false) ? esc(DB.settings.contato||'') : '';
@@ -7450,6 +7556,357 @@ function montarConteudoViaCliente_(sale){
     ${espacoExtraMm>0 ? `<div style="height:${espacoExtraMm}mm"></div>` : ''}
   `;
 }
+
+/* =========================================================
+   EDITOR AVANÇADO DA VIA DO CLIENTE (blocos personalizados)
+   Mesma ideia do Editor de Etiquetas (elementos que a loja escolhe, com
+   posição e aparência ajustáveis), adaptada pro formato de uma via de
+   bobina: como a impressora térmica imprime de cima pra baixo numa faixa
+   de largura fixa (58/80mm) e altura que cresce sozinha conforme os itens
+   da venda, aqui a "posição" de cada bloco é a ORDEM dele na lista (setas
+   ⬆⬇), não um arrasto livre em x/y — não existe "lado a lado" numa bobina
+   de largura única. Além de reordenar, dá pra adicionar quantos blocos de
+   texto livre e de imagem quiser, e remover/reordenar os campos prontos
+   (data/hora, vendedor, cliente...). O único bloco que não pode ser
+   removido é "Itens da venda" — sem ele a via não mostra o que foi
+   comprado, mas ele também pode ser movido de lugar como qualquer outro.
+========================================================= */
+const RECIBO_BLOCO_LABELS = {
+  logo: '🖼️ Logo da loja',
+  imagem: '🖼️ Imagem personalizada',
+  nomeLoja: '🏷️ Nome da loja',
+  contato: '📞 Contato da loja',
+  texto: '📝 Texto livre',
+  campo_dataHora: '🕒 Data e hora',
+  campo_numeroVenda: '# Número da venda',
+  campo_vendedor: '🧑 Vendedor',
+  campo_cliente: '👤 Cliente (fiado)',
+  itens: '🛒 Itens da venda',
+  totais: '💰 Subtotal / Total',
+  pagamentos: '💳 Formas de pagamento',
+  rodape: '💬 Mensagem final (rodapé)',
+  separador: '┄ Linha separadora',
+  espaco: '␣ Espaço em branco'
+};
+// tipos que só podem existir 1x na via — depois de adicionado, some da lista "+ Adicionar"
+const RECIBO_BLOCO_UNICOS = ['logo','nomeLoja','contato','itens','totais','pagamentos','rodape'];
+// único tipo que não pode ser removido (garante que a via sempre mostra o que foi vendido)
+const RECIBO_BLOCO_FIXO = 'itens';
+// tipos que aceitam alinhamento / negrito / conteúdo — os campos prontos (data,
+// vendedor, cliente, itens, totais, pagamentos) sempre saem no mesmo formato de
+// "linha com duas colunas", então não fazem sentido ter essas opções
+const RECIBO_BLOCO_COM_ALIGN = ['logo','imagem','nomeLoja','contato','texto','rodape'];
+const RECIBO_BLOCO_COM_BOLD = ['texto','rodape'];
+const RECIBO_BLOCO_COM_CONTEUDO = ['texto','rodape'];
+
+// Preenche DB.settings.reciboBlocos a partir das opções fixas (Mostrar logo,
+// Mostrar contato etc.) já configuradas, na 1ª vez que a loja usa o editor —
+// assim a via personalizada começa idêntica à via de sempre, sem perder nada
+// do que já estava configurado, e só muda a partir daí se a loja mexer.
+function garantirReciboBlocosPadrao(){
+  if(DB.settings.reciboBlocos && DB.settings.reciboBlocos.length) return DB.settings.reciboBlocos;
+  const blocos = [];
+  if(DB.settings.reciboMostrarLogo) blocos.push({id:uid('vb'), type:'logo', align:'center'});
+  blocos.push({id:uid('vb'), type:'nomeLoja', align:'center'});
+  if(DB.settings.reciboMostrarContato!==false) blocos.push({id:uid('vb'), type:'contato', align:'center'});
+  if((DB.settings.reciboCabecalho||'').trim()) blocos.push({id:uid('vb'), type:'texto', align:'center', bold:false, content:DB.settings.reciboCabecalho});
+  blocos.push({id:uid('vb'), type:'separador'});
+  if(DB.settings.reciboMostrarDataHora!==false) blocos.push({id:uid('vb'), type:'campo_dataHora'});
+  if(DB.settings.reciboMostrarNumeroVenda!==false) blocos.push({id:uid('vb'), type:'campo_numeroVenda'});
+  if(DB.settings.reciboMostrarVendedor!==false) blocos.push({id:uid('vb'), type:'campo_vendedor'});
+  if(DB.settings.reciboMostrarCliente!==false) blocos.push({id:uid('vb'), type:'campo_cliente'});
+  blocos.push({id:uid('vb'), type:'separador'});
+  blocos.push({id:uid('vb'), type:'itens'});
+  blocos.push({id:uid('vb'), type:'separador'});
+  blocos.push({id:uid('vb'), type:'totais'});
+  blocos.push({id:uid('vb'), type:'separador'});
+  blocos.push({id:uid('vb'), type:'pagamentos'});
+  blocos.push({id:uid('vb'), type:'separador'});
+  blocos.push({id:uid('vb'), type:'rodape', align:'center', bold:false, content:DB.settings.reciboRodape||''});
+  DB.settings.reciboBlocos = blocos;
+  return blocos;
+}
+function montarConteudoViaClienteCustom_(sale){
+  const esc = _escapeHtmlPct_;
+  const blocos = garantirReciboBlocosPadrao();
+  const cliente = sale.customerId ? DB.customers.find(c=>c.id===sale.customerId) : null;
+  let itensHtml = '';
+  (sale.items||[]).forEach(function(it){
+    const bruto = (Number(it.price)||0) * (Number(it.qty)||0);
+    const desc = itemDiscountAmountVia_(it);
+    const liquido = bruto - desc;
+    itensHtml += `<div class="viaItemNome">${esc(it.name)}</div>
+      <div class="viaLinha"><span>${it.qty} x ${fmtMoney(it.price)}</span><span>${fmtMoney(liquido)}</span></div>`;
+    if(desc>0.001){
+      itensHtml += `<div class="viaLinha"><span>Desconto item</span><span>-${fmtMoney(desc)}</span></div>`;
+    }
+  });
+  let pagHtml = '';
+  const pagLbl = {dinheiro:'Dinheiro', pix:'Pix', cartao:'Cartão'};
+  Object.keys(pagLbl).forEach(function(k){
+    const v = (sale.payments||{})[k] || 0;
+    if(v>0.001) pagHtml += `<div class="viaLinha"><span>${pagLbl[k]}</span><span>${fmtMoney(v)}</span></div>`;
+  });
+  if(sale.change>0.001) pagHtml += `<div class="viaLinha"><span>Troco</span><span>${fmtMoney(sale.change)}</span></div>`;
+  if(sale.debt>0.001) pagHtml += `<div class="viaLinha"><span>Ficou devendo (Fiado)</span><span>${fmtMoney(sale.debt)}</span></div>`;
+  let totaisHtml = `<div class="viaLinha"><span>Subtotal</span><span>${fmtMoney(sale.subtotal)}</span></div>`;
+  if(sale.itemDiscounts>0.001) totaisHtml += `<div class="viaLinha"><span>Descontos itens</span><span>-${fmtMoney(sale.itemDiscounts)}</span></div>`;
+  if(sale.saleDiscount>0.001) totaisHtml += `<div class="viaLinha"><span>Desconto na venda</span><span>-${fmtMoney(sale.saleDiscount)}</span></div>`;
+  totaisHtml += `<div class="viaLinha"><b>TOTAL</b><b>${fmtMoney(sale.total)}</b></div>`;
+  const ctx = {esc, nomeLoja:esc(DB.settings.nomeLoja||'Loja'), contato:esc(DB.settings.contato||''), cliente, itensHtml, pagHtml, totaisHtml, sale};
+  const corpo = blocos.map(b=>renderReciboBlocoHtml_(b, ctx)).join('\n');
+  const espacoExtraMm = Number(DB.settings.reciboEspacoExtraMm)||0;
+  return corpo + (espacoExtraMm>0 ? `<div style="height:${espacoExtraMm}mm"></div>` : '');
+}
+function renderReciboBlocoHtml_(b, ctx){
+  const align = b.align || 'center';
+  const boldOpen = b.bold ? '<b>' : '';
+  const boldClose = b.bold ? '</b>' : '';
+  switch(b.type){
+    case 'logo':
+      return DB.settings.logo ? `<img class="viaLogo" style="margin-left:${align==='left'?'0':'auto'};margin-right:${align==='right'?'0':'auto'};" src="${DB.settings.logo}">` : '';
+    case 'imagem':
+      return b.src ? `<img class="viaLogo" style="max-width:${Number(b.larguraPct)||65}%;margin-left:${align==='left'?'0':'auto'};margin-right:${align==='right'?'0':'auto'};" src="${b.src}">` : '';
+    case 'nomeLoja':
+      return `<div class="viaTitulo" style="text-align:${align};">${ctx.nomeLoja}</div>`;
+    case 'contato':
+      return ctx.contato ? `<div style="text-align:${align};">${ctx.contato}</div>` : '';
+    case 'texto':
+      return (b.content||'').trim() ? `<div style="text-align:${align};white-space:pre-wrap;word-break:break-word;">${boldOpen}${ctx.esc(b.content)}${boldClose}</div>` : '';
+    case 'separador':
+      return `<div class="viaSep"></div>`;
+    case 'espaco':
+      return `<div style="height:${Number(b.alturaMm)||3}mm"></div>`;
+    case 'campo_dataHora':
+      return `<div class="viaLinha"><span>Data</span><span>${fmtDateTime(ctx.sale.date)}</span></div>`;
+    case 'campo_numeroVenda':
+      return `<div class="viaLinha"><span>Venda</span><span>#${(ctx.sale.id||'').slice(-5)}</span></div>`;
+    case 'campo_vendedor':
+      return `<div class="viaLinha"><span>Vendedor</span><span>${ctx.esc(ctx.sale.sellerName||'')}</span></div>`;
+    case 'campo_cliente':
+      return ctx.cliente ? `<div class="viaLinha"><span>Cliente</span><span>${ctx.esc(ctx.cliente.nome)}</span></div>` : '';
+    case 'itens':
+      return ctx.itensHtml || '<div style="text-align:center;">Nenhum item</div>';
+    case 'totais':
+      return ctx.totaisHtml;
+    case 'pagamentos':
+      return ctx.pagHtml;
+    case 'rodape':
+      return `<div style="text-align:${align};">${boldOpen}${ctx.esc((b.content||'').trim() || 'Obrigado pela preferência!')}${boldClose}</div>`;
+    default:
+      return '';
+  }
+}
+
+/* -------- editor: abrir/fechar/desenhar -------- */
+let _vbEditState = {selectedId:null};
+function abrirEditorReciboBlocos(){
+  garantirReciboBlocosPadrao();
+  _vbEditState = {selectedId:null};
+  showModal(renderReciboBlocosEditorHTML(), {wide:true});
+  montarEditorReciboBlocos();
+}
+function fecharEditorReciboBlocos(){ closeModal(); }
+function renderReciboBlocosEditorHTML(){
+  const larguraMm = (DB.settings.papel==='58mm') ? 58 : 80;
+  return `
+    <button class="modalClose" onclick="fecharEditorReciboBlocos()">×</button>
+    <h3>🎨 Personalizar Via do Cliente</h3>
+    <p class="dimSmall" style="margin-top:-6px;">Adicione os blocos que quiser (texto livre, imagem, campos da venda...), mude a ordem com as setas ⬆⬇ na lista e ajuste alinhamento/negrito de cada um ao lado. A prévia abaixo se atualiza sozinha. Via final: ${larguraMm}mm de largura (a altura acompanha a quantidade de itens da venda, como numa bobina de verdade).</p>
+    <div class="etqEditorLayout">
+      <div style="background:#2a221d;border-radius:10px;padding:14px;flex-shrink:0;max-width:100%;overflow:auto;max-height:560px;">
+        <div id="reciboBlocosPreview"></div>
+      </div>
+      <div class="etqEditorSidebar">
+        <h4>Adicionar bloco</h4>
+        <div class="etqAddGrid" id="vbAddGrid"></div>
+        <h4>Blocos da via (ordem de cima a baixo)</h4>
+        <div class="etqElList" id="vbList" style="max-height:220px;"></div>
+        <h4>Propriedades</h4>
+        <div class="etqPropsBox" id="vbPropsBox"><div class="etqEmptyProps">Selecione um bloco na lista para editar.</div></div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;">
+      <button class="btn" style="flex:1;" onclick="salvarEditorReciboBlocos()">💾 Salvar e usar via personalizada</button>
+      <button class="btn secondary" onclick="restaurarReciboBlocosPadraoConfirm()">Restaurar padrão</button>
+      <button class="btn secondary" onclick="fecharEditorReciboBlocos()">Cancelar</button>
+    </div>
+  `;
+}
+function montarEditorReciboBlocos(){
+  renderVbAddGrid();
+  renderReciboBlocosPreview();
+  renderVbList();
+  renderVbProps();
+}
+function renderVbAddGrid(){
+  const addGrid = document.getElementById('vbAddGrid');
+  if(!addGrid) return;
+  const usados = new Set((DB.settings.reciboBlocos||[]).map(b=>b.type));
+  addGrid.innerHTML = Object.entries(RECIBO_BLOCO_LABELS)
+    .filter(([tipo])=> !RECIBO_BLOCO_UNICOS.includes(tipo) || !usados.has(tipo))
+    .map(([tipo,label])=>`<button type="button" onclick="adicionarBlocoRecibo('${tipo}')">+ ${label}</button>`)
+    .join('');
+}
+/* -------- blocos: adicionar / remover / mover / selecionar -------- */
+function adicionarBlocoRecibo(tipo){
+  const blocos = DB.settings.reciboBlocos || (DB.settings.reciboBlocos=[]);
+  const el = {id:uid('vb'), type:tipo};
+  if(tipo==='texto'){ el.content='Texto'; el.align='center'; el.bold=false; }
+  if(tipo==='imagem'){ el.src=''; el.align='center'; el.larguraPct=65; }
+  if(tipo==='rodape'){ el.content='Obrigado pela preferência!'; el.align='center'; el.bold=false; }
+  if(tipo==='logo' || tipo==='nomeLoja' || tipo==='contato'){ el.align='center'; }
+  if(tipo==='espaco'){ el.alturaMm=3; }
+  blocos.push(el);
+  _vbEditState.selectedId = el.id;
+  renderVbAddGrid();
+  renderReciboBlocosPreview();
+  renderVbList();
+  renderVbProps();
+}
+function removerBlocoRecibo(id){
+  const blocos = DB.settings.reciboBlocos||[];
+  const bloco = blocos.find(b=>b.id===id);
+  if(bloco && bloco.type===RECIBO_BLOCO_FIXO){ alertModal('Os itens da venda não podem ser removidos da via — sem eles o cliente não veria o que comprou. Dá pra mover de lugar com as setas ⬆⬇, mas não excluir.'); return; }
+  DB.settings.reciboBlocos = blocos.filter(b=>b.id!==id);
+  if(_vbEditState.selectedId===id) _vbEditState.selectedId = null;
+  renderVbAddGrid();
+  renderReciboBlocosPreview();
+  renderVbList();
+  renderVbProps();
+}
+function moverBlocoRecibo(id, direcao){
+  const blocos = DB.settings.reciboBlocos||[];
+  const idx = blocos.findIndex(b=>b.id===id);
+  const novoIdx = idx + direcao;
+  if(idx===-1 || novoIdx<0 || novoIdx>=blocos.length) return;
+  const [b] = blocos.splice(idx,1);
+  blocos.splice(novoIdx,0,b);
+  renderReciboBlocosPreview();
+  renderVbList();
+}
+function selecionarBlocoRecibo(id){
+  _vbEditState.selectedId = id;
+  renderVbList();
+  renderVbProps();
+}
+function renderVbList(){
+  const wrap = document.getElementById('vbList');
+  if(!wrap) return;
+  const blocos = DB.settings.reciboBlocos||[];
+  wrap.innerHTML = blocos.map((b,idx)=>`
+    <div class="etqElListRow ${b.id===_vbEditState.selectedId?'selected':''}" onclick="selecionarBlocoRecibo('${b.id}')">
+      <span>${RECIBO_BLOCO_LABELS[b.type]||b.type}</span>
+      <div class="etqElListBtns">
+        <button type="button" title="Mover para cima" ${idx===0?'disabled':''} onclick="event.stopPropagation();moverBlocoRecibo('${b.id}',-1)">⬆</button>
+        <button type="button" title="Mover para baixo" ${idx===blocos.length-1?'disabled':''} onclick="event.stopPropagation();moverBlocoRecibo('${b.id}',1)">⬇</button>
+        ${b.type!==RECIBO_BLOCO_FIXO ? `<button type="button" class="etqRemoveBtn" title="Remover" onclick="event.stopPropagation();removerBlocoRecibo('${b.id}')">✕</button>` : ''}
+      </div>
+    </div>
+  `).join('') || '<div class="etqEmptyProps" style="padding:8px;">Nenhum bloco adicionado ainda.</div>';
+}
+function renderVbProps(){
+  const box = document.getElementById('vbPropsBox');
+  if(!box) return;
+  const b = (DB.settings.reciboBlocos||[]).find(x=>x.id===_vbEditState.selectedId);
+  if(!b){ box.innerHTML = '<div class="etqEmptyProps">Selecione um bloco na lista para editar.</div>'; return; }
+  const temAlign = RECIBO_BLOCO_COM_ALIGN.includes(b.type);
+  const temBold = RECIBO_BLOCO_COM_BOLD.includes(b.type);
+  const temConteudo = RECIBO_BLOCO_COM_CONTEUDO.includes(b.type);
+  const temImagem = b.type==='imagem';
+  const temEspaco = b.type==='espaco';
+  box.innerHTML = `
+    <div class="dimSmall" style="margin-bottom:8px;font-weight:700;color:var(--text);">${RECIBO_BLOCO_LABELS[b.type]||b.type}</div>
+    ${temConteudo ? `<div class="field"><label>Texto</label><textarea rows="2" style="width:100%;resize:vertical;font-family:inherit;" oninput="atualizarPropBlocoRecibo('${b.id}','content',this.value)" onkeydown="event.stopPropagation();">${(b.content||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')}</textarea></div>` : ''}
+    ${temImagem ? `
+      <div class="field">
+        <label>Imagem</label>
+        <input type="file" accept="image/*" onchange="handleImagemBlocoRecibo('${b.id}', this)">
+        ${b.src ? `<div style="margin-top:6px;"><img src="${b.src}" style="max-width:100%;max-height:80px;border-radius:6px;display:block;"></div><button type="button" class="btn secondary small" style="margin-top:6px;" onclick="removerImagemBlocoRecibo('${b.id}')">Remover imagem</button>` : ''}
+      </div>
+      <div class="field"><label>Tamanho da imagem (${Number(b.larguraPct)||65}% da largura da via)</label>
+        <input type="range" min="20" max="100" step="5" value="${Number(b.larguraPct)||65}" style="width:100%;" oninput="atualizarPropBlocoRecibo('${b.id}','larguraPct',Number(this.value))">
+      </div>` : ''}
+    ${temEspaco ? `<div class="field"><label>Altura do espaço (mm)</label><input type="number" min="1" max="40" step="1" value="${Number(b.alturaMm)||3}" oninput="atualizarPropBlocoRecibo('${b.id}','alturaMm',Number(this.value))"></div>` : ''}
+    ${temAlign ? `<div class="field"><label>Alinhamento</label>
+      <select onchange="atualizarPropBlocoRecibo('${b.id}','align',this.value)">
+        <option value="left" ${b.align==='left'?'selected':''}>Esquerda</option>
+        <option value="center" ${(b.align==='center'||!b.align)?'selected':''}>Centro</option>
+        <option value="right" ${b.align==='right'?'selected':''}>Direita</option>
+      </select>
+    </div>` : ''}
+    ${temBold ? `<div class="field" style="display:flex;align-items:center;gap:8px;">
+      <input type="checkbox" ${b.bold?'checked':''} style="width:auto;margin:0;" onchange="atualizarPropBlocoRecibo('${b.id}','bold',this.checked)">
+      <label style="margin:0;">Negrito</label>
+    </div>` : ''}
+    ${(!temAlign && !temBold && !temConteudo && !temImagem && !temEspaco) ? `<div class="dimSmall">Este bloco não tem opções de estilo — só a posição dele na via (use as setas ⬆⬇ na lista ao lado).</div>` : ''}
+  `;
+}
+function atualizarPropBlocoRecibo(id, campo, valor){
+  const b = (DB.settings.reciboBlocos||[]).find(x=>x.id===id);
+  if(!b) return;
+  b[campo] = valor;
+  renderReciboBlocosPreview();
+  // texto/tamanho da imagem: não redesenha o painel de propriedades a cada
+  // tecla/arrasto, senão o textarea/slider perde o foco no meio da digitação
+  if(campo!=='content' && campo!=='larguraPct') renderVbProps();
+}
+function handleImagemBlocoRecibo(id, input){
+  const file = input.files && input.files[0];
+  if(!file) return;
+  lerImagemComoBase64(file, dataUrl=>{
+    const b = (DB.settings.reciboBlocos||[]).find(x=>x.id===id);
+    if(!b) return;
+    b.src = dataUrl;
+    renderVbProps();
+    renderReciboBlocosPreview();
+  }, {maxDim:500, qualidade:0.85});
+}
+function removerImagemBlocoRecibo(id){
+  const b = (DB.settings.reciboBlocos||[]).find(x=>x.id===id);
+  if(!b) return;
+  b.src = '';
+  renderVbProps();
+  renderReciboBlocosPreview();
+}
+// Venda fictícia só pra prévia do editor ficar completa (item, pagamento,
+// vendedor...) mesmo antes da loja ter feito qualquer venda de verdade.
+function _vbVendaExemplo_(){
+  return {
+    id:'venda_exemplo00000', date: todayISO(),
+    items:[{name:'Produto de exemplo', qty:1, price:29.9}],
+    subtotal:29.9, itemDiscounts:0, saleDiscount:0, total:29.9,
+    payments:{dinheiro:30, pix:0, cartao:0}, paid:30, change:0.1, debt:0,
+    customerId:null, sellerName:(currentUser&&currentUser.nome)||'Vendedor'
+  };
+}
+function renderReciboBlocosPreview(){
+  const wrap = document.getElementById('reciboBlocosPreview');
+  if(!wrap) return;
+  const larguraMm = (DB.settings.papel==='58mm') ? 58 : 80;
+  const wrapClass = larguraMm===58 ? 'via58' : 'via80';
+  const conteudo = montarConteudoViaClienteCustom_(_vbVendaExemplo_());
+  wrap.innerHTML = `<div class="${wrapClass}" style="font-size:${reciboFontSizePx_(larguraMm)}px;">${conteudo}</div>`;
+}
+function restaurarReciboBlocosPadraoConfirm(){
+  confirmModal('Restaurar a via para o modelo padrão? Isso apaga os blocos personalizados atuais (imagens e textos livres adicionados aqui no editor).', function(){
+    DB.settings.reciboBlocos = [];
+    garantirReciboBlocosPadrao();
+    _vbEditState = {selectedId:null};
+    montarEditorReciboBlocos();
+  });
+}
+function salvarEditorReciboBlocos(){
+  DB.settings.reciboModoCustom = true;
+  const chk = document.getElementById('cfg_reciboModoCustom');
+  if(chk) chk.checked = true;
+  autoSaveLocal();
+  autoSaveToFile();
+  closeModal();
+  if(document.getElementById('reciboPreviewLive')) atualizarPreviewReciboConfig();
+  toast('Via do cliente personalizada salva!', 'ok');
+}
+
 // Escala de fonte configurável (Configurações → Impressora de Recibo → "Tamanho
 // do texto"), aplicada por cima do tamanho-base de cada largura de papel — ver
 // classes .via58/.via80 (font-size base fixo) logo no topo do arquivo. Usada
@@ -13771,6 +14228,10 @@ function renderConfig(){
   document.getElementById('cfg_reciboMostrarCliente').checked = DB.settings.reciboMostrarCliente !== false;
   document.getElementById('cfg_reciboMostrarDataHora').checked = DB.settings.reciboMostrarDataHora !== false;
   document.getElementById('cfg_reciboRodape').value = DB.settings.reciboRodape || '';
+  document.getElementById('cfg_reciboModoCustom').checked = !!DB.settings.reciboModoCustom;
+  document.getElementById('cfg_vendasHistLarguraPx').value = DB.settings.vendasHistLarguraPx || 300;
+  document.getElementById('cfg_vendasHistAlturaPx').value = DB.settings.vendasHistAlturaPx || 400;
+  document.getElementById('cfg_vendasHistCanto').value = DB.settings.vendasHistCanto || 'br';
   atualizarPreviewReciboConfig();
   document.getElementById('cfg_etiquetaQr').value = DB.settings.etiquetaQr || '';
   document.getElementById('cfg_etiquetaMostrarQr').checked = DB.settings.etiquetaMostrarQr !== false;
@@ -14327,6 +14788,24 @@ function saveSettingsLive(){
   if(reciboMostrarDataChk) DB.settings.reciboMostrarDataHora = reciboMostrarDataChk.checked;
   const reciboRodapeInp = document.getElementById('cfg_reciboRodape');
   if(reciboRodapeInp) DB.settings.reciboRodape = reciboRodapeInp.value;
+  const reciboModoCustomChk = document.getElementById('cfg_reciboModoCustom');
+  if(reciboModoCustomChk) DB.settings.reciboModoCustom = reciboModoCustomChk.checked;
+  const vhLargInp = document.getElementById('cfg_vendasHistLarguraPx');
+  if(vhLargInp){
+    const vhLarg = parseFloat(vhLargInp.value);
+    DB.settings.vendasHistLarguraPx = (isFinite(vhLarg) && vhLarg>=150 && vhLarg<=900) ? vhLarg : 300;
+  }
+  const vhAltInp = document.getElementById('cfg_vendasHistAlturaPx');
+  if(vhAltInp){
+    const vhAlt = parseFloat(vhAltInp.value);
+    DB.settings.vendasHistAlturaPx = (isFinite(vhAlt) && vhAlt>=150 && vhAlt<=1000) ? vhAlt : 400;
+  }
+  const vhCantoSel = document.getElementById('cfg_vendasHistCanto');
+  if(vhCantoSel) DB.settings.vendasHistCanto = ['br','bl','tr','tl'].includes(vhCantoSel.value) ? vhCantoSel.value : 'br';
+  // se o painel de histórico já estiver na tela (venda recente ainda não sumiu
+  // sozinha), reaplica tamanho/canto na hora — sem precisar de nova venda pra ver o efeito
+  const vhWrapLive = document.getElementById('vendasHistWidget');
+  if(vhWrapLive && vhWrapLive.style.display!=='none' && vhWrapLive.style.display!=='') renderHistoricoVendasWidget();
   DB.settings.etiquetaQr = document.getElementById('cfg_etiquetaQr').value;
   DB.settings.etiquetaMostrarQr = document.getElementById('cfg_etiquetaMostrarQr').checked;
   DB.settings.etiquetaMostrarBarras = document.getElementById('cfg_etiquetaMostrarBarras').checked;
