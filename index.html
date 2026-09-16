@@ -1819,6 +1819,11 @@ html.is-mobile .vendasHistWidget{max-width:calc(100vw - 24px);}
 .pickerOption{padding:8px 10px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--line);}
 .pickerOption:last-child{border-bottom:none;}
 .pickerOption:hover{background:#241a15;}
+/* Nome à esquerda e a letra de atalho (sigla) numa etiquetinha à direita */
+.pickerOption{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.pickerSigla{flex-shrink:0;font-size:11px;font-weight:800;letter-spacing:1px;color:var(--orange);background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:5px;padding:1px 6px;}
+/* Cabeçalho do grupo dentro da lista (Roupas íntimas, Calçados, Acessórios...) */
+.pickerGrupoTitulo{position:sticky;top:0;padding:6px 10px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:var(--dim);background:var(--panel2);border-bottom:1px solid var(--line);}
 .pickerEmpty{padding:8px 10px;font-size:12px;color:var(--text-dim);}
 
 /* ---------- PDV ---------- */
@@ -3245,8 +3250,10 @@ html.is-mobile .btn::before{ display:none; }
             </div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;">
               <button class="btn" data-perm="estoque" onclick="saveCategory()">Salvar Categoria</button>
+              <button class="btn secondary" type="button" data-perm="estoque" onclick="slmImportarCatalogoPecas()">📥 Importar lista pronta</button>
               <button class="btn secondary" type="button" onclick="abrirTabelaSiglas()">🔤 Ver siglas já usadas</button>
             </div>
+            <div class="dimSmall" style="margin-top:6px;">A lista pronta traz as peças (calcinha, vestido, tênis, bolsa...) como categorias já organizadas nos grupos certos e com a letra de atalho de cada uma — e as mesmas peças também entram no catálogo de nomes, então ficam disponíveis para escolher tanto no campo <b>Nome</b> quanto no campo <b>Categoria</b> ao cadastrar um produto.</div>
             <table style="margin-top:10px;"><thead><tr><th>Categoria</th><th>Sigla</th><th>Grupo</th><th></th></tr></thead><tbody id="categoriesBody"></tbody></table>
           </div>
           <div class="panel" style="max-width:520px;">
@@ -3258,10 +3265,10 @@ html.is-mobile .btn::before{ display:none; }
               <button class="btn" data-perm="estoque" onclick="saveProductName()">Salvar Nome</button>
             </div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
-              <button class="btn secondary small" type="button" data-perm="estoque" onclick="slmImportarCatalogoPecas()">📥 Importar lista pronta de peças (com siglas)</button>
+              <button class="btn secondary small" type="button" data-perm="estoque" onclick="slmImportarCatalogoPecas()">📥 Importar lista pronta (grupos + categorias + nomes)</button>
               <button class="btn secondary small" type="button" onclick="abrirTabelaSiglas()">🔤 Ver siglas já usadas</button>
             </div>
-            <div class="dimSmall" style="margin-top:6px;">A lista pronta já vem embutida no sistema (calcinha, vestido, tênis, bolsa...) e funciona no código de informação mesmo sem importar. Importar só traz esses nomes pro seu catálogo, pra aparecerem na lista ao cadastrar.</div>
+            <div class="dimSmall" style="margin-top:6px;">A lista pronta já vem embutida no sistema e aparece nos campos Nome e Categoria mesmo sem importar — escolher uma peça de lá já a cadastra sozinha, com a sigla certa. Importar é só o atalho pra trazer tudo de uma vez.</div>
             <table style="margin-top:10px;"><thead><tr><th>Nome</th><th>Sigla</th><th></th></tr></thead><tbody id="productNamesBody"></tbody></table>
           </div>
         </div>
@@ -10000,12 +10007,17 @@ function slmMapaSiglas(){
   return mapa;
 }
 /* A sigla já pertence a outra coisa? (ignora o próprio registro ao editar) */
-function slmSiglaEmUso(sigla, tipoIgnorado, idIgnorado){
+function slmSiglaEmUso(sigla, tipoIgnorado, idIgnorado, nomeProprio){
   const s = slmSiglaNormalizar(sigla);
   if(!s) return null;
   const dono = slmMapaSiglas()[s];
   if(!dono) return null;
   if(tipoIgnorado && dono.origem===tipoIgnorado && dono.id===idIgnorado) return null;
+  /* Mesma peça, dois cadastros: "Vestido" existe como NOME de peça e também
+     como CATEGORIA. Nesse caso a sigla é a mesma de propósito — é a mesma
+     coisa sendo representada, então não é conflito. Só é conflito quando a
+     sigla pertence a uma peça de nome diferente. */
+  if(nomeProprio && slmTextoSimples(dono.nome)===slmTextoSimples(nomeProprio)) return null;
   return dono;
 }
 /* Sugere uma sigla livre pro nome informado: tenta a 1ª letra, depois duas,
@@ -10013,6 +10025,13 @@ function slmSiglaEmUso(sigla, tipoIgnorado, idIgnorado){
 function slmSugerirSigla(nome, tipoIgnorado, idIgnorado){
   const base = slmSiglaNormalizar(nome);
   if(!base) return '';
+  /* Se essa mesma peça já tem sigla em outro cadastro (ex.: já existe o NOME
+     "Vestido" com a letra V e agora estão criando a CATEGORIA "Vestido"),
+     reaproveita a mesma letra em vez de inventar outra. */
+  const mapa = slmMapaSiglas();
+  const alvo = slmTextoSimples(nome);
+  const jaExiste = Object.keys(mapa).find(function(s){ return slmTextoSimples(mapa[s].nome)===alvo; });
+  if(jaExiste) return jaExiste;
   const tentativas = [];
   tentativas.push(base.slice(0,1));
   tentativas.push(base.slice(0,2));
@@ -10090,25 +10109,51 @@ function lerCodigoInfo(texto){
 }
 /* Importa o catálogo pronto de peças (com as siglas) pro catálogo de nomes da loja.
    Não apaga nada: só acrescenta o que ainda não existe e completa siglas em branco. */
+/* Importa a lista pronta de uma vez só, em três frentes:
+   - os 10 GRUPOS (Roupas íntimas, Calçados, Acessórios...)
+   - as CATEGORIAS (uma por peça, com o mesmo nome e a mesma sigla)
+   - os NOMES de peça no catálogo (também com a mesma sigla)
+   Assim a mesma peça fica disponível pra escolher tanto no campo Nome
+   quanto no campo Categoria na hora de cadastrar um produto.
+   Não apaga nada: só acrescenta o que falta e completa siglas em branco. */
 function slmImportarCatalogoPecas(){
   if(!requirePerm(getPerms().canEditStock)) return;
-  confirmModal('Importar a lista pronta de peças (com as letras de atalho) para o catálogo de nomes? Nada é apagado — só entram os nomes que ainda não existem.', function(){
-    let novos = 0, completados = 0;
+  confirmModal('Importar a lista pronta de peças? Entram os grupos, as categorias e os nomes de peça — cada um já com sua letra de atalho. Nada é apagado: só é acrescentado o que ainda não existe.', function(){
+    let gruposNovos = 0, catsNovas = 0, nomesNovos = 0, completados = 0;
+    // 1) grupos de categoria
+    const idPorGrupo = {};
     SLM_PECAS_PADRAO.forEach(function(item){
-      const existente = (DB.productNames||[]).find(function(n){ return slmTextoSimples(n.nome)===slmTextoSimples(item.nome); });
-      if(existente){
-        if(!slmSiglaNormalizar(existente.sigla) && !slmSiglaEmUso(item.sigla, 'nome', existente.id)){
-          existente.sigla = item.sigla;
-          completados++;
-        }
+      if(idPorGrupo[item.grupo]) return;
+      let g = (DB.categoryGroups||[]).find(function(x){ return slmTextoSimples(x.nome)===slmTextoSimples(item.grupo); });
+      if(!g){
+        g = {id:uid('grp'), nome:item.grupo};
+        DB.categoryGroups.push(g);
+        gruposNovos++;
+      }
+      idPorGrupo[item.grupo] = g.id;
+    });
+    // 2) categorias e 3) nomes de peça — mesmo nome, mesma sigla nos dois
+    SLM_PECAS_PADRAO.forEach(function(item){
+      const cat = (DB.categories||[]).find(function(c){ return slmTextoSimples(c.nome)===slmTextoSimples(item.nome); });
+      if(cat){
+        if(!slmSiglaNormalizar(cat.sigla)){ cat.sigla = item.sigla; completados++; }
+        if(!cat.groupId) cat.groupId = idPorGrupo[item.grupo] || '';
+      }else{
+        DB.categories.push({id:uid('cat'), nome:item.nome, sigla:item.sigla, groupId:idPorGrupo[item.grupo] || ''});
+        catsNovas++;
+      }
+      const pn = (DB.productNames||[]).find(function(n){ return slmTextoSimples(n.nome)===slmTextoSimples(item.nome); });
+      if(pn){
+        if(!slmSiglaNormalizar(pn.sigla)){ pn.sigla = item.sigla; completados++; }
       }else{
         DB.productNames.push({id:uid('pn'), nome:item.nome, sigla:item.sigla});
-        novos++;
+        nomesNovos++;
       }
     });
-    log('Catálogo padrão de peças importado: '+novos+' nomes novos, '+completados+' siglas completadas');
+    log('Catálogo padrão importado: '+gruposNovos+' grupos, '+catsNovas+' categorias, '+nomesNovos+' nomes de peça');
     renderCategoriasTab();
-    alertModal(novos+' nomes adicionados e '+completados+' siglas completadas. As letras de atalho já valem no código de informação.');
+    renderCatalogDatalists();
+    alertModal('Importado: '+gruposNovos+' grupos, '+catsNovas+' categorias e '+nomesNovos+' nomes de peça'+(completados?' ('+completados+' siglas completadas)':'')+'. Já dá pra escolher essas peças tanto no campo Nome quanto no campo Categoria ao cadastrar um produto.');
   }, {titulo:'Importar lista pronta de peças?', textoBtn:'Importar'});
 }
 /* Tabela de consulta rápida: todas as siglas que existem hoje no sistema. */
@@ -10177,7 +10222,7 @@ function validarSiglaCategoriaLive(){
     aviso.textContent = 'Uma letra basta (ex.: "V" = Vestido). Se ela já estiver em uso, use duas (ex.: "CD").';
     return;
   }
-  const dono = slmSiglaEmUso(s);
+  const dono = slmSiglaEmUso(s, null, null, document.getElementById('cat_nome').value);
   if(dono){
     aviso.style.color = 'var(--red)';
     aviso.textContent = '⚠ A sigla "'+s+'" já é de "'+dono.nome+'". Use outra — pode ser com duas letras (ex.: "'+slmSugerirSigla(document.getElementById('cat_nome').value)+'").';
@@ -10198,7 +10243,7 @@ function saveCategory(){
     document.getElementById('cat_sigla').focus();
     return;
   }
-  const dono = slmSiglaEmUso(sigla);
+  const dono = slmSiglaEmUso(sigla, null, null, nome);
   if(dono){
     alertModal('A sigla "'+sigla+'" já é de "'+dono.nome+'". Escolha outra — pode ser com duas letras, tipo "'+slmSugerirSigla(nome)+'".');
     document.getElementById('cat_sigla').focus();
@@ -10217,7 +10262,7 @@ function editarSiglaCategoria(id){
   const c = DB.categories.find(x=>x.id===id);
   if(!c) return;
   promptSiglaModal('Sigla da categoria "'+c.nome+'"', slmSiglaNormalizar(c.sigla) || slmSugerirSigla(c.nome,'categoria',id), function(nova){
-    const dono = slmSiglaEmUso(nova, 'categoria', id);
+    const dono = slmSiglaEmUso(nova, 'categoria', id, c.nome);
     if(dono){ alertModal('A sigla "'+nova+'" já é de "'+dono.nome+'". Escolha outra.'); return false; }
     c.sigla = nova;
     log('Sigla da categoria "'+c.nome+'" definida como '+nova);
@@ -10274,7 +10319,7 @@ function saveProductName(){
   if(!nome){ alertModal('Informe o nome da peça.'); return; }
   if(DB.productNames.some(n=>n.nome.toLowerCase()===nome.toLowerCase())){ alertModal('Esse nome já está cadastrado.'); return; }
   if(!sigla) sigla = slmSugerirSigla(nome);
-  const dono = slmSiglaEmUso(sigla);
+  const dono = slmSiglaEmUso(sigla, null, null, nome);
   if(dono){
     alertModal('A sigla "'+sigla+'" já é de "'+dono.nome+'". Escolha outra — pode ser com duas letras, tipo "'+slmSugerirSigla(nome)+'".');
     if(inpSigla) inpSigla.focus();
@@ -10290,7 +10335,7 @@ function editarSiglaProductName(id){
   const n = DB.productNames.find(x=>x.id===id);
   if(!n) return;
   promptSiglaModal('Sigla da peça "'+n.nome+'"', slmSiglaNormalizar(n.sigla) || slmSugerirSigla(n.nome,'nome',id), function(nova){
-    const dono = slmSiglaEmUso(nova, 'nome', id);
+    const dono = slmSiglaEmUso(nova, 'nome', id, n.nome);
     if(dono){ alertModal('A sigla "'+nova+'" já é de "'+dono.nome+'". Escolha outra.'); return false; }
     n.sigla = nova;
     log('Sigla da peça "'+n.nome+'" definida como '+nova);
@@ -10350,10 +10395,44 @@ function renderCatalogDatalists(){
 }
 
 /* ---------------- Picker (dropdown) de Nomes/Categorias cadastradas ---------------- */
+/* Lista que aparece no dropdown de Nome e de Categoria ao cadastrar um produto.
+   Junta o que a loja cadastrou com a LISTA PRONTA embutida (calcinha, vestido,
+   tênis, bolsa...), então as peças padrão já ficam disponíveis pra escolher nos
+   DOIS campos mesmo antes de importar. Cada item leva sua letra de atalho e o
+   grupo a que pertence, pra ficar organizado na hora de escolher. */
+function pickerItems(type){
+  const vistos = {};
+  const lista = [];
+  const juntar = function(nome, sigla, grupo, cadastrado){
+    const chave = slmTextoSimples(nome);
+    if(!chave) return;
+    if(vistos[chave]){
+      // já entrou: completa a sigla/grupo se o primeiro registro estava sem
+      if(!vistos[chave].sigla && sigla) vistos[chave].sigla = sigla;
+      if(!vistos[chave].grupo && grupo) vistos[chave].grupo = grupo;
+      if(cadastrado) vistos[chave].cadastrado = true;
+      return;
+    }
+    const item = {nome:nome, sigla:slmSiglaNormalizar(sigla), grupo:grupo||'', cadastrado:!!cadastrado};
+    vistos[chave] = item;
+    lista.push(item);
+  };
+  if(type==='nome'){
+    (DB.productNames||[]).forEach(function(n){ juntar(n.nome, n.sigla, '', true); });
+  }else if(type==='categoria'){
+    (DB.categories||[]).forEach(function(c){
+      const g = (DB.categoryGroups||[]).find(function(x){ return x.id===c.groupId; });
+      juntar(c.nome, c.sigla, g?g.nome:'', true);
+    });
+  }else{
+    return [];
+  }
+  // lista pronta embutida entra depois, marcada como ainda não cadastrada
+  SLM_PECAS_PADRAO.forEach(function(item){ juntar(item.nome, item.sigla, item.grupo, false); });
+  return lista;
+}
 function pickerList(type){
-  if(type==='nome') return DB.productNames.map(n=>n.nome);
-  if(type==='categoria') return DB.categories.map(c=>c.nome);
-  return [];
+  return pickerItems(type).map(function(i){ return i.nome; });
 }
 function pickerAddItem(type, nome){
   if(!nome) return;
@@ -10366,7 +10445,15 @@ function pickerAddItem(type, nome){
     }
   } else if(type==='categoria'){
     if(!DB.categories.some(c=>c.nome.toLowerCase()===nome.toLowerCase())){
-      DB.categories.push({id:uid('cat'), nome, groupId:'', sigla:slmSugerirSigla(nome)});
+      // se a peça está na lista pronta, já entra dentro do grupo certo dela
+      const padrao = SLM_PECAS_PADRAO.find(function(x){ return slmTextoSimples(x.nome)===slmTextoSimples(nome); });
+      let groupId = '';
+      if(padrao){
+        let g = (DB.categoryGroups||[]).find(function(x){ return slmTextoSimples(x.nome)===slmTextoSimples(padrao.grupo); });
+        if(!g){ g = {id:uid('grp'), nome:padrao.grupo}; DB.categoryGroups.push(g); }
+        groupId = g.id;
+      }
+      DB.categories.push({id:uid('cat'), nome, groupId, sigla:slmSugerirSigla(nome)});
       log('Categoria cadastrada: '+nome);
     }
   }
@@ -10382,15 +10469,30 @@ function renderPickerDropdown(inputId, type){
   const dd = document.getElementById(inputId+'_dd');
   const inp = document.getElementById(inputId);
   if(!dd || !inp) return;
-  const filter = (inp.value||'').toLowerCase();
-  const items = pickerList(type).filter(n=>n.toLowerCase().includes(filter));
+  const filter = slmTextoSimples(inp.value||'');
+  // dá pra filtrar tanto pelo nome quanto pela letra de atalho (digitar "V" acha Vestido)
+  const items = pickerItems(type).filter(function(i){
+    return slmTextoSimples(i.nome).includes(filter) || (filter && i.sigla && i.sigla.toLowerCase().startsWith(filter));
+  });
   const label = type==='nome' ? 'nome' : 'categoria';
+  let grupoAtual = null;
+  const linhas = items.map(function(i){
+    let cabecalho = '';
+    if(i.grupo && i.grupo !== grupoAtual){
+      grupoAtual = i.grupo;
+      cabecalho = `<div class="pickerGrupoTitulo">${i.grupo.replace(/</g,'&lt;')}</div>`;
+    }
+    const sigla = i.sigla ? `<span class="pickerSigla">${i.sigla}</span>` : '';
+    return cabecalho + `<div class="pickerOption" onclick="event.stopPropagation();selectPickerItem('${inputId}','${i.nome.replace(/'/g,"\\'")}','${type}')">
+        <span>${i.nome.replace(/</g,'&lt;')}</span>${sigla}
+      </div>`;
+  }).join('');
   dd.innerHTML = `
     <div class="pickerAddRow">
       <input id="${inputId}_newVal" placeholder="Cadastrar novo ${label}..." onclick="event.stopPropagation();" onkeydown="if(event.key==='Enter'){event.preventDefault();pickerAddNew('${inputId}','${type}')}">
       <button type="button" class="btn small" onclick="event.stopPropagation();pickerAddNew('${inputId}','${type}')">+ Add</button>
     </div>
-    ${items.map(n=>`<div class="pickerOption" onclick="event.stopPropagation();selectPickerItem('${inputId}','${n.replace(/'/g,"\\'")}')">${n}</div>`).join('') || `<div class="pickerEmpty">Nenhum ${label} cadastrado ainda.</div>`}
+    ${linhas || `<div class="pickerEmpty">Nenhum ${label} encontrado.</div>`}
   `;
 }
 function openPicker(inputId, type){
@@ -10404,11 +10506,16 @@ function filterPicker(inputId, type){
   const dd = document.getElementById(inputId+'_dd');
   if(dd) dd.classList.add('active');
 }
-function selectPickerItem(inputId, value){
+function selectPickerItem(inputId, value, type){
   const inp = document.getElementById(inputId);
   if(inp) inp.value = value;
   const dd = document.getElementById(inputId+'_dd');
   if(dd) dd.classList.remove('active');
+  /* Se a peça escolhida veio da lista pronta e ainda não estava cadastrada na
+     loja, ela entra agora — já com a letra de atalho certa do catálogo. Assim
+     a categoria/nome passa a existir de verdade no sistema a partir do primeiro
+     uso, sem a pessoa precisar cadastrar na mão. */
+  if(type) pickerAddItem(type, value);
 }
 function pickerAddNew(inputId, type){
   const newInp = document.getElementById(inputId+'_newVal');
