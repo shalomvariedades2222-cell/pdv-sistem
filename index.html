@@ -10506,6 +10506,40 @@ function filterPicker(inputId, type){
   const dd = document.getElementById(inputId+'_dd');
   if(dd) dd.classList.add('active');
 }
+/* Descobre o campo "irmão" de Nome/Categoria de cada formulário do sistema —
+   nos formulários de cadastro, Nome e Categoria sempre andam em par. */
+function slmCampoParceiro(inputId, type){
+  const pares = {
+    p_nome:'p_categoria', p_categoria:'p_nome',
+    e_nome:'e_categoria', e_categoria:'e_nome',
+    scannerQuickNome:'scannerQuickCategoria', scannerQuickCategoria:'scannerQuickNome'
+  };
+  if(pares[inputId]) return pares[inputId];
+  // no cadastro em lote pelo scanner, cada linha tem seu próprio par: sb_nome_<id> / sb_categoria_<id>
+  const mSb = inputId.match(/^sb_(nome|categoria)_(.+)$/);
+  if(mSb) return (mSb[1]==='nome' ? 'sb_categoria_' : 'sb_nome_') + mSb[2];
+  return null;
+}
+/* Preenche o campo irmão automaticamente com o MESMO texto — nesta loja,
+   nome da peça e categoria são a mesma coisa (ex.: escolheu "Vestido" no
+   Nome, o campo Categoria também vira "Vestido"), então não faz sentido
+   digitar duas vezes. Só entra em ação quando a escolha veio do picker
+   (selecionar da lista ou cadastrar novo), nunca durante a digitação livre. */
+function slmPreencherCampoParceiro(inputId, type, valor){
+  const parceiroId = slmCampoParceiro(inputId, type);
+  if(!parceiroId) return;
+  const parceiro = document.getElementById(parceiroId);
+  if(!parceiro) return;
+  parceiro.value = valor;
+  // se o campo irmão for um dos que também tem picker (Categoria/Nome), garante
+  // que aquele valor também vire um cadastro de verdade, com a sigla certa
+  const tipoParceiro = type==='nome' ? 'categoria' : 'nome';
+  pickerAddItem(tipoParceiro, valor);
+  // se essa linha pertence ao cadastro em lote do scanner, atualiza o estado
+  // do lote também (senão o valor fica só visual no campo, sem salvar)
+  const mSb = parceiroId.match(/^sb_(nome|categoria)_(.+)$/);
+  if(mSb && typeof scannerBatchFieldChange==='function') scannerBatchFieldChange(mSb[2], mSb[1], valor);
+}
 function selectPickerItem(inputId, value, type){
   const inp = document.getElementById(inputId);
   if(inp) inp.value = value;
@@ -10515,7 +10549,10 @@ function selectPickerItem(inputId, value, type){
      loja, ela entra agora — já com a letra de atalho certa do catálogo. Assim
      a categoria/nome passa a existir de verdade no sistema a partir do primeiro
      uso, sem a pessoa precisar cadastrar na mão. */
-  if(type) pickerAddItem(type, value);
+  if(type){
+    pickerAddItem(type, value);
+    slmPreencherCampoParceiro(inputId, type, value);
+  }
 }
 function pickerAddNew(inputId, type){
   const newInp = document.getElementById(inputId+'_newVal');
@@ -10524,6 +10561,7 @@ function pickerAddNew(inputId, type){
   pickerAddItem(type, val);
   const inp = document.getElementById(inputId);
   if(inp) inp.value = val;
+  slmPreencherCampoParceiro(inputId, type, val);
   const dd = document.getElementById(inputId+'_dd');
   if(dd) dd.classList.remove('active');
 }
