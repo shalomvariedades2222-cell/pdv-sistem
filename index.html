@@ -3177,7 +3177,7 @@ html.is-mobile .btn::before{ display:none; }
 
             <div id="scannerModeInfo" style="display:none;">
               <h3>🏷️ Ler código de informação da peça</h3>
-              <div class="dimSmall" style="margin-bottom:10px;">Esta tela é exclusiva do <b>código de informação</b> — aquele código extra da etiqueta que guarda o que a peça é (pela letra de atalho) e o preço impresso nela. Escaneie ou digite e pressione Enter: o sistema completa o nome inteiro e mostra o valor, sem precisar de internet.</div>
+              <div class="dimSmall" style="margin-bottom:10px;">Esta tela é exclusiva do <b>código de informação</b> — aquele código extra da etiqueta que guarda o que a peça é (pela letra de atalho) e o preço impresso nela. Escaneie ou digite e pressione Enter: o sistema completa o nome inteiro e mostra o valor, sem precisar de internet. Em seguida ele <b>obriga a passar o código de identificação</b> (o código de barras normal, só números): se ele já existir, o sistema só avisa; se for novo, a peça é cadastrada na hora e o formulário de ajuste abre logo abaixo. Não tem esse código? Use o botão <b>"Não tenho esse código"</b> e o sistema leva você pra aba Cadastrar já preenchida.</div>
               <div class="field">
                 <label>Leitor do código de informação</label>
                 <input id="scannerInfoInput" placeholder="Ex: I:V:2990 — escaneie ou digite e pressione Enter" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();scannerInfoProcessCode();}">
@@ -9568,27 +9568,203 @@ function scannerInfoProcessCode(){
     input.focus();
     return;
   }
+  /* Fluxo obrigatório: assim que a informação é lida, o sistema PARA e exige o
+     código de identificação (o código de barras normal da peça, só números)
+     antes de qualquer cadastro. */
+  input.value='';
+  scannerInfoPedirIdentificacao(info);
+}
+
+/* Informação lida que está esperando o código de identificação. */
+let scannerInfoPendente = null;
+
+/* Cartão com o que veio na etiqueta (nome pela sigla, preço, tamanho e cor). */
+function scannerInfoCartao(info){
   const nomeMostrado = info.conhecida ? info.nome : '(letra "'+info.sigla+'" não cadastrada)';
   const extras = [];
   if(info.tamanho) extras.push('Tamanho: <b>'+scannerSafeText(info.tamanho)+'</b>');
   if(info.cor) extras.push('Cor: <b>'+scannerSafeText(info.cor)+'</b>');
-  // produtos no estoque que batem com esse nome (ajuda a achar a peça física)
-  const parecidos = info.conhecida
-    ? DB.products.filter(function(p){ return slmTextoSimples(p.nome)===slmTextoSimples(info.nome) || slmTextoSimples(p.categoria)===slmTextoSimples(info.nome); }).slice(0,6)
-    : [];
+  return `
+    <div style="font-weight:800;color:${info.conhecida?'var(--green)':'var(--yellow)'};font-size:16px;">${info.conhecida?'✓ Informação lida':'⚠ Preço lido, peça desconhecida'}</div>
+    <div style="font-weight:800;font-size:22px;margin-top:8px;">${scannerSafeText(nomeMostrado)}</div>
+    <div style="font-weight:800;font-size:26px;color:var(--orange);margin-top:2px;">${fmtMoney(info.preco)}</div>
+    <div class="dimSmall" style="margin-top:6px;">Letra de atalho: <b>${scannerSafeText(info.sigla)}</b>${extras.length?' · '+extras.join(' · '):''}</div>
+    ${!info.conhecida?`<div class="dimSmall" style="margin-top:6px;color:var(--yellow);">Essa letra não está no catálogo de peças nem nas categorias. Cadastre-a em Estoque → Categorias para o nome aparecer completo nas próximas leituras.</div>`:''}`;
+}
+
+/* ETAPA 2 — pede o código de identificação. Sem ele (ou sem clicar em "Não
+   tenho esse código") nada é cadastrado. */
+function scannerInfoPedirIdentificacao(info){
+  scannerInfoPendente = info;
+  const box = document.getElementById('scannerInfoResult');
+  if(!box) return;
   box.innerHTML = `
     <div class="panel" style="background:var(--panel2);margin:0;border:1px solid ${info.conhecida?'var(--green)':'var(--yellow)'};">
-      <div style="font-weight:800;color:${info.conhecida?'var(--green)':'var(--yellow)'};font-size:16px;">${info.conhecida?'✓ Informação lida':'⚠ Preço lido, peça desconhecida'}</div>
-      <div style="font-weight:800;font-size:22px;margin-top:8px;">${scannerSafeText(nomeMostrado)}</div>
-      <div style="font-weight:800;font-size:26px;color:var(--orange);margin-top:2px;">${fmtMoney(info.preco)}</div>
-      <div class="dimSmall" style="margin-top:6px;">Letra de atalho: <b>${scannerSafeText(info.sigla)}</b>${extras.length?' · '+extras.join(' · '):''}</div>
-      ${!info.conhecida?`<div class="dimSmall" style="margin-top:6px;color:var(--yellow);">Essa letra não está no catálogo de peças nem nas categorias. Cadastre-a em Estoque → Categorias para o nome aparecer completo nas próximas leituras.</div>`:''}
-      ${parecidos.length?`<div class="dimSmall" style="margin-top:10px;">No estoque com esse nome: ${parecidos.map(function(p){ return '<b>'+scannerSafeText(p.nome)+'</b> ('+fmtMoney(Number(p.venda)||0)+', cód. '+scannerSafeText(p.barcode)+')'; }).join(' · ')}</div>`:''}
-      <button type="button" class="btn" style="margin-top:12px;" onclick="usarInfoNoCadastro('${info.sigla}', ${info.preco}, '${(info.tamanho||'').replace(/'/g,"\\'")}', '${(info.cor||'').replace(/'/g,"\\'")}')">➕ Usar estas informações para cadastrar a peça</button>
+      ${scannerInfoCartao(info)}
+      <div style="border-top:1px solid var(--line);margin:14px 0 10px;"></div>
+      <div style="font-weight:800;font-size:15px;">Agora passe o código de identificação</div>
+      <div class="dimSmall" style="margin:4px 0 10px;">É o código de barras principal da peça — <b>só números</b>. É ele que identifica esta peça no sistema.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <input id="scannerInfoIdentInput" inputmode="numeric" placeholder="Escaneie ou digite só os números..." autocomplete="off" style="flex:1;min-width:200px;" onkeydown="if(event.key==='Enter'){event.preventDefault();scannerInfoConfirmarIdentificacao();}">
+        <button type="button" class="btn small" onclick="scannerInfoConfirmarIdentificacao()">Confirmar</button>
+        <button type="button" class="btn secondary small" onclick="scannerInfoSemCodigo()">Não tenho esse código</button>
+      </div>
+      <div id="scannerInfoIdentErro" class="dimSmall" style="margin-top:8px;color:var(--red);display:none;"></div>
+      <div class="dimSmall" style="margin-top:8px;">Sem o código, o sistema leva você pra aba <b>Cadastrar</b> com essas informações já preenchidas, pra gerar um código novo e imprimir a etiqueta.</div>
+      <button type="button" class="btn secondary small" style="margin-top:12px;" onclick="scannerInfoNovaLeitura()">↺ Cancelar e ler outra</button>
     </div>`;
-  input.value='';
-  input.focus();
+  setTimeout(function(){ const i=document.getElementById('scannerInfoIdentInput'); if(i) i.focus(); }, 40);
 }
+
+/* Confere o código de identificação e decide o estágio:
+   - já existe no sistema  -> só avisa que já existe, não cadastra nada
+   - não existe            -> cadastra na hora e abre o formulário de ajuste */
+function scannerInfoConfirmarIdentificacao(){
+  const info = scannerInfoPendente;
+  const inp = document.getElementById('scannerInfoIdentInput');
+  const erro = document.getElementById('scannerInfoIdentErro');
+  if(!info || !inp) return;
+  function recusar(msg){
+    if(erro){ erro.textContent = msg; erro.style.display = ''; }
+    inp.focus(); inp.select();
+  }
+  const code = String(inp.value||'').trim();
+  if(!code) return recusar('Passe o código de identificação da peça, ou clique em "Não tenho esse código".');
+  if(lerCodigoInfo(code)) return recusar('Isso é outro código de informação. O de identificação é o código de barras comum da peça, só números.');
+  if(!/^[0-9]+$/.test(code)) return recusar('O código de identificação é só números — esse veio com letra ou símbolo. Confira o leitor e passe de novo.');
+  if(code.length < 6) return recusar('Código muito curto. O código de identificação costuma ter 8 ou 13 números.');
+  if(erro) erro.style.display = 'none';
+  const existente = findProductByBarcode(code);
+  if(existente){ scannerInfoJaExiste(existente, code, info); return; }
+  scannerInfoCadastrarComCodigo(code, info);
+}
+
+/* ESTÁGIO 1 — o código já está no sistema: só avisa, não mexe em nada. */
+function scannerInfoJaExiste(prod, code, info){
+  const box = document.getElementById('scannerInfoResult');
+  scannerInfoPendente = null;
+  if(!box) return;
+  const precoSistema = Number(prod.venda)||0;
+  const divergente = info && Math.abs(precoSistema - (Number(info.preco)||0)) > 0.004;
+  box.innerHTML = `
+    <div class="panel" style="background:var(--panel2);margin:0;border:1px solid var(--yellow);">
+      <div style="font-weight:800;color:var(--yellow);font-size:16px;">⚠ Esse código já existe no sistema</div>
+      <div style="font-weight:800;font-size:21px;margin-top:8px;">${scannerSafeText(prod.nome)}</div>
+      <div class="dimSmall" style="margin-top:4px;">Código: <b>${scannerSafeText(code)}</b> · Preço: <b>${fmtMoney(precoSistema)}</b> · Estoque: <b>${Number(prod.estoque)||0}</b>${prod.tamanho?' · Tam.: <b>'+scannerSafeText(prod.tamanho)+'</b>':''}${prod.cor?' · Cor: <b>'+scannerSafeText(prod.cor)+'</b>':''}</div>
+      ${divergente?`<div class="dimSmall" style="margin-top:8px;color:var(--yellow);">Atenção: a etiqueta diz <b>${fmtMoney(info.preco)}</b>, mas no sistema está <b>${fmtMoney(precoSistema)}</b>. Confira qual dos dois está certo.</div>`:''}
+      <div class="dimSmall" style="margin-top:8px;">Nada foi cadastrado — a peça já estava no sistema.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
+        <button type="button" class="btn secondary small" onclick="editProduct('${prod.id}')">✏️ Abrir esse produto</button>
+        <button type="button" class="btn secondary small" onclick="scannerInfoNovaLeitura()">↺ Ler outra etiqueta</button>
+      </div>
+    </div>`;
+}
+
+/* ESTÁGIO 2 — código novo: cadastra na hora usando só a etiqueta
+   (código de informação + código de identificação). */
+function scannerInfoCadastrarComCodigo(code, info){
+  if(modoTeste){ alertModal('No modo teste o cadastro de produtos fica bloqueado.'); return; }
+  if(!requirePerm(getPerms().canEditStock)) return;
+  const dono = slmMapaSiglas()[slmSiglaNormalizar(info.sigla)];
+  const temNome = !!(dono && dono.nome);
+  const produto = {
+    id: uid('prod'),
+    nome: temNome ? dono.nome : ('Peça '+info.sigla),
+    categoria: temNome ? dono.nome : '',
+    tamanho: info.tamanho || '',
+    cor: info.cor || '',
+    custo: 0,
+    venda: Number(info.preco)||0,
+    estoque: 1,
+    estoqueMin: 3,
+    barcode: String(code),
+    foto: '',
+    dataCadastro: todayISO(),
+    cadastradoPor: currentUser ? currentUser.nome : '-'
+  };
+  DB.products.push(produto);
+  scannerInfoPendente = null;
+  log('Produto cadastrado pela etiqueta (informação + identificação): '+produto.nome);
+  renderEstoqueLista();
+  if(typeof renderCatalogDatalists==='function') renderCatalogDatalists();
+  if(typeof registrarAdicaoRecente==='function') registrarAdicaoRecente(produto);
+  scannerInfoFormEdicao(produto.id, !temNome, true);
+}
+
+/* Formulário de ajuste que fica logo abaixo do aviso de cadastro. O produto
+   JÁ ESTÁ salvo — isto aqui é só pra completar/corrigir o que faltou. */
+function scannerInfoFormEdicao(prodId, siglaDesconhecida, recemCadastrado){
+  const box = document.getElementById('scannerInfoResult');
+  const p = DB.products.find(function(x){ return x.id===prodId; });
+  if(!box || !p) return;
+  box.innerHTML = `
+    <div class="panel" style="background:var(--panel2);margin:0;border:1px solid var(--green);">
+      <div style="font-weight:800;color:var(--green);font-size:16px;">${recemCadastrado?'✓ Peça cadastrada automaticamente':'✓ Alterações salvas'}</div>
+      <div style="font-weight:800;font-size:21px;margin-top:8px;">${scannerSafeText(p.nome)}</div>
+      <div class="dimSmall" style="margin-top:4px;">Código: <b>${scannerSafeText(p.barcode)}</b> · ${fmtMoney(Number(p.venda)||0)} · estoque ${Number(p.estoque)||0}</div>
+      ${siglaDesconhecida?`<div class="dimSmall" style="margin-top:8px;color:var(--yellow);">A letra de atalho da etiqueta não está no catálogo, então a peça entrou com um nome provisório. Corrija o nome aqui embaixo.</div>`:''}
+      <div style="border-top:1px solid var(--line);margin:14px 0 10px;"></div>
+      <div style="font-weight:800;font-size:15px;">Quer mudar alguma informação?</div>
+      <div class="dimSmall" style="margin:4px 0 10px;">Já está salvo no estoque. Ajuste o que quiser abaixo e clique em salvar.</div>
+      <div class="formGrid">
+        <div class="field"><label>Nome</label><input id="scInfoEdNome" value="${scannerSafeText(p.nome||'')}" list="productNamesList" autocomplete="off"></div>
+        <div class="field"><label>Categoria</label><input id="scInfoEdCategoria" value="${scannerSafeText(p.categoria||'')}" list="categoriasList" autocomplete="off"></div>
+        <div class="field"><label>Tamanho</label><input id="scInfoEdTamanho" value="${scannerSafeText(p.tamanho||'')}" autocomplete="off"></div>
+        <div class="field"><label>Cor</label><input id="scInfoEdCor" value="${scannerSafeText(p.cor||'')}" autocomplete="off"></div>
+        <div class="field"><label>Preço de custo (R$)</label><input id="scInfoEdCusto" type="text" inputmode="decimal" value="${fmtMoneyInput(p.custo||0)}" oninput="maskMoneyInput(this)"></div>
+        <div class="field"><label>Preço de venda (R$)</label><input id="scInfoEdVenda" type="text" inputmode="decimal" value="${fmtMoneyInput(p.venda||0)}" oninput="maskMoneyInput(this)"></div>
+        <div class="field"><label>Estoque</label><input id="scInfoEdEstoque" type="number" min="0" value="${Number(p.estoque)||0}"></div>
+        <div class="field"><label>Estoque mínimo (alerta)</label><input id="scInfoEdEstoqueMin" type="number" min="0" value="${Number(p.estoqueMin)||3}"></div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+        <button type="button" class="btn small" onclick="scannerInfoSalvarEdicao('${p.id}')">💾 Salvar alterações</button>
+        <button type="button" class="btn secondary small" onclick="scannerInfoNovaLeitura()">↺ Ler a próxima etiqueta</button>
+      </div>
+    </div>`;
+  setTimeout(function(){ const n=document.getElementById('scInfoEdNome'); if(n && siglaDesconhecida){ n.focus(); n.select(); } }, 40);
+}
+
+function scannerInfoSalvarEdicao(prodId){
+  if(!requirePerm(getPerms().canEditStock)) return;
+  const p = DB.products.find(function(x){ return x.id===prodId; });
+  if(!p){ toast('Produto não encontrado — ele pode ter sido excluído.', 'erro'); return; }
+  const nome = (document.getElementById('scInfoEdNome').value||'').trim();
+  if(!nome){ toast('Informe o nome do produto.', 'erro'); document.getElementById('scInfoEdNome').focus(); return; }
+  p.nome = nome;
+  p.categoria = (document.getElementById('scInfoEdCategoria').value||'').trim();
+  p.tamanho = (document.getElementById('scInfoEdTamanho').value||'').trim();
+  p.cor = (document.getElementById('scInfoEdCor').value||'').trim();
+  p.custo = moneyVal('scInfoEdCusto');
+  p.venda = moneyVal('scInfoEdVenda');
+  p.estoque = Math.max(0, Number(document.getElementById('scInfoEdEstoque').value)||0);
+  p.estoqueMin = Math.max(0, Number(document.getElementById('scInfoEdEstoqueMin').value)||3);
+  log('Produto ajustado na leitura de etiqueta: '+p.nome);
+  flashSaving();
+  renderEstoqueLista();
+  if(typeof renderCatalogDatalists==='function') renderCatalogDatalists();
+  scannerInfoFormEdicao(p.id, false, false);
+}
+
+/* "Não tenho esse código" — vai pra aba Cadastrar já preenchida, pra gerar um
+   código novo e imprimir a etiqueta. */
+function scannerInfoSemCodigo(){
+  const info = scannerInfoPendente;
+  if(!info) return;
+  scannerInfoPendente = null;
+  const box = document.getElementById('scannerInfoResult');
+  if(box) box.innerHTML = '';
+  usarInfoNoCadastro(info.sigla, info.preco, info.tamanho||'', info.cor||'');
+}
+
+/* Limpa a tela e volta o cursor pro leitor do código de informação. */
+function scannerInfoNovaLeitura(){
+  scannerInfoPendente = null;
+  const box = document.getElementById('scannerInfoResult');
+  if(box) box.innerHTML = '';
+  const i = document.getElementById('scannerInfoInput');
+  if(i){ i.value=''; i.focus(); }
+}
+
 /* Leva o que foi lido direto pro formulário de cadastro, já preenchido. */
 function usarInfoNoCadastro(sigla, preco, tamanho, cor){
   const dono = slmMapaSiglas()[slmSiglaNormalizar(sigla)];
@@ -9603,7 +9779,7 @@ function usarInfoNoCadastro(sigla, preco, tamanho, cor){
     if(inpTam && tamanho) inpTam.value = tamanho;
     if(inpCor && cor) inpCor.value = cor;
     if(typeof updateMarginPreview==='function') updateMarginPreview();
-    toast('Informações preenchidas no cadastro.', 'ok');
+    toast('Informações preenchidas no cadastro. Gere o código e imprima a etiqueta.', 'ok');
     if(nome) nome.focus();
   }, 60);
 }
@@ -9657,6 +9833,9 @@ function scannerSetMode(mode){
     renderScannerLookupHistory();
     scannerLookupFocus();
   } else if(mode==='info'){
+    scannerInfoPendente = null;
+    const boxInfo = document.getElementById('scannerInfoResult');
+    if(boxInfo) boxInfo.innerHTML = '';
     setTimeout(()=>{ const i=document.getElementById('scannerInfoInput'); if(i){ i.value=''; i.focus(); } }, 50);
   } else if(mode==='add'){
     setTimeout(()=>{ const i=document.getElementById('addEstoqueCodeInput'); if(i) i.focus(); }, 50);
