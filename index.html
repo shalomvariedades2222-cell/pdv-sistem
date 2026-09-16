@@ -3151,6 +3151,7 @@ html.is-mobile .btn::before{ display:none; }
           <div class="panel" style="max-width:640px;">
             <div class="tabs" style="margin-bottom:14px;">
               <button type="button" class="tabBtn active" id="scannerModeBtnConsulta" onclick="scannerSetMode('consulta')">🔎 Consultar etiqueta</button>
+              <button type="button" class="tabBtn" id="scannerModeBtnInfo" onclick="scannerSetMode('info')">🏷️ Ler código de informação</button>
               <button type="button" class="tabBtn active" id="scannerModeBtnNovo" onclick="scannerSetMode('novo')">📷 Código Novo</button>
               <button type="button" class="tabBtn" id="scannerModeBtnAdd" onclick="scannerModeAddClick()">➕ Adicionar Estoque (Código Existente)</button>
               <button type="button" class="tabBtn" id="scannerModeBtnExcluir" onclick="scannerModeExcluirClick()">🗑️ Excluir Produto (Escanear)</button>
@@ -3167,6 +3168,19 @@ html.is-mobile .btn::before{ display:none; }
                 <div id="scannerLookupMessage"></div>
                 <div id="scannerLookupHistory"></div>
               </div>
+            </div>
+
+            <div id="scannerModeInfo" style="display:none;">
+              <h3>🏷️ Ler código de informação da peça</h3>
+              <div class="dimSmall" style="margin-bottom:10px;">Esta tela é exclusiva do <b>código de informação</b> — aquele código extra da etiqueta que guarda o que a peça é (pela letra de atalho) e o preço impresso nela. Escaneie ou digite e pressione Enter: o sistema completa o nome inteiro e mostra o valor, sem precisar de internet.</div>
+              <div class="field">
+                <label>Leitor do código de informação</label>
+                <input id="scannerInfoInput" placeholder="Ex: I:V:2990 — escaneie ou digite e pressione Enter" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();scannerInfoProcessCode();}">
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <button type="button" class="btn secondary small" onclick="abrirTabelaSiglas()">🔤 Ver tabela de letras de atalho</button>
+              </div>
+              <div id="scannerInfoResult" style="margin-top:14px;"></div>
             </div>
 
             <div id="scannerModeNovo" style="display:none;">
@@ -3217,22 +3231,38 @@ html.is-mobile .btn::before{ display:none; }
           </div>
           <div class="panel" style="max-width:520px;">
             <h3>Categorias</h3>
-            <div class="dimSmall" style="margin-bottom:8px;">Cadastre categorias e associe a um grupo. Elas aparecem como sugestão ao cadastrar uma peça.</div>
+            <div class="dimSmall" style="margin-bottom:8px;">Cadastre categorias e associe a um grupo. Elas aparecem como sugestão ao cadastrar uma peça. <b>Toda categoria precisa de uma letra de atalho (sigla)</b> — é ela que vai dentro do código de informação da etiqueta.</div>
             <div class="formGrid">
-              <div class="field"><label>Nome da categoria</label><input id="cat_nome"></div>
+              <div class="field"><label>Nome da categoria</label><input id="cat_nome" oninput="sugerirSiglaCategoria()"></div>
+              <div class="field"><label>Letra de atalho (sigla) *</label>
+                <div style="display:flex;gap:6px;">
+                  <input id="cat_sigla" maxlength="4" placeholder="Ex: V" style="flex:1;text-transform:uppercase;" oninput="this.value=slmSiglaNormalizar(this.value);validarSiglaCategoriaLive()">
+                  <button type="button" class="btn secondary small" onclick="sugerirSiglaCategoria(true)">Sugerir</button>
+                </div>
+                <div class="dimSmall" id="cat_siglaAviso" style="margin-top:4px;">Uma letra basta (ex.: "V" = Vestido). Se ela já estiver em uso, use duas (ex.: "CD").</div>
+              </div>
               <div class="field"><label>Grupo</label><select id="cat_grupo"><option value="">Sem grupo</option></select></div>
             </div>
-            <button class="btn" data-perm="estoque" onclick="saveCategory()">Salvar Categoria</button>
-            <table style="margin-top:10px;"><thead><tr><th>Categoria</th><th>Grupo</th><th></th></tr></thead><tbody id="categoriesBody"></tbody></table>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="btn" data-perm="estoque" onclick="saveCategory()">Salvar Categoria</button>
+              <button class="btn secondary" type="button" onclick="abrirTabelaSiglas()">🔤 Ver siglas já usadas</button>
+            </div>
+            <table style="margin-top:10px;"><thead><tr><th>Categoria</th><th>Sigla</th><th>Grupo</th><th></th></tr></thead><tbody id="categoriesBody"></tbody></table>
           </div>
           <div class="panel" style="max-width:520px;">
             <h3>Catálogo de Nomes de Peças</h3>
-            <div class="dimSmall" style="margin-bottom:8px;">Cadastre os nomes das peças que você mais usa para selecioná-los rapidamente ao cadastrar um produto.</div>
-            <div style="display:flex;gap:6px;">
-              <input id="pn_nome" placeholder="Nome da peça" style="flex:1">
+            <div class="dimSmall" style="margin-bottom:8px;">Cadastre os nomes das peças que você mais usa para selecioná-los rapidamente ao cadastrar um produto. Cada nome também tem sua <b>letra de atalho (sigla)</b>, usada no código de informação da etiqueta.</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              <input id="pn_nome" placeholder="Nome da peça" style="flex:1;min-width:150px;" oninput="sugerirSiglaProductName()">
+              <input id="pn_sigla" maxlength="4" placeholder="Sigla" style="width:90px;text-transform:uppercase;" oninput="this.value=slmSiglaNormalizar(this.value)">
               <button class="btn" data-perm="estoque" onclick="saveProductName()">Salvar Nome</button>
             </div>
-            <table style="margin-top:10px;"><thead><tr><th>Nome</th><th></th></tr></thead><tbody id="productNamesBody"></tbody></table>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+              <button class="btn secondary small" type="button" data-perm="estoque" onclick="slmImportarCatalogoPecas()">📥 Importar lista pronta de peças (com siglas)</button>
+              <button class="btn secondary small" type="button" onclick="abrirTabelaSiglas()">🔤 Ver siglas já usadas</button>
+            </div>
+            <div class="dimSmall" style="margin-top:6px;">A lista pronta já vem embutida no sistema (calcinha, vestido, tênis, bolsa...) e funciona no código de informação mesmo sem importar. Importar só traz esses nomes pro seu catálogo, pra aparecerem na lista ao cadastrar.</div>
+            <table style="margin-top:10px;"><thead><tr><th>Nome</th><th>Sigla</th><th></th></tr></thead><tbody id="productNamesBody"></tbody></table>
           </div>
         </div>
 
@@ -3748,6 +3778,11 @@ html.is-mobile .btn::before{ display:none; }
             <input type="checkbox" id="cfg_etiquetaMostrarFoto" data-perm="admin" onchange="saveSettingsLive()" style="width:auto;margin:0;">
             <label style="margin:0;">Usar a foto do produto no lugar do logo da loja</label>
           </div>
+          <div class="field" style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+            <input type="checkbox" id="cfg_exigirCodigoIdentificacao" data-perm="admin" onchange="saveSettingsLive()" style="width:auto;margin:0;">
+            <label style="margin:0;">Exigir a leitura do código de identificação ao cadastrar um produto</label>
+          </div>
+          <div class="dimSmall" style="margin:-4px 0 6px;">Com isso ligado (padrão), ao salvar um produto o sistema para e pede pra escanear o código de barras principal da peça — o que identifica ela no sistema. Se a peça não tiver código, o botão "Não tenho esse código" gera um, salva o produto e abre a tela de impressão já preenchida. Isso é diferente do <b>código de informação</b>, que é o código extra da etiqueta guardando o tipo da peça (letra de atalho) e o preço; esse você adiciona no editor de etiquetas e lê em Estoque → Escanear → "Ler código de informação".</div>
           <div class="formGrid" style="margin-top:6px;">
             <div class="field"><label>Estilo do texto (fonte)</label>
               <select id="cfg_etiquetaFonte" data-perm="admin" onchange="saveSettingsLive()">
@@ -5700,6 +5735,18 @@ function ensureCatalogDefaults(){
   if(!Array.isArray(DB.settings.etiquetaLayout)) DB.settings.etiquetaLayout = [];
   if(!DB.settings.etiquetaOrientacao) DB.settings.etiquetaOrientacao = 'horizontal'; // 'horizontal' (50x30mm) ou 'vertical' (30x50mm) — só vale pro editor personalizado
   if(!Array.isArray(DB.settings.etiquetaModelos)) DB.settings.etiquetaModelos = [];
+  /* ---- Código de informação da peça (sigla + preço dentro da etiqueta) ----
+     Quem já tinha categorias/nomes cadastrados antes dessa função existir
+     recebe automaticamente uma letra de atalho livre, pra nada ficar sem
+     sigla (e o código de informação sempre conseguir ser montado/lido). */
+  (DB.categories||[]).forEach(function(c){
+    if(!slmSiglaNormalizar(c.sigla)) c.sigla = slmSugerirSigla(c.nome, 'categoria', c.id);
+  });
+  (DB.productNames||[]).forEach(function(n){
+    if(!slmSiglaNormalizar(n.sigla)) n.sigla = slmSugerirSigla(n.nome, 'nome', n.id);
+  });
+  // exigir a leitura do código de barras de IDENTIFICAÇÃO logo após cadastrar o produto
+  if(typeof DB.settings.exigirCodigoIdentificacao !== 'boolean') DB.settings.exigirCodigoIdentificacao = true;
   if(!DB.settings.etiquetaLarguraMm) DB.settings.etiquetaLarguraMm = 40;
   if(!DB.settings.etiquetaAlturaMm) DB.settings.etiquetaAlturaMm = 30;
   if(!DB.settings.etiquetaModoImpressao) DB.settings.etiquetaModoImpressao = 'sistema'; // 'sistema' (PDF+caixa de impressão), 'usb' (Web Serial) ou 'bluetooth' (Web Bluetooth)
@@ -8744,11 +8791,27 @@ function renderRecentAddEtiquetaThumb_(containerId, item){
   const modelo = p.etiquetaModelo || 'normal';
   renderEtiquetaInto(thumb, p, modelo, 'recentAdd_'+containerId+'_'+item.id, item.barcode).catch(function(){});
 }
+/* Quando a leitura obrigatória do código de identificação já foi feita (ou
+   dispensada pelo botão "não tenho"), essa marca deixa o cadastro seguir
+   sem pedir de novo. Ela é zerada no fim de cada cadastro. */
+let _codigoIdentificacaoConfirmado = false;
+
 function saveNewProduct(imprimirDireto){
   if(modoTeste){ alertModal('No modo teste o cadastro de produtos fica bloqueado. Os itens de teste já vêm pré-configurados.'); return; }
   if(!requirePerm(getPerms().canEditStock)) return;
   const nome = document.getElementById('p_nome').value.trim();
   if(!nome){ alertModal('Informe o nome do produto.'); return; }
+  /* ---- LEITURA OBRIGATÓRIA DO CÓDIGO DE BARRAS DE IDENTIFICAÇÃO ----
+     É o código principal, o que identifica esta peça específica no sistema
+     (diferente do código de informação da etiqueta, que só guarda o tipo da
+     peça e o preço). Antes de salvar, o sistema para e manda escanear. Se a
+     peça não tiver nenhum código, o botão "Não tenho" gera um e leva direto
+     pra tela de impressão, já com tudo preenchido. */
+  if(DB.settings.exigirCodigoIdentificacao !== false && !_codigoIdentificacaoConfirmado
+     && !document.getElementById('p_barcode').value.trim()){
+    pedirCodigoIdentificacao(imprimirDireto);
+    return;
+  }
   const custo = moneyVal('p_custo');
   const venda = moneyVal('p_venda');
   let barcode = document.getElementById('p_barcode').value.trim();
@@ -8806,11 +8869,101 @@ function saveNewProduct(imprimirDireto){
   const totalEstoqueCriado = produtosCriados.reduce(function(soma,p){ return soma+p.estoque; }, 0);
   mostrarPopupEstoqueSalvo(nome, totalEstoqueCriado);
   const idsCriados = produtosCriados.map(function(p){ return p.id; });
-  if(imprimirDireto){
+  _codigoIdentificacaoConfirmado = false; // volta a exigir a leitura no próximo cadastro
+  if(imprimirDireto === 'preview'){
+    // veio do botão "não tenho código de identificação": em vez de mandar
+    // direto pra impressora, abre a tela de impressão com a etiqueta já
+    // montada (nome, preço, código gerado e código de informação), pra a
+    // pessoa conferir e imprimir a etiqueta que vai virar a identificação.
+    abrirImpressaoAposCadastro(idsCriados);
+  } else if(imprimirDireto){
     imprimirEtiquetaAposCadastro(idsCriados);
   } else {
     perguntarImprimirEtiquetaNovoProduto(idsCriados);
   }
+}
+/* =========================================================
+   PEDIR O CÓDIGO DE BARRAS DE IDENTIFICAÇÃO (obrigatório)
+========================================================= */
+function pedirCodigoIdentificacao(imprimirDireto){
+  const nome = document.getElementById('p_nome').value.trim();
+  const venda = moneyVal('p_venda');
+  showModal(`
+    <button class="modalClose" onclick="closeModal()">×</button>
+    <h3>📷 Escaneie o código de identificação</h3>
+    <div style="margin:2px 0 12px;color:var(--text);line-height:1.5;">
+      Este é o <b>código principal</b> da peça — o que identifica ela no sistema para venda, reposição e consulta.
+      Passe o leitor na etiqueta da peça (ou digite o código) e pressione <b>Enter</b>.
+    </div>
+    <div class="panel" style="background:var(--panel2);margin:0 0 12px;padding:10px;">
+      <div class="dimSmall">Cadastrando agora:</div>
+      <div style="font-weight:800;font-size:16px;">${scannerSafeText(nome)}${venda>0?' · '+fmtMoney(venda):''}</div>
+    </div>
+    <input id="codIdentificacaoInput" placeholder="Escaneie ou digite o código aqui..." autocomplete="off" style="width:100%;padding:12px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--text);font-size:16px;">
+    <div class="dimSmall" id="codIdentificacaoErro" style="margin-top:6px;color:var(--red);display:none;"></div>
+    <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
+      <button class="btn" id="codIdentificacaoOk" style="flex:1;min-width:150px;">✓ Confirmar e salvar</button>
+      <button class="btn secondary" id="codIdentificacaoSem" style="flex:1;min-width:150px;">🏷️ Não tenho esse código</button>
+    </div>
+    <div class="dimSmall" style="margin-top:10px;">Sem código na peça? O botão acima gera um código novo, salva o produto e abre a tela de impressão já preenchida — é só imprimir a etiqueta e colar na peça.</div>
+    <button class="linkBtn" style="margin-top:10px;" onclick="closeModal()">Cancelar cadastro</button>
+  `);
+  const input = document.getElementById('codIdentificacaoInput');
+  const erro = document.getElementById('codIdentificacaoErro');
+  const mostrarErro = function(msg){ erro.textContent = msg; erro.style.display=''; };
+  const confirmar = function(){
+    const code = (input.value||'').trim();
+    if(!code){ mostrarErro('Passe o leitor na etiqueta ou digite o código. A leitura é obrigatória.'); input.focus(); return; }
+    // se o que foi lido for o código de INFORMAÇÃO, avisa — ele não serve como identificação
+    if(lerCodigoInfo(code)){
+      mostrarErro('Isso é um código de informação (tipo da peça + preço), não o de identificação. Escaneie o código principal da peça.');
+      input.value=''; input.focus();
+      return;
+    }
+    if(!isBarcodeDisponivel(code)){
+      const dono = findProductByBarcode(code);
+      mostrarErro('Esse código já pertence a "'+(dono?dono.nome:'outro produto')+'". Escaneie o código desta peça.');
+      input.value=''; input.focus();
+      return;
+    }
+    document.getElementById('p_barcode').value = code;
+    _codigoIdentificacaoConfirmado = true;
+    closeModal();
+    saveNewProduct(imprimirDireto);
+  };
+  const semCodigo = function(){
+    document.getElementById('p_barcode').value = genBarcode();
+    _codigoIdentificacaoConfirmado = true;
+    closeModal();
+    saveNewProduct('preview');
+  };
+  document.getElementById('codIdentificacaoOk').onclick = confirmar;
+  document.getElementById('codIdentificacaoSem').onclick = semCodigo;
+  input.addEventListener('keydown', function(e){
+    if(e.key==='Enter'){ e.preventDefault(); confirmar(); }
+    else if(e.key==='Escape'){ e.preventDefault(); closeModal(); }
+  });
+  setTimeout(function(){ input.focus(); }, 60);
+}
+/* Abre a tela de impressão da etiqueta já montada com os dados do produto
+   recém-cadastrado (usado quando a peça não tinha código de identificação). */
+function abrirImpressaoAposCadastro(productIds){
+  const ids = Array.isArray(productIds) ? productIds : [productIds];
+  const produtos = ids.map(function(id){ return DB.products.find(x=>x.id===id); }).filter(Boolean);
+  if(!produtos.length) return;
+  const pRef = produtos[0];
+  const modelos = DB.settings.etiquetaModelos || [];
+  let modeloPref = pRef.etiquetaModelo;
+  if(modeloPref && modeloPref.indexOf('custom:')===0){
+    const idm = modeloPref.slice(7);
+    if(!modelos.find(m=>m.id===idm)) modeloPref = null;
+  }else if(modeloPref==='custom' && !modelos.length){
+    modeloPref = null;
+  }
+  if(!modeloPref && DB.settings.etiquetaModoCustom && modelos.length===1) modeloPref = 'custom:'+modelos[0].id;
+  if(!modeloPref) modeloPref = 'premium';
+  _etqState = {productId: pRef.id, productIds: produtos.map(function(p){ return p.id; }), modelo: modeloPref};
+  showEtiquetaPreview();
 }
 /* =========================================================
    POPUP "ESCOLHER QUANTIDADE E IMPRIMIR" (atalho Alt+Enter)
@@ -9374,6 +9527,79 @@ function scannerLookupProcessCode(){
   if(input) input.value='';
   setTimeout(function(){ const n=document.getElementById('scannerQuickNome'); if(n) n.focus(); },40);
 }
+/* =========================================================
+   LEITURA DO CÓDIGO DE INFORMAÇÃO (tela exclusiva)
+   Recebe o texto lido do código extra da etiqueta (I:SIGLA:CENTAVOS),
+   completa o nome da peça pela letra de atalho e mostra o preço que
+   estava impresso naquela etiqueta.
+========================================================= */
+function scannerInfoProcessCode(){
+  const input = document.getElementById('scannerInfoInput');
+  const box = document.getElementById('scannerInfoResult');
+  if(!input || !box) return;
+  const bruto = (input.value||'').trim();
+  if(!bruto) return;
+  const info = lerCodigoInfo(bruto);
+  if(!info){
+    // não é código de informação — pode ser o de identificação, então ajuda em vez de só dar erro
+    const prod = findProductByBarcode(bruto);
+    if(prod){
+      box.innerHTML = `
+        <div class="panel" style="background:var(--panel2);margin:0;border:1px solid var(--yellow);">
+          <div style="font-weight:800;color:var(--yellow);font-size:16px;">Esse é o código de identificação, não o de informação</div>
+          <div class="dimSmall" style="margin-top:6px;">Mesmo assim achei no sistema: <b>${scannerSafeText(prod.nome)}</b> · ${fmtMoney(Number(prod.venda)||0)} · estoque ${Number(prod.estoque)||0}.</div>
+          <div class="dimSmall" style="margin-top:6px;">O código de informação começa com <b>I:</b> (ex.: <b>I:V:2990</b>) e fica no elemento "Código de informação" da etiqueta.</div>
+        </div>`;
+    }else{
+      box.innerHTML = `
+        <div class="panel" style="background:var(--panel2);margin:0;border:1px solid var(--red);">
+          <div style="font-weight:800;color:var(--red);font-size:16px;">✕ Não é um código de informação</div>
+          <div class="dimSmall" style="margin-top:6px;">Lido: <b>${scannerSafeText(bruto)}</b>. O código de informação tem o formato <b>I:SIGLA:PREÇO EM CENTAVOS</b> — por exemplo <b>I:V:2990</b> (Vestido, R$ 29,90).</div>
+        </div>`;
+    }
+    input.value='';
+    input.focus();
+    return;
+  }
+  const nomeMostrado = info.conhecida ? info.nome : '(letra "'+info.sigla+'" não cadastrada)';
+  const extras = [];
+  if(info.tamanho) extras.push('Tamanho: <b>'+scannerSafeText(info.tamanho)+'</b>');
+  if(info.cor) extras.push('Cor: <b>'+scannerSafeText(info.cor)+'</b>');
+  // produtos no estoque que batem com esse nome (ajuda a achar a peça física)
+  const parecidos = info.conhecida
+    ? DB.products.filter(function(p){ return slmTextoSimples(p.nome)===slmTextoSimples(info.nome) || slmTextoSimples(p.categoria)===slmTextoSimples(info.nome); }).slice(0,6)
+    : [];
+  box.innerHTML = `
+    <div class="panel" style="background:var(--panel2);margin:0;border:1px solid ${info.conhecida?'var(--green)':'var(--yellow)'};">
+      <div style="font-weight:800;color:${info.conhecida?'var(--green)':'var(--yellow)'};font-size:16px;">${info.conhecida?'✓ Informação lida':'⚠ Preço lido, peça desconhecida'}</div>
+      <div style="font-weight:800;font-size:22px;margin-top:8px;">${scannerSafeText(nomeMostrado)}</div>
+      <div style="font-weight:800;font-size:26px;color:var(--orange);margin-top:2px;">${fmtMoney(info.preco)}</div>
+      <div class="dimSmall" style="margin-top:6px;">Letra de atalho: <b>${scannerSafeText(info.sigla)}</b>${extras.length?' · '+extras.join(' · '):''}</div>
+      ${!info.conhecida?`<div class="dimSmall" style="margin-top:6px;color:var(--yellow);">Essa letra não está no catálogo de peças nem nas categorias. Cadastre-a em Estoque → Categorias para o nome aparecer completo nas próximas leituras.</div>`:''}
+      ${parecidos.length?`<div class="dimSmall" style="margin-top:10px;">No estoque com esse nome: ${parecidos.map(function(p){ return '<b>'+scannerSafeText(p.nome)+'</b> ('+fmtMoney(Number(p.venda)||0)+', cód. '+scannerSafeText(p.barcode)+')'; }).join(' · ')}</div>`:''}
+      <button type="button" class="btn" style="margin-top:12px;" onclick="usarInfoNoCadastro('${info.sigla}', ${info.preco}, '${(info.tamanho||'').replace(/'/g,"\\'")}', '${(info.cor||'').replace(/'/g,"\\'")}')">➕ Usar estas informações para cadastrar a peça</button>
+    </div>`;
+  input.value='';
+  input.focus();
+}
+/* Leva o que foi lido direto pro formulário de cadastro, já preenchido. */
+function usarInfoNoCadastro(sigla, preco, tamanho, cor){
+  const dono = slmMapaSiglas()[slmSiglaNormalizar(sigla)];
+  setEstoqueTab('novo');
+  setTimeout(function(){
+    const nome = document.getElementById('p_nome');
+    const venda = document.getElementById('p_venda');
+    const inpTam = document.getElementById('p_tamanho');
+    const inpCor = document.getElementById('p_cor');
+    if(nome && dono) nome.value = dono.nome;
+    if(venda){ venda.value = fmtMoneyInput(Number(preco)||0); }
+    if(inpTam && tamanho) inpTam.value = tamanho;
+    if(inpCor && cor) inpCor.value = cor;
+    if(typeof updateMarginPreview==='function') updateMarginPreview();
+    toast('Informações preenchidas no cadastro.', 'ok');
+    if(nome) nome.focus();
+  }, 60);
+}
 function scannerQuickRegister(code){
   if(modoTeste){ alertModal('No modo teste o cadastro de produtos fica bloqueado.'); return; }
   if(!requirePerm(getPerms().canEditStock)) return;
@@ -9403,22 +9629,28 @@ function scannerSetMode(mode){
   const btnNovo = document.getElementById('scannerModeBtnNovo');
   const btnAdd = document.getElementById('scannerModeBtnAdd');
   const btnExcluir = document.getElementById('scannerModeBtnExcluir');
+  const btnInfo = document.getElementById('scannerModeBtnInfo');
   const areaConsulta = document.getElementById('scannerModeConsulta');
   const areaNovo = document.getElementById('scannerModeNovo');
   const areaAdd = document.getElementById('scannerModeAdd');
   const areaExcluir = document.getElementById('scannerModeExcluir');
+  const areaInfo = document.getElementById('scannerModeInfo');
   if(!btnConsulta || !btnNovo || !btnAdd || !btnExcluir || !areaConsulta || !areaNovo || !areaAdd || !areaExcluir) return;
   btnConsulta.classList.toggle('active', mode==='consulta');
   btnNovo.classList.toggle('active', mode==='novo');
   btnAdd.classList.toggle('active', mode==='add');
   btnExcluir.classList.toggle('active', mode==='excluir');
+  if(btnInfo) btnInfo.classList.toggle('active', mode==='info');
   areaConsulta.style.display = mode==='consulta' ? '' : 'none';
   areaNovo.style.display = mode==='novo' ? '' : 'none';
   areaAdd.style.display = mode==='add' ? '' : 'none';
   areaExcluir.style.display = mode==='excluir' ? '' : 'none';
+  if(areaInfo) areaInfo.style.display = mode==='info' ? '' : 'none';
   if(mode==='consulta'){
     renderScannerLookupHistory();
     scannerLookupFocus();
+  } else if(mode==='info'){
+    setTimeout(()=>{ const i=document.getElementById('scannerInfoInput'); if(i){ i.value=''; i.focus(); } }, 50);
   } else if(mode==='add'){
     setTimeout(()=>{ const i=document.getElementById('addEstoqueCodeInput'); if(i) i.focus(); }, 50);
   } else if(mode==='excluir'){
@@ -9634,6 +9866,270 @@ function applyBulkPriceAdjust(){
 document.getElementById('ajusteAlvo')?.addEventListener?.('change', ()=>{});
 
 /* =========================================================
+   SIGLAS (LETRAS DE ATALHO) + CÓDIGO DE INFORMAÇÃO DA PEÇA
+   -------------------------------------------------------
+   A "sigla" é a letra (ou duas/três letras, quando a primeira
+   já estiver ocupada) que representa o tipo da peça dentro do
+   CÓDIGO DE INFORMAÇÃO — aquele código de barras/QR extra que
+   vai impresso na etiqueta guardando o que a peça é e quanto
+   custa, sem precisar de internet nem de consulta no sistema.
+
+   Formato do código de informação:  I:SIGLA:CENTAVOS
+   Exemplos:  I:V:2990   -> Vestido, R$ 29,90
+              I:CM:8500  -> Camisa,  R$ 85,00
+   Opcionalmente ainda aceita tamanho e cor no fim:
+              I:V:2990:M:AZUL
+   Só letras/números e ":" — tudo que o CODE128 imprime bem e
+   que qualquer leitor comum devolve como texto puro.
+========================================================= */
+
+/* Catálogo pronto de peças com sigla exclusiva — já vem embutido no
+   sistema, não precisa cadastrar nada pra começar a usar. */
+const SLM_PECAS_PADRAO = [
+  {grupo:'Roupas íntimas', nome:'Calcinha', sigla:'CN'},
+  {grupo:'Roupas íntimas', nome:'Cueca', sigla:'CU'},
+  {grupo:'Roupas íntimas', nome:'Sutiã', sigla:'SU'},
+  {grupo:'Roupas íntimas', nome:'Body', sigla:'BD'},
+  {grupo:'Roupas íntimas', nome:'Camisola', sigla:'CS'},
+  {grupo:'Roupas íntimas', nome:'Pijama', sigla:'PJ'},
+  {grupo:'Roupas íntimas', nome:'Robe', sigla:'RB'},
+  {grupo:'Roupas íntimas', nome:'Meia-calça', sigla:'MC'},
+  {grupo:'Roupas íntimas', nome:'Meias', sigla:'ME'},
+  {grupo:'Roupas íntimas', nome:'Cinta', sigla:'CT'},
+
+  {grupo:'Roupas superiores', nome:'Camisa', sigla:'CM'},
+  {grupo:'Roupas superiores', nome:'Camiseta', sigla:'T'},
+  {grupo:'Roupas superiores', nome:'Blusa', sigla:'B'},
+  {grupo:'Roupas superiores', nome:'Regata', sigla:'RG'},
+  {grupo:'Roupas superiores', nome:'Polo', sigla:'PO'},
+  {grupo:'Roupas superiores', nome:'Suéter', sigla:'SE'},
+  {grupo:'Roupas superiores', nome:'Cardigã', sigla:'CD'},
+  {grupo:'Roupas superiores', nome:'Moletom', sigla:'MO'},
+  {grupo:'Roupas superiores', nome:'Cropped', sigla:'CRP'},
+  {grupo:'Roupas superiores', nome:'Top', sigla:'TP'},
+  {grupo:'Roupas superiores', nome:'Colete', sigla:'CO'},
+
+  {grupo:'Roupas inferiores', nome:'Calça', sigla:'C'},
+  {grupo:'Roupas inferiores', nome:'Bermuda', sigla:'BM'},
+  {grupo:'Roupas inferiores', nome:'Shorts', sigla:'SH'},
+  {grupo:'Roupas inferiores', nome:'Saia', sigla:'S'},
+  {grupo:'Roupas inferiores', nome:'Legging', sigla:'LG'},
+  {grupo:'Roupas inferiores', nome:'Culote', sigla:'CUL'},
+
+  {grupo:'Vestidos e macacões', nome:'Vestido', sigla:'V'},
+  {grupo:'Vestidos e macacões', nome:'Macacão', sigla:'M'},
+  {grupo:'Vestidos e macacões', nome:'Jardineira', sigla:'JD'},
+  {grupo:'Vestidos e macacões', nome:'Kaftan', sigla:'K'},
+  {grupo:'Vestidos e macacões', nome:'Túnica', sigla:'TU'},
+
+  {grupo:'Casacos e jaquetas', nome:'Casaco', sigla:'CC'},
+  {grupo:'Casacos e jaquetas', nome:'Jaqueta', sigla:'J'},
+  {grupo:'Casacos e jaquetas', nome:'Blazer', sigla:'BZ'},
+  {grupo:'Casacos e jaquetas', nome:'Trench coat', sigla:'TC'},
+  {grupo:'Casacos e jaquetas', nome:'Parka', sigla:'PK'},
+  {grupo:'Casacos e jaquetas', nome:'Capa', sigla:'CPA'},
+  {grupo:'Casacos e jaquetas', nome:'Poncho', sigla:'PN'},
+  {grupo:'Casacos e jaquetas', nome:'Xale', sigla:'X'},
+
+  {grupo:'Roupas esportivas e de banho', nome:'Agasalho', sigla:'AG'},
+  {grupo:'Roupas esportivas e de banho', nome:'Maiô', sigla:'MA'},
+  {grupo:'Roupas esportivas e de banho', nome:'Biquíni', sigla:'BQ'},
+  {grupo:'Roupas esportivas e de banho', nome:'Sunga', sigla:'SG'},
+  {grupo:'Roupas esportivas e de banho', nome:'Canga', sigla:'CA'},
+
+  {grupo:'Roupas formais e especiais', nome:'Terno', sigla:'TR'},
+  {grupo:'Roupas formais e especiais', nome:'Smoking', sigla:'SM'},
+  {grupo:'Roupas formais e especiais', nome:'Uniforme', sigla:'UN'},
+  {grupo:'Roupas formais e especiais', nome:'Quimono', sigla:'Q'},
+  {grupo:'Roupas formais e especiais', nome:'Sari', sigla:'SR'},
+
+  {grupo:'Calçados', nome:'Sapato', sigla:'SP'},
+  {grupo:'Calçados', nome:'Tênis', sigla:'TN'},
+  {grupo:'Calçados', nome:'Sandália', sigla:'SD'},
+  {grupo:'Calçados', nome:'Chinelo', sigla:'CH'},
+  {grupo:'Calçados', nome:'Bota', sigla:'BT'},
+  {grupo:'Calçados', nome:'Sapatilha', sigla:'SL'},
+  {grupo:'Calçados', nome:'Mocassim', sigla:'MS'},
+
+  {grupo:'Acessórios', nome:'Cinto', sigla:'CI'},
+  {grupo:'Acessórios', nome:'Gravata', sigla:'G'},
+  {grupo:'Acessórios', nome:'Lenço', sigla:'LC'},
+  {grupo:'Acessórios', nome:'Cachecol', sigla:'CAC'},
+  {grupo:'Acessórios', nome:'Chapéu', sigla:'CP'},
+  {grupo:'Acessórios', nome:'Boné', sigla:'BO'},
+  {grupo:'Acessórios', nome:'Luvas', sigla:'L'},
+  {grupo:'Acessórios', nome:'Bolsa', sigla:'BS'},
+  {grupo:'Acessórios', nome:'Mochila', sigla:'MH'},
+  {grupo:'Acessórios', nome:'Carteira', sigla:'CR'},
+  {grupo:'Acessórios', nome:'Óculos', sigla:'OC'},
+  {grupo:'Acessórios', nome:'Relógio', sigla:'RL'},
+  {grupo:'Acessórios', nome:'Bijuteria', sigla:'BJ'},
+  {grupo:'Acessórios', nome:'Joia', sigla:'JO'},
+
+  {grupo:'Outros itens comuns', nome:'Suspensório', sigla:'SS'},
+  {grupo:'Outros itens comuns', nome:'Porta-níqueis', sigla:'PQ'},
+  {grupo:'Outros itens comuns', nome:'Necessaire', sigla:'NC'},
+  {grupo:'Outros itens comuns', nome:'Porta-maquiagem', sigla:'PM'}
+];
+
+/* Deixa a sigla no formato aceito: só letras/números, maiúsculas, sem acento, até 4 caracteres. */
+function slmSiglaNormalizar(valor){
+  return String(valor||'')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,4);
+}
+/* Texto sem acento/minúsculo, pra comparar nomes sem se preocupar com acentuação. */
+function slmTextoSimples(valor){
+  return String(valor||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+}
+/* Mapa completo sigla -> {nome, origem} juntando o catálogo pronto, as
+   categorias cadastradas pela loja e o catálogo de nomes de peças. */
+function slmMapaSiglas(){
+  const mapa = {};
+  SLM_PECAS_PADRAO.forEach(function(item){
+    mapa[item.sigla] = {nome:item.nome, origem:'catalogo', grupo:item.grupo};
+  });
+  (DB.productNames||[]).forEach(function(n){
+    const s = slmSiglaNormalizar(n.sigla);
+    if(s) mapa[s] = {nome:n.nome, origem:'nome', id:n.id};
+  });
+  (DB.categories||[]).forEach(function(c){
+    const s = slmSiglaNormalizar(c.sigla);
+    if(s) mapa[s] = {nome:c.nome, origem:'categoria', id:c.id};
+  });
+  return mapa;
+}
+/* A sigla já pertence a outra coisa? (ignora o próprio registro ao editar) */
+function slmSiglaEmUso(sigla, tipoIgnorado, idIgnorado){
+  const s = slmSiglaNormalizar(sigla);
+  if(!s) return null;
+  const dono = slmMapaSiglas()[s];
+  if(!dono) return null;
+  if(tipoIgnorado && dono.origem===tipoIgnorado && dono.id===idIgnorado) return null;
+  return dono;
+}
+/* Sugere uma sigla livre pro nome informado: tenta a 1ª letra, depois duas,
+   depois três — exatamente a ideia de "se já tem muita letra, usa duas". */
+function slmSugerirSigla(nome, tipoIgnorado, idIgnorado){
+  const base = slmSiglaNormalizar(nome);
+  if(!base) return '';
+  const tentativas = [];
+  tentativas.push(base.slice(0,1));
+  tentativas.push(base.slice(0,2));
+  tentativas.push(base.slice(0,3));
+  // combinações 1ª letra + cada letra seguinte (ex.: Cachecol -> CA, CC, CH, CE...)
+  for(let i=1;i<base.length;i++) tentativas.push(base[0]+base[i]);
+  for(let i=1;i<base.length;i++) tentativas.push(base.slice(0,2)+base[i]);
+  for(let i=0;i<26;i++) tentativas.push(base[0]+String.fromCharCode(65+i));
+  for(let i=1;i<=99;i++) tentativas.push(base[0]+i);
+  for(let i=0;i<tentativas.length;i++){
+    const t = slmSiglaNormalizar(tentativas[i]);
+    if(t && !slmSiglaEmUso(t, tipoIgnorado, idIgnorado)) return t;
+  }
+  return '';
+}
+/* Qual sigla representa este produto? Procura, nesta ordem:
+   sigla fixada no próprio produto -> nome da peça no catálogo de nomes ->
+   catálogo pronto (pelo nome) -> categoria cadastrada -> catálogo pronto (pela categoria). */
+function slmSiglaDoProduto(p){
+  if(!p) return '';
+  const fixa = slmSiglaNormalizar(p.sigla);
+  if(fixa) return fixa;
+  const nome = slmTextoSimples(p.nome);
+  const categoria = slmTextoSimples(p.categoria);
+  const achaEmLista = function(lista, campo, alvo){
+    return (lista||[]).find(function(x){ return slmTextoSimples(x[campo])===alvo; });
+  };
+  let achou = achaEmLista(DB.productNames, 'nome', nome);
+  if(achou && slmSiglaNormalizar(achou.sigla)) return slmSiglaNormalizar(achou.sigla);
+  achou = achaEmLista(SLM_PECAS_PADRAO, 'nome', nome);
+  if(achou) return achou.sigla;
+  achou = achaEmLista(DB.categories, 'nome', categoria);
+  if(achou && slmSiglaNormalizar(achou.sigla)) return slmSiglaNormalizar(achou.sigla);
+  achou = achaEmLista(SLM_PECAS_PADRAO, 'nome', categoria);
+  if(achou) return achou.sigla;
+  // nenhum cadastro bate: usa a primeira palavra do nome como "sigla improvisada"
+  // (o leitor ainda mostra o nome certo, só não é uma sigla oficial cadastrada)
+  return slmSiglaNormalizar(p.nome).slice(0,3);
+}
+/* Monta o CÓDIGO DE INFORMAÇÃO da peça (o que vai dentro do código de barras/QR extra) */
+function montarCodigoInfo(p, opcoes){
+  const cfg = opcoes || {};
+  const sigla = slmSiglaDoProduto(p) || 'X';
+  const centavos = Math.round((Number(p && p.venda)||0)*100);
+  const partes = ['I', sigla, String(centavos)];
+  if(cfg.incluirTamanhoCor){
+    partes.push(slmSiglaNormalizar(p && p.tamanho) || '-');
+    partes.push(slmSiglaNormalizar(p && p.cor) || '-');
+  }
+  return partes.join(':');
+}
+/* Lê um código de informação e devolve {sigla, nome, preco, tamanho, cor}.
+   Devolve null se o texto lido não for um código de informação. */
+function lerCodigoInfo(texto){
+  const bruto = String(texto||'').trim().toUpperCase();
+  if(!bruto) return null;
+  const partes = bruto.split(':');
+  if(partes.length < 3 || partes[0] !== 'I') return null;
+  const sigla = slmSiglaNormalizar(partes[1]);
+  const centavos = parseInt(partes[2], 10);
+  if(!sigla || !isFinite(centavos)) return null;
+  const dono = slmMapaSiglas()[sigla];
+  const tamanho = (partes[3] && partes[3] !== '-') ? partes[3] : '';
+  const cor = (partes[4] && partes[4] !== '-') ? partes[4] : '';
+  return {
+    sigla: sigla,
+    nome: dono ? dono.nome : '',
+    origem: dono ? dono.origem : '',
+    conhecida: !!dono,
+    preco: centavos/100,
+    tamanho: tamanho,
+    cor: cor,
+    bruto: bruto
+  };
+}
+/* Importa o catálogo pronto de peças (com as siglas) pro catálogo de nomes da loja.
+   Não apaga nada: só acrescenta o que ainda não existe e completa siglas em branco. */
+function slmImportarCatalogoPecas(){
+  if(!requirePerm(getPerms().canEditStock)) return;
+  confirmModal('Importar a lista pronta de peças (com as letras de atalho) para o catálogo de nomes? Nada é apagado — só entram os nomes que ainda não existem.', function(){
+    let novos = 0, completados = 0;
+    SLM_PECAS_PADRAO.forEach(function(item){
+      const existente = (DB.productNames||[]).find(function(n){ return slmTextoSimples(n.nome)===slmTextoSimples(item.nome); });
+      if(existente){
+        if(!slmSiglaNormalizar(existente.sigla) && !slmSiglaEmUso(item.sigla, 'nome', existente.id)){
+          existente.sigla = item.sigla;
+          completados++;
+        }
+      }else{
+        DB.productNames.push({id:uid('pn'), nome:item.nome, sigla:item.sigla});
+        novos++;
+      }
+    });
+    log('Catálogo padrão de peças importado: '+novos+' nomes novos, '+completados+' siglas completadas');
+    renderCategoriasTab();
+    alertModal(novos+' nomes adicionados e '+completados+' siglas completadas. As letras de atalho já valem no código de informação.');
+  }, {titulo:'Importar lista pronta de peças?', textoBtn:'Importar'});
+}
+/* Tabela de consulta rápida: todas as siglas que existem hoje no sistema. */
+function abrirTabelaSiglas(){
+  const mapa = slmMapaSiglas();
+  const linhas = Object.keys(mapa).sort().map(function(s){
+    const d = mapa[s];
+    const origem = d.origem==='catalogo' ? 'Catálogo pronto' : d.origem==='categoria' ? 'Categoria da loja' : 'Nome de peça da loja';
+    return `<tr><td style="font-weight:800;color:var(--orange);">${s}</td><td>${scannerSafeText(d.nome)}</td><td class="dimSmall">${origem}</td></tr>`;
+  }).join('');
+  showModal(`
+    <button class="modalClose" onclick="closeModal()">×</button>
+    <h3>🔤 Letras de atalho (siglas)</h3>
+    <p class="dimSmall" style="margin-top:-6px;">Estas são as letras que o código de informação da etiqueta usa pra dizer o que é a peça. Ao escanear, o sistema devolve o nome completo e o preço.</p>
+    <div style="max-height:52vh;overflow:auto;">
+      <table><thead><tr><th>Sigla</th><th>Peça</th><th>De onde vem</th></tr></thead><tbody>${linhas||'<tr><td colspan="3" class="dimSmall">Nenhuma sigla cadastrada.</td></tr>'}</tbody></table>
+    </div>
+  `, {wide:true});
+}
+
+/* =========================================================
    CATEGORIAS / GRUPOS / CATÁLOGO DE NOMES
 ========================================================= */
 function saveCategoryGroup(){
@@ -9658,16 +10154,99 @@ function removeCategoryGroup(id){
     renderCategoriasTab();
   });
 }
+/* Preenche sozinho a sigla sugerida enquanto a pessoa digita o nome da categoria.
+   forcar=true (botão "Sugerir") troca mesmo se já tiver algo digitado. */
+function sugerirSiglaCategoria(forcar){
+  const inpNome = document.getElementById('cat_nome');
+  const inpSigla = document.getElementById('cat_sigla');
+  if(!inpNome || !inpSigla) return;
+  if(!forcar && inpSigla.dataset.editadoManual==='1') return;
+  inpSigla.value = slmSugerirSigla(inpNome.value);
+  inpSigla.dataset.editadoManual = '';
+  validarSiglaCategoriaLive();
+}
+/* Aviso ao vivo embaixo do campo: livre, em uso, ou vazia. */
+function validarSiglaCategoriaLive(){
+  const inpSigla = document.getElementById('cat_sigla');
+  const aviso = document.getElementById('cat_siglaAviso');
+  if(!inpSigla || !aviso) return;
+  if(document.activeElement===inpSigla) inpSigla.dataset.editadoManual = '1';
+  const s = slmSiglaNormalizar(inpSigla.value);
+  if(!s){
+    aviso.style.color = '';
+    aviso.textContent = 'Uma letra basta (ex.: "V" = Vestido). Se ela já estiver em uso, use duas (ex.: "CD").';
+    return;
+  }
+  const dono = slmSiglaEmUso(s);
+  if(dono){
+    aviso.style.color = 'var(--red)';
+    aviso.textContent = '⚠ A sigla "'+s+'" já é de "'+dono.nome+'". Use outra — pode ser com duas letras (ex.: "'+slmSugerirSigla(document.getElementById('cat_nome').value)+'").';
+  }else{
+    aviso.style.color = 'var(--green)';
+    aviso.textContent = '✓ Sigla "'+s+'" livre.';
+  }
+}
 function saveCategory(){
   if(!requirePerm(getPerms().canEditStock)) return;
   const nome = document.getElementById('cat_nome').value.trim();
   const groupId = document.getElementById('cat_grupo').value;
+  const sigla = slmSiglaNormalizar(document.getElementById('cat_sigla').value);
   if(!nome){ alertModal('Informe o nome da categoria.'); return; }
   if(DB.categories.some(c=>c.nome.toLowerCase()===nome.toLowerCase())){ alertModal('Essa categoria já existe.'); return; }
-  DB.categories.push({id:uid('cat'), nome, groupId});
-  log('Categoria cadastrada: '+nome);
+  if(!sigla){
+    alertModal('Toda categoria precisa de uma letra de atalho (sigla) — é ela que vai dentro do código de informação da etiqueta. Sugestão livre: "'+slmSugerirSigla(nome)+'".');
+    document.getElementById('cat_sigla').focus();
+    return;
+  }
+  const dono = slmSiglaEmUso(sigla);
+  if(dono){
+    alertModal('A sigla "'+sigla+'" já é de "'+dono.nome+'". Escolha outra — pode ser com duas letras, tipo "'+slmSugerirSigla(nome)+'".');
+    document.getElementById('cat_sigla').focus();
+    return;
+  }
+  DB.categories.push({id:uid('cat'), nome, groupId, sigla});
+  log('Categoria cadastrada: '+nome+' (sigla '+sigla+')');
   document.getElementById('cat_nome').value='';
+  const inpSigla = document.getElementById('cat_sigla');
+  inpSigla.value=''; inpSigla.dataset.editadoManual='';
+  validarSiglaCategoriaLive();
   renderCategoriasTab();
+}
+/* Edita a sigla de uma categoria já cadastrada (botão na tabela) */
+function editarSiglaCategoria(id){
+  const c = DB.categories.find(x=>x.id===id);
+  if(!c) return;
+  promptSiglaModal('Sigla da categoria "'+c.nome+'"', slmSiglaNormalizar(c.sigla) || slmSugerirSigla(c.nome,'categoria',id), function(nova){
+    const dono = slmSiglaEmUso(nova, 'categoria', id);
+    if(dono){ alertModal('A sigla "'+nova+'" já é de "'+dono.nome+'". Escolha outra.'); return false; }
+    c.sigla = nova;
+    log('Sigla da categoria "'+c.nome+'" definida como '+nova);
+    renderCategoriasTab();
+    return true;
+  });
+}
+/* Janelinha simples e reaproveitável pra pedir/editar uma sigla */
+function promptSiglaModal(titulo, valorInicial, aoConfirmar){
+  showModal(`
+    <button class="modalClose" onclick="closeModal()">×</button>
+    <h3>🔤 ${titulo}</h3>
+    <p class="dimSmall" style="margin-top:-6px;">Uma letra basta. Se ela já estiver em uso por outra peça, use duas (ex.: "CD").</p>
+    <input id="promptSiglaInput" maxlength="4" value="${(valorInicial||'').replace(/"/g,'&quot;')}" style="width:100%;text-transform:uppercase;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--text);font-size:20px;font-weight:800;letter-spacing:2px;text-align:center;">
+    <div style="display:flex;gap:8px;margin-top:14px;">
+      <button class="btn secondary" style="flex:1;" onclick="closeModal()">Cancelar</button>
+      <button class="btn" id="promptSiglaOk" style="flex:1;">Salvar sigla</button>
+    </div>
+  `);
+  const input = document.getElementById('promptSiglaInput');
+  input.addEventListener('input', function(){ input.value = slmSiglaNormalizar(input.value); });
+  const confirmar = function(){
+    const v = slmSiglaNormalizar(input.value);
+    if(!v){ alertModal('Digite pelo menos uma letra.'); return; }
+    if(aoConfirmar(v) !== false) closeModal();
+  };
+  document.getElementById('promptSiglaOk').onclick = confirmar;
+  input.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); confirmar(); } });
+  setTimeout(function(){ input.focus(); input.select(); }, 40);
 }
 function removeCategory(id){
   if(!requirePerm(getPerms().isTotal)) return;
@@ -9680,15 +10259,44 @@ function removeCategory(id){
     renderCategoriasTab();
   });
 }
+function sugerirSiglaProductName(){
+  const inpNome = document.getElementById('pn_nome');
+  const inpSigla = document.getElementById('pn_sigla');
+  if(!inpNome || !inpSigla) return;
+  if(inpSigla.dataset.editadoManual==='1') return;
+  inpSigla.value = slmSugerirSigla(inpNome.value);
+}
 function saveProductName(){
   if(!requirePerm(getPerms().canEditStock)) return;
   const nome = document.getElementById('pn_nome').value.trim();
+  const inpSigla = document.getElementById('pn_sigla');
+  let sigla = slmSiglaNormalizar(inpSigla ? inpSigla.value : '');
   if(!nome){ alertModal('Informe o nome da peça.'); return; }
   if(DB.productNames.some(n=>n.nome.toLowerCase()===nome.toLowerCase())){ alertModal('Esse nome já está cadastrado.'); return; }
-  DB.productNames.push({id:uid('pn'), nome});
-  log('Nome de peça cadastrado no catálogo: '+nome);
+  if(!sigla) sigla = slmSugerirSigla(nome);
+  const dono = slmSiglaEmUso(sigla);
+  if(dono){
+    alertModal('A sigla "'+sigla+'" já é de "'+dono.nome+'". Escolha outra — pode ser com duas letras, tipo "'+slmSugerirSigla(nome)+'".');
+    if(inpSigla) inpSigla.focus();
+    return;
+  }
+  DB.productNames.push({id:uid('pn'), nome, sigla});
+  log('Nome de peça cadastrado no catálogo: '+nome+' (sigla '+sigla+')');
   document.getElementById('pn_nome').value='';
+  if(inpSigla){ inpSigla.value=''; inpSigla.dataset.editadoManual=''; }
   renderCategoriasTab();
+}
+function editarSiglaProductName(id){
+  const n = DB.productNames.find(x=>x.id===id);
+  if(!n) return;
+  promptSiglaModal('Sigla da peça "'+n.nome+'"', slmSiglaNormalizar(n.sigla) || slmSugerirSigla(n.nome,'nome',id), function(nova){
+    const dono = slmSiglaEmUso(nova, 'nome', id);
+    if(dono){ alertModal('A sigla "'+nova+'" já é de "'+dono.nome+'". Escolha outra.'); return false; }
+    n.sigla = nova;
+    log('Sigla da peça "'+n.nome+'" definida como '+nova);
+    renderCategoriasTab();
+    return true;
+  });
 }
 function removeProductName(id){
   if(!requirePerm(getPerms().isTotal)) return;
@@ -9717,13 +10325,21 @@ function renderCategoriasTab(){
   // lista de categorias
   document.getElementById('categoriesBody').innerHTML = DB.categories.map(c=>{
     const g = DB.categoryGroups.find(x=>x.id===c.groupId);
-    return `<tr><td>${c.nome}</td><td class="dimSmall">${g?g.nome:'—'}</td>
+    const s = slmSiglaNormalizar(c.sigla);
+    const siglaCel = s
+      ? `<button class="btn small secondary" title="Alterar a letra de atalho" onclick="editarSiglaCategoria('${c.id}')" style="font-weight:800;letter-spacing:1px;">${s}</button>`
+      : `<button class="btn small danger" title="Esta categoria ainda não tem letra de atalho" onclick="editarSiglaCategoria('${c.id}')">definir</button>`;
+    return `<tr><td>${c.nome}</td><td>${siglaCel}</td><td class="dimSmall">${g?g.nome:'—'}</td>
       <td>${perm.isTotal?`<button class="btn small danger" onclick="removeCategory('${c.id}')">Remover</button>`:''}</td></tr>`;
-  }).join('') || '<tr><td colspan="3" class="dimSmall">Nenhuma categoria cadastrada.</td></tr>';
+  }).join('') || '<tr><td colspan="4" class="dimSmall">Nenhuma categoria cadastrada.</td></tr>';
   // catálogo de nomes
-  document.getElementById('productNamesBody').innerHTML = DB.productNames.map(n=>
-    `<tr><td>${n.nome}</td><td>${perm.isTotal?`<button class="btn small danger" onclick="removeProductName('${n.id}')">Remover</button>`:''}</td></tr>`
-  ).join('') || '<tr><td colspan="2" class="dimSmall">Nenhum nome cadastrado ainda.</td></tr>';
+  document.getElementById('productNamesBody').innerHTML = DB.productNames.map(n=>{
+    const s = slmSiglaNormalizar(n.sigla);
+    const siglaCel = s
+      ? `<button class="btn small secondary" title="Alterar a letra de atalho" onclick="editarSiglaProductName('${n.id}')" style="font-weight:800;letter-spacing:1px;">${s}</button>`
+      : `<button class="btn small danger" title="Esta peça ainda não tem letra de atalho" onclick="editarSiglaProductName('${n.id}')">definir</button>`;
+    return `<tr><td>${n.nome}</td><td>${siglaCel}</td><td>${perm.isTotal?`<button class="btn small danger" onclick="removeProductName('${n.id}')">Remover</button>`:''}</td></tr>`;
+  }).join('') || '<tr><td colspan="3" class="dimSmall">Nenhum nome cadastrado ainda.</td></tr>';
   renderCatalogDatalists();
 }
 function renderCatalogDatalists(){
@@ -9743,12 +10359,14 @@ function pickerAddItem(type, nome){
   if(!nome) return;
   if(type==='nome'){
     if(!DB.productNames.some(n=>n.nome.toLowerCase()===nome.toLowerCase())){
-      DB.productNames.push({id:uid('pn'), nome});
+      // cadastro rápido: já entra com uma letra de atalho livre, pra nunca ficar
+      // um nome sem sigla e quebrar o código de informação da etiqueta
+      DB.productNames.push({id:uid('pn'), nome, sigla:slmSugerirSigla(nome)});
       log('Nome de peça cadastrado no catálogo: '+nome);
     }
   } else if(type==='categoria'){
     if(!DB.categories.some(c=>c.nome.toLowerCase()===nome.toLowerCase())){
-      DB.categories.push({id:uid('cat'), nome, groupId:''});
+      DB.categories.push({id:uid('cat'), nome, groupId:'', sigla:slmSugerirSigla(nome)});
       log('Categoria cadastrada: '+nome);
     }
   }
@@ -11801,6 +12419,7 @@ function mudarSensorTsplEtiqueta(valor){
 const ETQ_EL_LABELS = {
   nome:'Nome do produto', preco:'Preço', categoria:'Categoria', tamanho:'Tamanho',
   cor:'Cor', codigo:'Código (texto)', barras:'Código de barras', qrcode:'QR Code',
+  infocode:'Código de informação (peça + preço)',
   logo:'Logo da loja', foto:'Foto do produto', imagem:'Imagem personalizada',
   linha:'Linha divisória', retangulo:'Retângulo', texto:'Texto livre'
 };
@@ -11812,6 +12431,7 @@ const ETQ_EL_DEFAULTS = {
   cor:{w:14,h:4,fontSize:6.5,align:'left'},
   codigo:{w:30,h:4,fontSize:7,align:'center'},
   barras:{w:40,h:8,fontSize:7,align:'left'},
+  infocode:{w:28,h:7,fontSize:7,align:'left'},
   qrcode:{w:10,h:10,fontSize:7,align:'left'},
   logo:{w:18,h:6,fontSize:10,align:'left'},
   foto:{w:10,h:10,fontSize:7,align:'left'},
@@ -11993,6 +12613,7 @@ function adicionarElementoEtiqueta(tipo){
   const el = {id:uid('el'), type:tipo, x:2, y:2, w, h, fontSize:d.fontSize, fontFamily:'padrao', bold:false, color:'#000000', align:d.align};
   if(tipo==='texto') el.content = 'Texto';
   if(tipo==='imagem') el.src = '';
+  if(tipo==='infocode'){ el.formatoInfo = 'barras'; el.incluirTamanhoCor = false; el.mostrarNumero = false; el.larguraPct = 100; }
   if(tipo==='retangulo'){ el.preenchido = false; el.raio = 0; el.larguraBorda = 0.5; el.corBorda = '#000000'; }
   layout.push(el);
   _etqEditState.selectedId = el.id;
@@ -12056,7 +12677,7 @@ function etqElementDivHTML(el, editable){
   const justify = el.align==='center' ? 'center' : el.align==='right' ? 'flex-end' : 'flex-start';
   // código de barras com Largura (%) acima de 100 estica pra fora da própria caixa em vez
   // de ficar cortado — por isso libera o overflow só nesse caso específico.
-  const estourar = el.type==='barras' && (Number(el.larguraPct)||100) > 100;
+  const estourar = (el.type==='barras' || (el.type==='infocode' && el.formatoInfo!=='qr')) && (Number(el.larguraPct)||100) > 100;
   const overflowCss = estourar ? 'overflow:visible;' : 'overflow:hidden;';
   const raioCss = el.type==='retangulo' ? `border-radius:${Number(el.raio)||0}mm;` : '';
   const style = `left:${el.x}mm;top:${el.y}mm;width:${el.w}mm;height:${el.h}mm;font-family:${fonteCss};`+
@@ -12142,7 +12763,44 @@ function preencherConteudoElemento(box, el, p, sfx){
         setTimeout(()=>{ desenharBarcodeEmCanvas(sid, p.barcode||'', corDestaque, !!el.mostrarNumero, el.textoPosicao, el.larguraPct).then(resolve); }, 0);
       });
     }
+    /* CÓDIGO DE INFORMAÇÃO: guarda o que a peça é (letra de atalho) e o preço
+       que está impresso nesta própria etiqueta — nada de link nem de consulta
+       externa. Pode sair como código de barras (padrão) ou como QR Code. */
+    case 'infocode': {
+      const valorInfo = montarCodigoInfo(p, {incluirTamanhoCor: !!el.incluirTamanhoCor});
+      const cid = `etqElInfo_${sfx}_${el.id}`;
+      inner.innerHTML = `<canvas id="${cid}"></canvas>`;
+      if(el.formatoInfo === 'qr'){
+        return new Promise(function(resolve){
+          setTimeout(()=>{ desenharQrValorEmCanvas(cid, valorInfo, corDestaque).then(resolve); }, 0);
+        });
+      }
+      return new Promise(function(resolve){
+        setTimeout(()=>{ desenharBarcodeEmCanvas(cid, valorInfo, corDestaque, !!el.mostrarNumero, el.textoPosicao, el.larguraPct).then(resolve); }, 0);
+      });
+    }
   }
+}
+/* Desenha um QR com um VALOR qualquer (usado pelo código de informação) — diferente
+   de desenharQrEmCanvas, que sempre desenha o link fixo da loja configurado nas
+   Configurações. Mesmo esquema de Promise + carregamento sob demanda da biblioteca. */
+function desenharQrValorEmCanvas(canvasId, valor, cor, tentativa){
+  return new Promise(function(resolve){
+    (function tentar(tentativa){
+      if(typeof QRious==='undefined'){
+        garantirQRious();
+        if(tentativa<4){ setTimeout(()=>tentar(tentativa+1), 400); return; }
+        resolve();
+        return;
+      }
+      const el = document.getElementById(canvasId);
+      if(!el || !valor){ resolve(); return; }
+      try{
+        new QRious({element: el, value: String(valor), size:240, level:'M', foreground: cor||'#000000'});
+      }catch(err){ console.error('Erro ao gerar o código de informação (QR):', err); }
+      resolve();
+    })(tentativa||0);
+  });
 }
 function desenharBarcodeEmCanvas(canvasId, valor, cor, mostrarNumero, textoPosicao, larguraPct, tentativa){
   // Mesmo esquema de Promise de desenharBarcodeComRetry: resolve só quando o desenho
@@ -12313,9 +12971,11 @@ function renderEtqProps(){
   const isImagem = el.type==='imagem';
   const isLinha = el.type==='linha';
   const isBarras = el.type==='barras';
+  const isInfo = el.type==='infocode';
+  const isInfoBarras = isInfo && el.formatoInfo!=='qr';
   const isRetangulo = el.type==='retangulo';
   const isImgType = ['imagem','foto','logo'].includes(el.type);
-  const isVisual = isImagem || isLinha || isBarras || isRetangulo; // sem texto/fonte (o código de barras não usa fonte/alinhamento)
+  const isVisual = isImagem || isLinha || isBarras || isInfo || isRetangulo; // sem texto/fonte (o código de barras não usa fonte/alinhamento)
   const {minW, minH} = etqElMinDims(el.type, el);
   const linhaEmPe = isLinha && el.h > el.w; // linha virada (em pé): a espessura agora é a largura, não a altura
   const labelW = isLinha ? (linhaEmPe ? 'Espessura (mm)' : 'Comprimento (mm)') : 'Largura (mm)';
@@ -12366,6 +13026,45 @@ function renderEtqProps(){
       </div>
       <button type="button" class="btn secondary small" style="margin:6px 0 4px;width:100%;" onclick="esticarBarrasEtiqueta('${el.id}')">↔️ Esticar até a borda da etiqueta</button>
       <p class="dimSmall" style="margin:2px 0 8px;">Em 100% as barras ocupam a caixa toda. Abaixo de 100%, ficam mais finas e vão pro lado escolhido em Alinhamento. Acima de 100% (até 300%), elas passam a estourar pra fora da caixa, ficando maiores que a área reservada.</p>
+    ` : ''}
+    ${isInfo ? `
+      <p class="dimSmall" style="margin:0 0 10px;">Este código guarda <b>o que é a peça</b> (pela letra de atalho) e <b>o preço que está nesta etiqueta</b>. Ao escanear em Estoque → Escanear → "Ler código de informação", o sistema devolve o nome completo e o valor, sem depender de internet.</p>
+      <div class="field"><label>Formato</label>
+        <select onchange="atualizarPropEtiqueta('${el.id}','formatoInfo',this.value);renderEtqProps();">
+          <option value="barras" ${el.formatoInfo!=='qr'?'selected':''}>Código de barras (CODE128)</option>
+          <option value="qr" ${el.formatoInfo==='qr'?'selected':''}>QR Code</option>
+        </select>
+      </div>
+      <div class="field" style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" ${el.incluirTamanhoCor?'checked':''} style="width:auto;margin:0;" onchange="atualizarPropEtiqueta('${el.id}','incluirTamanhoCor',this.checked)">
+        <label style="margin:0;">Incluir também tamanho e cor no código</label>
+      </div>
+      ${isInfoBarras ? `
+      <div class="field" style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" ${el.mostrarNumero?'checked':''} style="width:auto;margin:0;" onchange="atualizarPropEtiqueta('${el.id}','mostrarNumero',this.checked)">
+        <label style="margin:0;">Mostrar o conteúdo escrito junto das barras</label>
+      </div>
+      ${el.mostrarNumero ? `
+      <div class="field"><label>Posição do texto</label>
+        <select onchange="atualizarPropEtiqueta('${el.id}','textoPosicao',this.value)">
+          <option value="abaixo" ${el.textoPosicao!=='acima'?'selected':''}>Abaixo das barras</option>
+          <option value="acima" ${el.textoPosicao==='acima'?'selected':''}>Acima das barras</option>
+        </select>
+      </div>` : ''}
+      <div class="field"><label>Alinhamento</label>
+        <select onchange="atualizarPropEtiqueta('${el.id}','align',this.value)">
+          <option value="left" ${el.align==='left'||!el.align?'selected':''}>Esquerda</option>
+          <option value="center" ${el.align==='center'?'selected':''}>Centro</option>
+          <option value="right" ${el.align==='right'?'selected':''}>Direita</option>
+        </select>
+      </div>
+      <div class="field"><label>Largura das barras (% da caixa)</label>
+        <input type="number" step="5" min="20" max="300" value="${el.larguraPct||100}" oninput="atualizarPropEtiqueta('${el.id}','larguraPct',Number(this.value))">
+      </div>` : ''}
+      <div class="dimSmall" style="background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px;margin:4px 0 10px;">
+        Conteúdo gerado agora (exemplo): <b style="color:var(--orange);word-break:break-all;">${montarCodigoInfo(_etqPreviewSampleProduct(), {incluirTamanhoCor: !!el.incluirTamanhoCor})}</b>
+      </div>
+      <button type="button" class="btn secondary small" style="margin-bottom:8px;width:100%;" onclick="abrirTabelaSiglas()">🔤 Ver tabela de letras de atalho</button>
     ` : ''}
     ${isRetangulo ? `
       <div class="field">
@@ -12489,7 +13188,7 @@ function atualizarElementoNoCanvas(el){
   box.style.fontFamily = fonteCss; box.style.fontSize = el.fontSize+'pt';
   box.style.fontWeight = el.bold?800:400; box.style.color = el.color||'#000';
   box.style.justifyContent = justify; box.style.textAlign = el.align||'left';
-  const estourar = el.type==='barras' && (Number(el.larguraPct)||100) > 100;
+  const estourar = (el.type==='barras' || (el.type==='infocode' && el.formatoInfo!=='qr')) && (Number(el.larguraPct)||100) > 100;
   box.style.overflow = estourar ? 'visible' : 'hidden';
   const inner = box.querySelector('.etqElInner');
   if(inner){
@@ -12511,6 +13210,11 @@ function atualizarElementoNoCanvas(el){
   if(el.type==='barras' && inner){
     const canvasEl = inner.querySelector('canvas');
     if(canvasEl) desenharBarcodeEmCanvas(canvasEl.id, _etqPreviewSampleProduct().barcode||'', el.color||'#000000', !!el.mostrarNumero, el.textoPosicao, el.larguraPct);
+  }
+  if(el.type==='infocode' && inner){
+    // o conteúdo do código de informação muda conforme as opções (formato, tamanho/cor
+    // incluídos, etc.), então redesenha inteiro em vez de só reajustar o canvas
+    preencherConteudoElemento(box, el, _etqPreviewSampleProduct(), 'edit');
   }
 }
 
@@ -14462,6 +15166,7 @@ function renderConfig(){
   document.getElementById('cfg_etiquetaMostrarQr').checked = DB.settings.etiquetaMostrarQr !== false;
   document.getElementById('cfg_etiquetaMostrarBarras').checked = DB.settings.etiquetaMostrarBarras !== false;
   document.getElementById('cfg_etiquetaMostrarFoto').checked = !!DB.settings.etiquetaMostrarFoto;
+  document.getElementById('cfg_exigirCodigoIdentificacao').checked = DB.settings.exigirCodigoIdentificacao !== false;
   document.getElementById('cfg_etiquetaFonte').value = DB.settings.etiquetaFonte || 'padrao';
   document.getElementById('cfg_etiquetaTamanho').value = DB.settings.etiquetaTamanho || 'medio';
   document.getElementById('cfg_etiquetaCor').value = DB.settings.etiquetaCor || '#000000';
@@ -15039,6 +15744,7 @@ function saveSettingsLive(){
   DB.settings.etiquetaMostrarQr = document.getElementById('cfg_etiquetaMostrarQr').checked;
   DB.settings.etiquetaMostrarBarras = document.getElementById('cfg_etiquetaMostrarBarras').checked;
   DB.settings.etiquetaMostrarFoto = document.getElementById('cfg_etiquetaMostrarFoto').checked;
+  DB.settings.exigirCodigoIdentificacao = document.getElementById('cfg_exigirCodigoIdentificacao').checked;
   DB.settings.etiquetaFonte = document.getElementById('cfg_etiquetaFonte').value;
   DB.settings.etiquetaTamanho = document.getElementById('cfg_etiquetaTamanho').value;
   DB.settings.etiquetaCor = document.getElementById('cfg_etiquetaCor').value;
@@ -15565,7 +16271,7 @@ async function apagarTudoExecutar(){
     });
   }
   if(manterEtiqueta){
-    ['etiquetaModelos','etiquetaLayout','etiquetaOrientacao','etiquetaModoCustom','etiquetaMostrarBarras','etiquetaMostrarFoto','etiquetaFonte','etiquetaTamanho','etiquetaCor','etiquetaLarguraMm','etiquetaAlturaMm','etiquetaModoImpressao','etiquetaAvancoEscposMm','etiquetaBaudRate','etiquetaPausaAposProcessarMs','etiquetaProtocoloDireto','etiquetaSensorTspl','etiquetaGapMm','etiquetaAjusteVerticalSistemaMm','etiquetaEspacoExtraSistemaMm'].forEach(k=>{
+    ['etiquetaModelos','etiquetaLayout','etiquetaOrientacao','etiquetaModoCustom','etiquetaMostrarBarras','etiquetaMostrarFoto','etiquetaFonte','etiquetaTamanho','etiquetaCor','etiquetaLarguraMm','etiquetaAlturaMm','etiquetaModoImpressao','etiquetaAvancoEscposMm','etiquetaBaudRate','etiquetaPausaAposProcessarMs','etiquetaProtocoloDireto','etiquetaSensorTspl','etiquetaGapMm','etiquetaAjusteVerticalSistemaMm','etiquetaEspacoExtraSistemaMm','exigirCodigoIdentificacao'].forEach(k=>{
       if(typeof settingsAntigos[k]!=='undefined') novoSettings[k] = settingsAntigos[k];
     });
   }
