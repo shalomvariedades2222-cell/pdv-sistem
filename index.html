@@ -10083,10 +10083,24 @@ function montarCodigoInfo(p, opcoes){
   }
   return partes.join(':');
 }
+/* Conserta o separador do código de informação quando o LEITOR está configurado
+   em teclado americano (US) e o aparelho está em teclado brasileiro (ABNT2).
+   Nesse caso o leitor manda Shift+";" pra escrever ":", mas o ABNT2 entende
+   essa mesma tecla como "Ç" — então "I:C:20000" chega como "IÇCÇ20000".
+   Como o código de informação só tem LETRAS, NÚMEROS e ":", qualquer
+   Ç / ç / ; / , / ª / º no meio dele só pode ser um ":" que veio torto.
+   (O certo continua sendo configurar o leitor pra ABNT2 — isso aqui é só
+   uma rede de segurança pra etiqueta não deixar de ser lida.) */
+function slmConsertarSeparadorInfo(txt){
+  let s = String(txt||'');
+  try{ s = s.normalize('NFC'); }catch(e){}
+  return s.replace(/[Çç;,ºª]/g, ':').replace(/:{2,}/g, ':');
+}
+
 /* Lê um código de informação e devolve {sigla, nome, preco, tamanho, cor}.
    Devolve null se o texto lido não for um código de informação. */
 function lerCodigoInfo(texto){
-  const bruto = String(texto||'').trim().toUpperCase();
+  const bruto = slmConsertarSeparadorInfo(String(texto||'').trim().toUpperCase());
   if(!bruto) return null;
   const partes = bruto.split(':');
   if(partes.length < 3 || partes[0] !== 'I') return null;
