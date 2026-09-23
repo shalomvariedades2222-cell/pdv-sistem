@@ -4600,6 +4600,16 @@ function ativarModoTeste(){
 // pra continuar com os dados salvos neste aparelho) de "a chave está errada"
 // (nesse caso não tem como continuar, precisa pedir a chave de novo).
 let _ultimaFalhaFoiDeRede = false;
+// Guarda o texto exato do diagnóstico da última falha (o mesmo que ia pra
+// msg.textContent) pra poder mostrar ele de verdade pro usuário quando o
+// app cai em modo offline — antes, esse texto era escrito na tela de login
+// (cloudGateMsg) mas essa tela é escondida no mesmo instante em que o modo
+// offline entra em ação, então a pessoa NUNCA chegava a ver o motivo real:
+// via sempre só "Você está offline", mesmo quando o problema era outro
+// (Apps Script com URL errada/desatualizada, implantação sem acesso
+// liberado, script travado/fora do ar, cota do Google estourada etc.) e
+// não falta de internet de verdade.
+let _ultimoDiagnosticoConexao = null;
 // Tempo máximo de espera por uma resposta do servidor. Sem isso, em PCs
 // conectados a uma rede local que NÃO tem saída para a internet (Wi-Fi
 // "conectado, sem internet", roteador fora do ar, VPN travada etc.), o
@@ -4613,6 +4623,7 @@ let _ultimaFalhaFoiDeRede = false;
 async function loadFromGitHub(){
   const msg = document.getElementById('cloudGateMsg');
   _ultimaFalhaFoiDeRede = false;
+  _ultimoDiagnosticoConexao = null;
   try{
     const credParam = ghToken ? 'key='+encodeURIComponent(ghToken) : 'deviceToken='+encodeURIComponent(deviceAccessToken||'');
     const url = APPSCRIPT_URL+'?'+credParam+'&_='+Date.now();
@@ -4657,10 +4668,17 @@ async function loadFromGitHub(){
     // ajuda MUITO a diagnosticar sem precisar abrir o console.
     if(!navigator.onLine){
       msg.textContent = 'Sem internet neste aparelho. Verifique o Wi-Fi/dados e tente de novo.';
+      _ultimoDiagnosticoConexao = null; // isso aqui SIM é falta de internet de verdade — pode usar o texto padrão
     } else if(e && e.name === 'AbortError'){
       msg.textContent = 'O servidor demorou demais pra responder (mais de ' + (TIMEOUT_CONEXAO_MS/1000) + 's). Tente de novo — se persistir, o Apps Script pode estar fora do ar.';
+      _ultimoDiagnosticoConexao = 'O servidor demorou demais pra responder. O Apps Script pode estar fora do ar ou sobrecarregado.';
     } else {
       msg.textContent = 'Não foi possível falar com o servidor (erro de rede). Verifique se a URL do Apps Script está correta e implantada com acesso liberado.';
+      // O navegador reporta "internet OK" mas o pedido pro Apps Script falhou mesmo
+      // assim — isso praticamente nunca é a internet da loja, e sim a implantação do
+      // Apps Script: URL errada/antiga (precisa reimplantar depois de editar o script),
+      // acesso restrito (tem que estar como "Qualquer pessoa"), ou o script com erro.
+      _ultimoDiagnosticoConexao = 'Não deu pra falar com o servidor (Apps Script). Verifique a implantação: URL correta e atualizada, acesso definido como "Qualquer pessoa", e se o script não está com erro.';
     }
     _ultimaFalhaFoiDeRede = true;
     return false;
@@ -5619,7 +5637,7 @@ function ativarModoOffline(){
   migrarFotosLegado_();
   aplicarFotosCache();
   normalizePerfis(); fixDuplicateBarcodes(); ensureCatalogDefaults();
-  notificarConexao('offline');
+  notificarConexao('offline', _ultimoDiagnosticoConexao);
 }
 
 /* ---------------- Notificação chamativa de conexão (offline/online) ----------------
@@ -5628,13 +5646,18 @@ function ativarModoOffline(){
    perde ou recupera a internet de verdade (eventos 'offline'/'online'), e também
    quando o app abre já sem conexão. */
 let _connNotifyTimer = null;
-function notificarConexao(tipo){
+function notificarConexao(tipo, diagnosticoReal){
   const el = document.getElementById('connNotify');
   if(!el) return;
   // No celular esse aviso de "sem internet" não é mais exibido — o app
   // continua funcionando normalmente com os dados salvos no aparelho, sem
   // precisar mostrar esse aviso na tela.
-  if(tipo==='offline' && document.documentElement.classList.contains('is-mobile')) return;
+  // EXCEÇÃO: se o motivo NÃO foi falta de internet de verdade (ex: problema
+  // na implantação do Apps Script), isso é algo que precisa ser corrigido
+  // na configuração, e escondê-lo no celular deixaria a pessoa sem nunca
+  // saber que a sincronização está de fato quebrada — não é só um soneco
+  // de wifi que resolve sozinho.
+  if(tipo==='offline' && !diagnosticoReal && document.documentElement.classList.contains('is-mobile')) return;
   clearTimeout(_connNotifyTimer);
   const icon = document.getElementById('connNotifyIcon');
   const titulo = document.getElementById('connNotifyTitle');
@@ -5642,9 +5665,17 @@ function notificarConexao(tipo){
   el.classList.remove('offline','online','show');
   if(tipo==='offline'){
     el.classList.add('offline');
-    if(icon) icon.textContent = '📴';
-    if(titulo) titulo.textContent = 'Você ficou sem internet';
-    if(msg) msg.textContent = 'Sem problema: os dados continuam salvos neste aparelho e sincronizam sozinhos assim que a conexão voltar.';
+    if(diagnosticoReal){
+      // A internet do aparelho está OK, mas não deu pra falar com o servidor —
+      // mostra o diagnóstico de verdade em vez de culpar a internet à toa.
+      if(icon) icon.textContent = '⚠️';
+      if(titulo) titulo.textContent = 'Sem conexão com o servidor';
+      if(msg) msg.textContent = diagnosticoReal + ' Continuando com os dados salvos neste aparelho por enquanto.';
+    } else {
+      if(icon) icon.textContent = '📴';
+      if(titulo) titulo.textContent = 'Você ficou sem internet';
+      if(msg) msg.textContent = 'Sem problema: os dados continuam salvos neste aparelho e sincronizam sozinhos assim que a conexão voltar.';
+    }
   } else {
     el.classList.add('online');
     if(icon) icon.textContent = '✅';
