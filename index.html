@@ -937,6 +937,22 @@ html.is-mobile .navBtnRestartMobile{display:flex;}
 #etqImpWidget .btn{width:100%;}
 html.is-mobile #etqImpWidget{top:auto;bottom:86px;right:10px;left:10px;width:auto;}
 
+/* ---------------- Widget da fila de impressão de etiquetas ----------------
+   Só aparece quando a impressora está LIVRE e ainda sobrou peça esperando o
+   Enter (enquanto imprime de verdade, quem ocupa o canto é o #etqImpWidget
+   acima — os dois nunca ficam visíveis ao mesmo tempo). Reaproveita a mesma
+   posição/visual do widget de progresso. */
+#filaImpWidget{
+  position:fixed;top:16px;right:16px;width:280px;max-width:92vw;z-index:949;
+  background:var(--glass-bg-strong);border:1px solid var(--glass-border-strong);border-radius:16px;
+  padding:16px;backdrop-filter:blur(var(--glass-blur-lg)) saturate(160%);-webkit-backdrop-filter:blur(var(--glass-blur-lg)) saturate(160%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.07), 0 20px 45px rgba(0,0,0,.45);
+  animation:etqImpWidgetIn .25s ease;
+}
+#filaImpWidget h4{margin:0 0 8px;color:var(--orange);font-size:14px;}
+#filaImpWidget .btn{width:100%;}
+html.is-mobile #filaImpWidget{top:auto;bottom:86px;right:10px;left:10px;width:auto;}
+
 /* ---------------- Histórico de Impressão de Etiquetas (Configurações) ----------------
    Fica registrado etiqueta por etiqueta, com o status de cada uma (impressa ou não),
    e NUNCA é limpo sozinho por tempo — só some quando a própria pessoa clica em
@@ -10941,6 +10957,18 @@ function avisarImpressoraOcupada(){
 // Histórico de Impressão de Etiquetas quais saíram e quais não saíram.
 let _impressaoAtualCtx_ = null; // {metaEtiquetas:[{nome,codigo}], concluidas:number, qtdEtiquetas:number}
 let _pararImpressaoSolicitado = false;
+/* =========================================================
+   FILA DE IMPRESSÃO DE ETIQUETAS
+   Se a impressora já estiver ocupada com outro lote quando a pessoa tenta
+   imprimir mais uma peça, em vez de só bloquear com o aviso de "impressora
+   ocupada", essa peça cai numa fila (a peça já foi salva no estoque
+   normalmente — só a IMPRESSÃO dela é que espera). A fila só começa a
+   imprimir de verdade quando a pessoa aperta Enter fora de um campo de
+   texto: aí todas as peças da fila saem impressas uma atrás da outra,
+   sozinhas, sem precisar apertar Enter de novo pra cada uma.
+========================================================= */
+let _filaImpressaoEtiquetas = []; // [{productId, productIds, modelo}] — mesmo formato de _etqState
+let _filaImpressaoProcessando = false; // true enquanto a fila está sendo impressa em sequência (iniciado pelo Enter)
 function iniciarProgressoImpressao_(total, metaEtiquetas, permiteParar){
   _impressaoEmAndamento = true;
   _pararImpressaoSolicitado = false;
@@ -11021,7 +11049,87 @@ function finalizarProgressoImpressao_(){
   // se algum salvamento tinha ficado represado (ver adiarSalvamentoParaImpressao_
   // em flashSaving), é só agora que ele roda.
   liberarSalvamentoAposImpressao_();
+  // Se a fila estava sendo "drenada" (processo iniciado pelo Enter) e ainda
+  // sobrou peça, segue sozinha pra próxima sem esperar outro Enter; senão,
+  // só atualiza (ou esconde, se a fila ficou vazia) o widget da fila.
+  if(_filaImpressaoProcessando && _filaImpressaoEtiquetas.length){
+    processarFilaImpressao_();
+  } else {
+    _filaImpressaoProcessando = false;
+    atualizarWidgetFilaImpressao_();
+  }
 }
+/* Coloca a peça que ia ser impressa agora no fim da fila (a impressora está
+   ocupada com outro lote) e fecha qualquer popup de impressão/prévia que
+   estivesse aberto na hora — quem chamou já pode seguir usando o app
+   normalmente enquanto espera. */
+function adicionarNaFilaImpressao_(estado){
+  _filaImpressaoEtiquetas.push({
+    productId: estado.productId,
+    productIds: (estado.productIds && estado.productIds.length) ? estado.productIds.slice() : null,
+    modelo: estado.modelo
+  });
+  closeModal();
+  toast('🖨️ Impressora ocupada — peça adicionada à fila (' + _filaImpressaoEtiquetas.length + '). Pressione Enter para imprimir a fila.', 'ok');
+  atualizarWidgetFilaImpressao_();
+}
+function atualizarWidgetFilaImpressao_(){
+  let widget = document.getElementById('filaImpWidget');
+  // Enquanto uma impressão está de fato rolando, quem ocupa o canto da tela
+  // é o widget de progresso (#etqImpWidget) — o da fila só aparece sozinho
+  // quando a impressora está livre e ainda sobrou peça esperando o Enter.
+  if(!_filaImpressaoEtiquetas.length || _impressaoEmAndamento){
+    if(widget) widget.remove();
+    return;
+  }
+  if(!widget){
+    widget = document.createElement('div');
+    widget.id = 'filaImpWidget';
+    document.body.appendChild(widget);
+  }
+  const qtd = _filaImpressaoEtiquetas.length;
+  widget.innerHTML = `
+    <h4>🕓 Fila de impressão</h4>
+    <div class="dimSmall" style="margin:0 0 12px;line-height:1.5;">${qtd} peça${qtd>1?'s':''} aguardando. Pressione <b>Enter</b> (fora de um campo de texto) para imprimir agora.</div>
+    <button class="btn small" style="margin-bottom:8px;" onclick="processarFilaImpressao_()">🖨️ Imprimir fila agora</button>
+    <button class="btn secondary small" onclick="limparFilaImpressao_()">Esvaziar fila</button>
+  `;
+}
+// Descarta a fila inteira sem imprimir nada (as peças continuam salvas no
+// estoque normalmente — só a impressão delas é que é cancelada).
+function limparFilaImpressao_(){
+  if(!_filaImpressaoEtiquetas.length) return;
+  _filaImpressaoEtiquetas = [];
+  _filaImpressaoProcessando = false;
+  atualizarWidgetFilaImpressao_();
+  toast('Fila de impressão esvaziada.', 'erro');
+}
+// Tira a próxima peça da fila e manda pra impressão de verdade (mesmo
+// caminho de sempre, imprimirEtiquetaFinal) — se ainda sobrar mais gente na
+// fila quando essa terminar, finalizarProgressoImpressao_ chama esta função
+// de novo sozinha, até a fila esvaziar.
+function processarFilaImpressao_(){
+  if(!_filaImpressaoEtiquetas.length || _impressaoEmAndamento) return;
+  _filaImpressaoProcessando = true;
+  const proximo = _filaImpressaoEtiquetas.shift();
+  atualizarWidgetFilaImpressao_();
+  _etqState = { productId: proximo.productId, productIds: proximo.productIds, modelo: proximo.modelo };
+  imprimirEtiquetaFinal();
+}
+// Enter fora de um campo de texto, com peça(s) esperando na fila e a
+// impressora livre, dispara a impressão da fila inteira — mesmo atalho que
+// já existe em vários popups do app (Enter confirma a ação principal), só
+// que aqui funciona em qualquer tela, já que a fila pode ficar esperando
+// enquanto a pessoa continua trabalhando em outra coisa.
+document.addEventListener('keydown', function(e){
+  if(e.key!=='Enter') return;
+  if(!_filaImpressaoEtiquetas.length || _impressaoEmAndamento) return;
+  const foco = document.activeElement;
+  const emCampoTexto = foco && (foco.tagName==='INPUT' || foco.tagName==='TEXTAREA' || foco.isContentEditable);
+  if(emCampoTexto) return; // não rouba o Enter de quem está digitando/confirmando em outro campo
+  e.preventDefault();
+  processarFilaImpressao_();
+});
 
 /* ---------------- Histórico de Impressão de Etiquetas ----------------
    Um registro por etiqueta (impressa ou não), guardado em DB.historicoEtiquetas.
@@ -11399,7 +11507,10 @@ function aplicarTamanhoFisicoEtiqueta_(item, dims, modelo, deslocamentoVerticalM
   }
 }
 function imprimirEtiquetaFinal(){
-  if(_impressaoEmAndamento){ avisarImpressoraOcupada(); return; }
+  // Antes isso só bloqueava com o aviso de "impressora ocupada". Agora, em
+  // vez de barrar, a peça cai na fila de impressão (ver adicionarNaFilaImpressao_
+  // acima) e sai impressa assim que a pessoa apertar Enter.
+  if(_impressaoEmAndamento){ adicionarNaFilaImpressao_(_etqState); return; }
   const area = document.getElementById('printArea');
   if(!area) return;
   // Quando vem de um cadastro de VÁRIAS peças (ex.: popup "Escolher Qtd. e
