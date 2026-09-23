@@ -12043,7 +12043,13 @@ async function conectarImpressoraUSB(){
   }catch(err){
     if(err && err.name==='NotFoundError') return; // pessoa cancelou a seleção, não é erro
     console.error('Erro ao conectar impressora USB:', err);
-    alertModal('Não foi possível conectar à impressora USB. Verifique se ela está ligada e conectada, e tente novamente.');
+    // Mostra o motivo técnico de verdade (nome/mensagem do erro do navegador) junto
+    // do aviso, em vez de só no console — é o que diferencia, por exemplo, "sem
+    // permissão / não é um contexto seguro" de "porta já em uso por outro programa".
+    const detalheTecnico = (err && (err.name || err.message))
+      ? ' [detalhe técnico: ' + (err.name||'erro') + (err.message ? (' — '+err.message) : '') + ']'
+      : '';
+    alertModal('Não foi possível conectar à impressora USB. Verifique se ela está ligada e conectada, e tente novamente.' + detalheTecnico);
   }
 }
 // Serviços/características mais comuns em módulos Bluetooth LE usados por
