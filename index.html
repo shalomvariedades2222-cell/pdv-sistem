@@ -12469,12 +12469,28 @@ async function _enviarBytesImpressoraDiretaSemRetry_(bytes){
     // byte, contando start+stop), com uma folga de 60% pro buffer da impressora
     // processar o que já chegou antes do próximo pedaço.
     const pausaMs = Math.max(4, Math.ceil((TAMANHO_PEDACO * 10 / baud) * 1000 * 1.6));
+    // Esse timeout por pedaço estava em 4000ms, tempo curto demais pra uma
+    // impressora térmica USB de etiqueta: quando ela avança/corta o papel no
+    // meio do envio (comum acontecer no meio de uma etiqueta maior, não só no
+    // fim), o driver do sistema operacional pode legitimamente segurar o
+    // write() esperando ela ficar pronta de novo — e isso pode levar mais de
+    // 4 segundos numa impressora mais lenta, mesmo com o cabo firme e a
+    // impressora ligada o tempo todo. Com 4000ms, esse "engasgo normal" virava
+    // um falso positivo de "desconectou", e o código então fechava a porta de
+    // verdade e reconectava do zero — o que ELE MESMO causava o "para do nada
+    // e volta sozinho" que a loja via na tela, gastando uma etiqueta a cada
+    // vez que isso acontecia. Aumentado pra 9000ms pra dar folga de verdade
+    // pro engasgo mecânico normal, sem deixar de detectar uma desconexão real
+    // (cabo solto/impressora desligada) — nesse caso o navegador já avisa
+    // rápido demais pelo evento 'disconnect' da própria porta, então esse
+    // timeout aqui só entra em ação pra quando o cabo continua ligado mas a
+    // impressora não respondeu de jeito nenhum durante todo esse tempo.
     for(let i=0; i<bytes.length; i+=TAMANHO_PEDACO){
       const pedaco = bytes.slice(i, i+TAMANHO_PEDACO);
       // Sem esse timeout, um pedaço que a impressora nunca confirma travava a
       // impressão inteira pra sempre (a promise do write() nunca resolve nem
       // rejeita sozinha) — era a causa mais provável do "trava e não imprime".
-      await _comTimeout_(_impressoraDireta.writer.write(pedaco), 4000, 'A impressora parou de responder no meio do envio.');
+      await _comTimeout_(_impressoraDireta.writer.write(pedaco), 9000, 'A impressora parou de responder no meio do envio.');
       await new Promise(r=>setTimeout(r, pausaMs));
     }
     return;
@@ -12483,10 +12499,16 @@ async function _enviarBytesImpressoraDiretaSemRetry_(bytes){
     const TAMANHO_PEDACO = 180;
     for(let i=0; i<bytes.length; i+=TAMANHO_PEDACO){
       const pedaco = bytes.slice(i, i+TAMANHO_PEDACO);
+      // Mesmo motivo do timeout do USB (ver comentário logo acima, no bloco
+      // USB): 4000ms era curto demais pra cobrir um engasgo normal da
+      // impressora avançando/cortando papel no meio do envio, e virava falso
+      // positivo de "desconectou". Aumentado pra 7000ms (um pouco menor que o
+      // do USB porque no Bluetooth uma desconexão de verdade tende a demorar
+      // mais pra este código perceber de qualquer forma).
       if(_impressoraDireta.bleChar.properties.writeWithoutResponse){
-        await _comTimeout_(_impressoraDireta.bleChar.writeValueWithoutResponse(pedaco), 4000, 'A impressora parou de responder no meio do envio.');
+        await _comTimeout_(_impressoraDireta.bleChar.writeValueWithoutResponse(pedaco), 7000, 'A impressora parou de responder no meio do envio.');
       } else {
-        await _comTimeout_(_impressoraDireta.bleChar.writeValue(pedaco), 4000, 'A impressora parou de responder no meio do envio.');
+        await _comTimeout_(_impressoraDireta.bleChar.writeValue(pedaco), 7000, 'A impressora parou de responder no meio do envio.');
       }
       await new Promise(r=>setTimeout(r, 20)); // dá um respiro pro módulo BLE processar
     }
