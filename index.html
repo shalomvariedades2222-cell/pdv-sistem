@@ -6055,7 +6055,41 @@ function mostrarSincronizandoOutroAparelho(){
   txt.textContent = 'Sincronizando com o dispositivo...';
   time.textContent = fmtAgora();
 }
+/* ---------------- Adiar salvamento até a impressão terminar ----------------
+   Quando o cadastro já vai direto pra impressão da etiqueta (atalho Alt+Enter,
+   botão "Salvar e Imprimir" etc.), salvar (gravar local + mandar pro servidor)
+   bem no meio do caminho, antes/durante a etiqueta ser montada e impressa,
+   podia atrapalhar a impressão (trabalho do navegador em paralelo bem na hora
+   que o print precisa acontecer). Agora, enquanto _adiarSalvamentoParaImpressao
+   estiver ligado, flashSaving() só ANOTA que ficou devendo um salvamento —
+   sem salvar de fato — e quem liga isso é obrigado a chamar
+   liberarSalvamentoAposImpressao_() assim que a impressão terminar (sucesso,
+   erro ou cancelamento), o que dispara o salvamento de verdade na hora. Um
+   teto de segurança garante que isso nunca fica represado pra sempre. */
+let _adiarSalvamentoParaImpressao = false;
+let _salvamentoPendenteAdiado = false;
+let _adiarSalvamentoTetoTimer = null;
+function adiarSalvamentoParaImpressao_(){
+  _adiarSalvamentoParaImpressao = true;
+  clearTimeout(_adiarSalvamentoTetoTimer);
+  // proteção: se por algum motivo a impressão nunca avisar que terminou,
+  // libera o salvamento represado sozinho depois de um tempo, pra nunca
+  // ficar pendente pra sempre.
+  _adiarSalvamentoTetoTimer = setTimeout(liberarSalvamentoAposImpressao_, 10000);
+}
+function liberarSalvamentoAposImpressao_(){
+  clearTimeout(_adiarSalvamentoTetoTimer);
+  _adiarSalvamentoParaImpressao = false;
+  if(_salvamentoPendenteAdiado){
+    _salvamentoPendenteAdiado = false;
+    flashSaving();
+  }
+}
 function flashSaving(){
+  if(_adiarSalvamentoParaImpressao){
+    _salvamentoPendenteAdiado = true;
+    return;
+  }
   const el = document.getElementById('saveStatus');
   const txt = document.getElementById('saveStatusText');
   const time = document.getElementById('saveStatusTime');
@@ -8819,6 +8853,10 @@ function saveNewProduct(imprimirDireto){
     pedirCodigoIdentificacao(imprimirDireto);
     return;
   }
+  // Quando o cadastro já vai direto pra impressão da etiqueta (sem perguntar antes),
+  // adia o salvamento (local + servidor) até a impressão terminar de verdade — ver
+  // adiarSalvamentoParaImpressao_/liberarSalvamentoAposImpressao_ perto de flashSaving().
+  if(imprimirDireto === true) adiarSalvamentoParaImpressao_();
   const custo = moneyVal('p_custo');
   const venda = moneyVal('p_venda');
   let barcode = document.getElementById('p_barcode').value.trim();
@@ -10989,6 +11027,10 @@ function finalizarProgressoImpressao_(){
   _pararImpressaoSolicitado = false;
   _impressaoAtualCtx_ = null;
   removerWidgetImpressaoEtiqueta_();
+  // A impressão (com sucesso, erro ou cancelamento) terminou de verdade aqui —
+  // se algum salvamento tinha ficado represado (ver adiarSalvamentoParaImpressao_
+  // em flashSaving), é só agora que ele roda.
+  liberarSalvamentoAposImpressao_();
 }
 
 /* ---------------- Histórico de Impressão de Etiquetas ----------------
