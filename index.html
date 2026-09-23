@@ -3122,8 +3122,9 @@ html.is-mobile .btn::before{ display:none; }
               <div style="display:flex;gap:6px;">
                 <input id="p_barcode" placeholder="Gerado automaticamente" style="flex:1">
                 <button type="button" class="btn secondary small" onclick="document.getElementById('p_barcode').value=genBarcode()">Gerar</button>
+                <button type="button" class="btn secondary small" onclick="pedirCodigoIdentificacao(false, true)">📷 Escanear</button>
               </div>
-              <div class="dimSmall" style="margin-top:4px;">Deixe em branco para gerar automaticamente, ou digite/escaneie um código próprio.</div>
+              <div class="dimSmall" style="margin-top:4px;">Deixe em branco para gerar automaticamente, ou digite/escaneie um código próprio. Clique em "Escanear" se quiser passar o leitor.</div>
             </div>
             <div class="field" style="margin-top:8px;">
               <label>Quantidade de etiquetas para imprimir</label>
@@ -3785,11 +3786,6 @@ html.is-mobile .btn::before{ display:none; }
             <input type="checkbox" id="cfg_etiquetaMostrarFoto" data-perm="admin" onchange="saveSettingsLive()" style="width:auto;margin:0;">
             <label style="margin:0;">Usar a foto do produto no lugar do logo da loja</label>
           </div>
-          <div class="field" style="display:flex;align-items:center;gap:8px;margin-top:4px;">
-            <input type="checkbox" id="cfg_exigirCodigoIdentificacao" data-perm="admin" onchange="saveSettingsLive()" style="width:auto;margin:0;">
-            <label style="margin:0;">Exigir a leitura do código de identificação ao cadastrar um produto</label>
-          </div>
-          <div class="dimSmall" style="margin:-4px 0 6px;">Com isso ligado (padrão), ao salvar um produto o sistema para e pede pra escanear o código de barras principal da peça — o que identifica ela no sistema. Se a peça não tiver código, o botão "Não tenho esse código" gera um, salva o produto e abre a tela de impressão já preenchida. Isso é diferente do <b>código de informação</b>, que é o código extra da etiqueta guardando o tipo da peça (letra de atalho) e o preço; esse você adiciona no editor de etiquetas e lê em Estoque → Escanear → "Ler código de informação".</div>
           <div class="formGrid" style="margin-top:6px;">
             <div class="field"><label>Estilo do texto (fonte)</label>
               <select id="cfg_etiquetaFonte" data-perm="admin" onchange="saveSettingsLive()">
@@ -5753,7 +5749,6 @@ function ensureCatalogDefaults(){
     if(!slmSiglaNormalizar(n.sigla)) n.sigla = slmSugerirSigla(n.nome, 'nome', n.id);
   });
   // exigir a leitura do código de barras de IDENTIFICAÇÃO logo após cadastrar o produto
-  if(typeof DB.settings.exigirCodigoIdentificacao !== 'boolean') DB.settings.exigirCodigoIdentificacao = true;
   if(!DB.settings.etiquetaLarguraMm) DB.settings.etiquetaLarguraMm = 40;
   if(!DB.settings.etiquetaAlturaMm) DB.settings.etiquetaAlturaMm = 30;
   if(!DB.settings.etiquetaModoImpressao) DB.settings.etiquetaModoImpressao = 'sistema'; // 'sistema' (PDF+caixa de impressão), 'usb' (Web Serial) ou 'bluetooth' (Web Bluetooth)
@@ -8842,17 +8837,10 @@ function saveNewProduct(imprimirDireto){
   if(!requirePerm(getPerms().canEditStock)) return;
   const nome = document.getElementById('p_nome').value.trim();
   if(!nome){ alertModal('Informe o nome do produto.'); return; }
-  /* ---- LEITURA OBRIGATÓRIA DO CÓDIGO DE BARRAS DE IDENTIFICAÇÃO ----
-     É o código principal, o que identifica esta peça específica no sistema
-     (diferente do código de informação da etiqueta, que só guarda o tipo da
-     peça e o preço). Antes de salvar, o sistema para e manda escanear. Se a
-     peça não tiver nenhum código, o botão "Não tenho" gera um e leva direto
-     pra tela de impressão, já com tudo preenchido. */
-  if(DB.settings.exigirCodigoIdentificacao !== false && !_codigoIdentificacaoConfirmado
-     && !document.getElementById('p_barcode').value.trim()){
-    pedirCodigoIdentificacao(imprimirDireto);
-    return;
-  }
+  // A leitura do código de identificação NÃO é mais obrigatória/automática ao
+  // salvar — o popup só aparece se a pessoa clicar no botão "📷 Escanear" ao
+  // lado do campo de código (veja pedirCodigoIdentificacao). Se o campo estiver
+  // vazio, um código é gerado automaticamente logo abaixo.
   // Quando o cadastro já vai direto pra impressão da etiqueta (sem perguntar antes),
   // adia o salvamento (local + servidor) até a impressão terminar de verdade — ver
   // adiarSalvamentoParaImpressao_/liberarSalvamentoAposImpressao_ perto de flashSaving().
@@ -8928,9 +8916,13 @@ function saveNewProduct(imprimirDireto){
   }
 }
 /* =========================================================
-   PEDIR O CÓDIGO DE BARRAS DE IDENTIFICAÇÃO (obrigatório)
+   LER O CÓDIGO DE BARRAS DE IDENTIFICAÇÃO (opcional, só por botão)
+   Esse popup NUNCA abre sozinho ao salvar — só quando a pessoa clica no
+   botão "📷 Escanear" ao lado do campo "Código de barras / etiqueta"
+   (manual=true). Nesse caso ele só passa o código lido pro campo e fecha;
+   quem decide quando salvar é a pessoa, clicando em "Salvar Produto".
 ========================================================= */
-function pedirCodigoIdentificacao(imprimirDireto){
+function pedirCodigoIdentificacao(imprimirDireto, manual){
   const nome = document.getElementById('p_nome').value.trim();
   const venda = moneyVal('p_venda');
   showModal(`
@@ -8947,18 +8939,18 @@ function pedirCodigoIdentificacao(imprimirDireto){
     <input id="codIdentificacaoInput" placeholder="Escaneie ou digite o código aqui..." autocomplete="off" style="width:100%;padding:12px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--text);font-size:16px;">
     <div class="dimSmall" id="codIdentificacaoErro" style="margin-top:6px;color:var(--red);display:none;"></div>
     <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
-      <button class="btn" id="codIdentificacaoOk" style="flex:1;min-width:150px;">✓ Confirmar e salvar</button>
-      <button class="btn secondary" id="codIdentificacaoSem" style="flex:1;min-width:150px;">🏷️ Não tenho esse código</button>
+      <button class="btn" id="codIdentificacaoOk" style="flex:1;min-width:150px;">✓ Usar este código</button>
+      <button class="btn secondary" id="codIdentificacaoSem" style="flex:1;min-width:150px;">🏷️ Gerar um código</button>
     </div>
-    <div class="dimSmall" style="margin-top:10px;">Sem código na peça? O botão acima gera um código novo, salva o produto e abre a tela de impressão já preenchida — é só imprimir a etiqueta e colar na peça.</div>
-    <button class="linkBtn" style="margin-top:10px;" onclick="closeModal()">Cancelar cadastro</button>
+    <div class="dimSmall" style="margin-top:10px;">Sem código na peça? O botão acima gera um código novo e preenche o campo — depois é só clicar em "Salvar Produto" normalmente.</div>
+    <button class="linkBtn" style="margin-top:10px;" onclick="closeModal()">Cancelar</button>
   `);
   const input = document.getElementById('codIdentificacaoInput');
   const erro = document.getElementById('codIdentificacaoErro');
   const mostrarErro = function(msg){ erro.textContent = msg; erro.style.display=''; };
   const confirmar = function(){
     const code = (input.value||'').trim();
-    if(!code){ mostrarErro('Passe o leitor na etiqueta ou digite o código. A leitura é obrigatória.'); input.focus(); return; }
+    if(!code){ mostrarErro('Passe o leitor na etiqueta ou digite o código.'); input.focus(); return; }
     // se o que foi lido for o código de INFORMAÇÃO, avisa — ele não serve como identificação
     if(lerCodigoInfo(code)){
       mostrarErro('Isso é um código de informação (tipo da peça + preço), não o de identificação. Escaneie o código principal da peça.');
@@ -8972,15 +8964,13 @@ function pedirCodigoIdentificacao(imprimirDireto){
       return;
     }
     document.getElementById('p_barcode').value = code;
-    _codigoIdentificacaoConfirmado = true;
     closeModal();
-    saveNewProduct(imprimirDireto);
+    if(!manual){ _codigoIdentificacaoConfirmado = true; saveNewProduct(imprimirDireto); }
   };
   const semCodigo = function(){
     document.getElementById('p_barcode').value = genBarcode();
-    _codigoIdentificacaoConfirmado = true;
     closeModal();
-    saveNewProduct('preview');
+    if(!manual){ _codigoIdentificacaoConfirmado = true; saveNewProduct('preview'); }
   };
   document.getElementById('codIdentificacaoOk').onclick = confirmar;
   document.getElementById('codIdentificacaoSem').onclick = semCodigo;
@@ -15574,7 +15564,6 @@ function renderConfig(){
   document.getElementById('cfg_etiquetaMostrarQr').checked = DB.settings.etiquetaMostrarQr !== false;
   document.getElementById('cfg_etiquetaMostrarBarras').checked = DB.settings.etiquetaMostrarBarras !== false;
   document.getElementById('cfg_etiquetaMostrarFoto').checked = !!DB.settings.etiquetaMostrarFoto;
-  document.getElementById('cfg_exigirCodigoIdentificacao').checked = DB.settings.exigirCodigoIdentificacao !== false;
   document.getElementById('cfg_etiquetaFonte').value = DB.settings.etiquetaFonte || 'padrao';
   document.getElementById('cfg_etiquetaTamanho').value = DB.settings.etiquetaTamanho || 'medio';
   document.getElementById('cfg_etiquetaCor').value = DB.settings.etiquetaCor || '#000000';
@@ -16152,7 +16141,6 @@ function saveSettingsLive(){
   DB.settings.etiquetaMostrarQr = document.getElementById('cfg_etiquetaMostrarQr').checked;
   DB.settings.etiquetaMostrarBarras = document.getElementById('cfg_etiquetaMostrarBarras').checked;
   DB.settings.etiquetaMostrarFoto = document.getElementById('cfg_etiquetaMostrarFoto').checked;
-  DB.settings.exigirCodigoIdentificacao = document.getElementById('cfg_exigirCodigoIdentificacao').checked;
   DB.settings.etiquetaFonte = document.getElementById('cfg_etiquetaFonte').value;
   DB.settings.etiquetaTamanho = document.getElementById('cfg_etiquetaTamanho').value;
   DB.settings.etiquetaCor = document.getElementById('cfg_etiquetaCor').value;
@@ -16679,7 +16667,7 @@ async function apagarTudoExecutar(){
     });
   }
   if(manterEtiqueta){
-    ['etiquetaModelos','etiquetaLayout','etiquetaOrientacao','etiquetaModoCustom','etiquetaMostrarBarras','etiquetaMostrarFoto','etiquetaFonte','etiquetaTamanho','etiquetaCor','etiquetaLarguraMm','etiquetaAlturaMm','etiquetaModoImpressao','etiquetaAvancoEscposMm','etiquetaBaudRate','etiquetaPausaAposProcessarMs','etiquetaProtocoloDireto','etiquetaSensorTspl','etiquetaGapMm','etiquetaAjusteVerticalSistemaMm','etiquetaEspacoExtraSistemaMm','exigirCodigoIdentificacao'].forEach(k=>{
+    ['etiquetaModelos','etiquetaLayout','etiquetaOrientacao','etiquetaModoCustom','etiquetaMostrarBarras','etiquetaMostrarFoto','etiquetaFonte','etiquetaTamanho','etiquetaCor','etiquetaLarguraMm','etiquetaAlturaMm','etiquetaModoImpressao','etiquetaAvancoEscposMm','etiquetaBaudRate','etiquetaPausaAposProcessarMs','etiquetaProtocoloDireto','etiquetaSensorTspl','etiquetaGapMm','etiquetaAjusteVerticalSistemaMm','etiquetaEspacoExtraSistemaMm'].forEach(k=>{
       if(typeof settingsAntigos[k]!=='undefined') novoSettings[k] = settingsAntigos[k];
     });
   }
