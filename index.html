@@ -4288,8 +4288,12 @@ const TIMEOUT_CONEXAO_MS = 12000;
 // automática (que só roda de novo depois que o envio anterior termina).
 // Passado esse tempo sem resposta, o pedido é cancelado e cai no catch normal
 // de "falha de conexão", que já sabe lidar com isso (mostra erro e tenta de novo).
-async function fetchComTimeout(url, options={}){
-  const controller = new AbortController();
+async function fetchComTimeout(url, options={}, controllerExterno){
+  // Normalmente cria o próprio AbortController (comportamento de sempre). Quando quem
+  // chamou passa um controller pronto (ver saveToGitHubNow), usa esse mesmo controller —
+  // assim quem tem essa referência consegue cancelar o pedido de fora a qualquer momento
+  // (ver adiarSalvamentoParaImpressao_), além do cancelamento automático por timeout aqui.
+  const controller = controllerExterno || new AbortController();
   const timeoutId = setTimeout(()=>controller.abort(), TIMEOUT_CONEXAO_MS);
   try{
     return await fetch(url, Object.assign({}, options, {signal:controller.signal}));
@@ -5024,15 +5028,21 @@ function prepararDadosSemFotos_(db){
 // rode em paralelo com o nosso próprio salvamento e confunda ele com uma mudança
 // vinda de outro aparelho (ver checkRemoteVersion mais abaixo).
 let _salvandoAgora = false;
+// Controller do envio (POST de dados) que está em andamento agora, se houver — guardado
+// numa variável de fora da função pra que adiarSalvamentoParaImpressao_() consiga abortar
+// esse envio de fora, assim que uma impressão começar no meio do caminho.
+let _abortControllerSalvamentoAtual = null;
 async function saveToGitHubNow(){
   if(!hasCloudCredential()){ setSaveStatus('Salvo neste aparelho', fmtAgora()); return false; }
   _salvandoAgora = true;
+  const controllerDesteSalvamento = new AbortController();
+  _abortControllerSalvamentoAtual = controllerDesteSalvamento;
   try{
     const res = await fetchComTimeout(APPSCRIPT_URL, {
       method:'POST',
       headers: {'Content-Type':'text/plain;charset=utf-8'}, // evita preflight CORS no Apps Script
       body: JSON.stringify(Object.assign({version:driveVersion,data:prepararDadosSemFotos_(DB)},cloudCredentials()))
-    });
+    }, controllerDesteSalvamento);
     if(!res.ok){
       console.error('Falha ao salvar no Drive:', res.status);
       setSaveStatus('Falha ao salvar no servidor', fmtAgora());
@@ -5067,10 +5077,17 @@ async function saveToGitHubNow(){
     return true;
   }catch(e){
     console.error('Falha ao salvar no Drive:', e);
-    setSaveStatus('Sem conexão — salvo só neste aparelho', fmtAgora());
+    // Se esse envio foi cancelado de propósito porque uma impressão começou no meio do
+    // caminho, o popup "Interrompido o processo de salvamento no servidor" já foi mostrado
+    // na hora (ver adiarSalvamentoParaImpressao_) — não sobrescreve ele aqui com uma
+    // mensagem de "sem conexão" que seria enganosa (a internet está normal).
+    if(!controllerDesteSalvamento._interrompidoPorImpressao){
+      setSaveStatus('Sem conexão — salvo só neste aparelho', fmtAgora());
+    }
     return false;
   }finally{
     _salvandoAgora = false; // só libera a checagem automática quando o envio realmente terminou
+    if(_abortControllerSalvamentoAtual === controllerDesteSalvamento) _abortControllerSalvamentoAtual = null;
   }
 }
 
@@ -6043,7 +6060,7 @@ function setSaveStatus(texto, hora){
   // cor do destaque conforme o resultado do salvamento
   let statusClasse = 'status-ok';
   if(/falha/i.test(texto)) statusClasse = 'status-error';
-  else if(/sem conex|combinando/i.test(texto)) statusClasse = 'status-warn';
+  else if(/sem conex|combinando|interrompid/i.test(texto)) statusClasse = 'status-warn';
   el.classList.add(statusClasse);
   // o widget aparece só enquanto há novidade e some de novo, igual a uma notificação
   el.classList.add('visible');
@@ -6080,9 +6097,26 @@ function mostrarSincronizandoOutroAparelho(){
 let _adiarSalvamentoParaImpressao = false;
 let _salvamentoPendenteAdiado = false;
 let _adiarSalvamentoTetoTimer = null;
+// true quando um envio ao servidor que já estava em andamento foi cancelado de propósito
+// por causa de uma impressão — usado por liberarSalvamentoAposImpressao_() pra saber que
+// precisa despejar os dados no servidor de novo assim que a impressão terminar (o envio
+// cancelado não confirmou nada, então os dados continuam marcados como pendentes).
+let _salvamentoInterrompidoPorImpressao = false;
 function adiarSalvamentoParaImpressao_(){
   _adiarSalvamentoParaImpressao = true;
   clearTimeout(_adiarSalvamentoTetoTimer);
+  // Se bem nesse instante já existe um envio de dados em andamento pro servidor, não deixa
+  // ele continuar disputando o processamento do navegador com a montagem/impressão da
+  // etiqueta — cancela na hora (o AbortController do fetch em andamento, guardado em
+  // _abortControllerSalvamentoAtual). Os dados não se perdem: como o envio não chegou a
+  // ser confirmado, eles continuam marcados como pendentes (ver marcarAlteracaoPendente)
+  // e são reenviados sozinhos assim que a impressão terminar, logo abaixo.
+  if(_salvandoAgora && _abortControllerSalvamentoAtual){
+    _abortControllerSalvamentoAtual._interrompidoPorImpressao = true;
+    _salvamentoInterrompidoPorImpressao = true;
+    _abortControllerSalvamentoAtual.abort();
+    setSaveStatus('Interrompido o processo de salvamento no servidor', fmtAgora());
+  }
   // proteção: se por algum motivo a impressão nunca avisar que terminou,
   // libera o salvamento represado sozinho depois de um tempo, pra nunca
   // ficar pendente pra sempre.
@@ -6091,8 +6125,13 @@ function adiarSalvamentoParaImpressao_(){
 function liberarSalvamentoAposImpressao_(){
   clearTimeout(_adiarSalvamentoTetoTimer);
   _adiarSalvamentoParaImpressao = false;
-  if(_salvamentoPendenteAdiado){
-    _salvamentoPendenteAdiado = false;
+  // despeja os dados no servidor de novo se ficou alguma coisa represada (um salvamento
+  // que ficou só "anotado" durante a impressão) OU se um envio que já estava em andamento
+  // foi interrompido de propósito por causa dela.
+  const precisaDespejarNoServidor = _salvamentoPendenteAdiado || _salvamentoInterrompidoPorImpressao;
+  _salvamentoPendenteAdiado = false;
+  _salvamentoInterrompidoPorImpressao = false;
+  if(precisaDespejarNoServidor){
     flashSaving();
   }
 }
