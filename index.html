@@ -4054,8 +4054,6 @@ html.is-mobile .btn::before{ display:none; }
           <button class="btn secondary" data-perm="admin" onclick="document.getElementById('cfgImportFile').click()">Importar Backup</button>
           <input type="file" id="cfgImportFotos" accept=".json" style="display:none" onchange="importFotosFile(this.files[0])">
           <button class="btn secondary" data-perm="admin" onclick="document.getElementById('cfgImportFotos').click()">Importar Fotos (.json)</button>
-          <button class="btn secondary" data-perm="admin" style="margin-top:8px;" onclick="exportarConflitosSync()">Exportar conflitos de sincronização (.json)</button>
-          <p class="dimSmall">Se um aparelho antigo tiver dados diferentes dos atuais, as versões conflitantes ficam guardadas aqui para recuperação, sem substituir os dados do servidor.</p>
           <hr style="border-color:var(--line);margin:16px 0;">
           <h3 style="margin-top:0;">Importar / Exportar Excel/CSV</h3>
           <button class="btn secondary" onclick="exportProductsCSV()">Exportar Produtos (CSV)</button>
@@ -4270,30 +4268,19 @@ function existeAlteracaoPendenteSalva(){
    PREENCHA o valor abaixo antes de publicar (URL do Web App, veja o
    guia COMO-CONFIGURAR-DRIVE.md):
 ====================================================================== */
-const APPSCRIPT_URL = 'https://script.google.com/macros/s/AKfycby2R0CI8jC56C-W-v3DOIIbHAPaWrIVQ7U0pXu2VFC-j9_1U2FebKucBSbjk6_NX1xr/exec'; // ex: 'https://script.google.com/macros/s/AKfycb.../exec'
+const APPSCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxz3bQjCtYPCOzgfqGwIg4ltM5elzlz7fm9-13Zpl6VwClLILEDa9NImMTWtY_1MfNV/exec'; // ex: 'https://script.google.com/macros/s/AKfycb.../exec'
 
 let ghToken = null;      // chave de acesso (mesmo nome interno de antes, só que agora não é token do GitHub)
 let deviceAccessToken = null; // autorização alternativa, vinculada a este dispositivo
 let driveVersion = null; // controle de versão do arquivo, pra evitar um dispositivo sobrescrever o outro
-const SYNC_CONFLICT_TOKEN_STORAGE = 'slmsys_conflict_write_token_v1';
-let _conflictWriteToken = null;
-try{ _conflictWriteToken = localStorage.getItem(SYNC_CONFLICT_TOKEN_STORAGE) || null; }catch(e){}
-function guardarTokenConflitoSync_(token){
-  _conflictWriteToken = token || null;
-  try{
-    if(_conflictWriteToken) localStorage.setItem(SYNC_CONFLICT_TOKEN_STORAGE, _conflictWriteToken);
-    else localStorage.removeItem(SYNC_CONFLICT_TOKEN_STORAGE);
-  }catch(e){ console.warn('Não foi possível persistir o token de resolução de conflito.',e); }
-}
 
 const KEY_GUARD_STORAGE = 'slmsys_key_guard_v1';
 const DEVICE_ID_STORAGE = 'slmsys_device_id_v1';
 const ACCESS_REQUEST_STORAGE = 'slmsys_access_request_v1';
 const ACCESS_DEVICE_TOKEN_STORAGE = 'slmsys_device_access_token_v1';
 const ACCESS_REQUEST_RECEIVE_STORAGE = 'slmsys_receive_access_requests_v1';
-const SYNC_CONFLICT_STORAGE = 'slmsys_sync_conflicts_v1';
 const KEY_MAX_ATTEMPTS = 3, KEY_LOCK_MS = 5 * 60 * 1000;
-const TIMEOUT_CONEXAO_MS = 30000; // o Apps Script pode demorar mais ao restaurar/validar backups; não aborte gravações válidas cedo demais
+const TIMEOUT_CONEXAO_MS = 12000;
 // Envolve o fetch com um limite de tempo (AbortController): sem isso, numa conexão
 // ruim (comum no wifi/dados móveis da loja) o fetch podia ficar pendurado
 // indefinidamente — sem responder e sem dar erro — deixando a tela presa em
@@ -4328,23 +4315,7 @@ async function lerRespostaJson(res){
 }
 function getKeyGuard(){ try{return JSON.parse(localStorage.getItem(KEY_GUARD_STORAGE)||'{}');}catch(e){return{};} }
 function setKeyGuard(v){ try{localStorage.setItem(KEY_GUARD_STORAGE,JSON.stringify(v));}catch(e){} }
-let _deviceIdMemoryFallback = null;
-function getDeviceId(){
-  let id = '';
-  try { id = localStorage.getItem(DEVICE_ID_STORAGE) || ''; } catch(e) {}
-  if(id) return id;
-  if(_deviceIdMemoryFallback) return _deviceIdMemoryFallback;
-  try {
-    id = (window.crypto && typeof window.crypto.randomUUID === 'function')
-      ? window.crypto.randomUUID() : (uid('device') + '-' + Math.random().toString(36).slice(2));
-    id += '-' + Date.now().toString(36);
-  } catch(e) {
-    id = uid('device') + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
-  }
-  _deviceIdMemoryFallback = id;
-  try { localStorage.setItem(DEVICE_ID_STORAGE, id); } catch(e) {}
-  return id;
-}
+function getDeviceId(){ try{ let id=localStorage.getItem(DEVICE_ID_STORAGE); if(!id){ id=(crypto.randomUUID?crypto.randomUUID():uid('device'))+'-'+Date.now().toString(36); localStorage.setItem(DEVICE_ID_STORAGE,id); } return id; }catch(e){return uid('device');} }
 function getDeviceRequestInfo(){
   const timezone=(Intl.DateTimeFormat().resolvedOptions().timeZone||'').slice(0,80);
   const city=timezone.includes('/') ? timezone.split('/').pop().replace(/_/g,' ') : '';
@@ -4361,7 +4332,7 @@ function updateKeyGuardMessage(){
 function registerKeyFailure(){ const guard=getKeyGuard(), failures=(Number(guard.failures)||0)+1; if(failures>=KEY_MAX_ATTEMPTS){setKeyGuard({failures:0,blockedUntil:Date.now()+KEY_LOCK_MS});updateKeyGuardMessage();return;} setKeyGuard({failures}); const msg=document.getElementById('cloudGateMsg');msg.className='loginHint';msg.textContent='Chave inválida ou sem permissão. Restam '+(KEY_MAX_ATTEMPTS-failures)+' tentativa(s).'; }
 function clearKeyGuard(){ try{localStorage.removeItem(KEY_GUARD_STORAGE);}catch(e){} }
 function hasCloudCredential(){ return !!(ghToken || deviceAccessToken); }
-function cloudCredentials(){ return {key:ghToken||'',deviceToken:deviceAccessToken||'',deviceId:getDeviceId()}; }
+function cloudCredentials(){ return {key:ghToken||'',deviceToken:deviceAccessToken||''}; }
 setInterval(updateKeyGuardMessage,1000);
 
 async function cloudLogin(){
@@ -4657,14 +4628,8 @@ async function loadFromGitHub(){
     const credParam = ghToken ? 'key='+encodeURIComponent(ghToken) : 'deviceToken='+encodeURIComponent(deviceAccessToken||'');
     const url = APPSCRIPT_URL+'?'+credParam+'&_='+Date.now();
     const res = await fetchComTimeout(url, {cache:'no-store'});
-    const respostaApi = await lerRespostaJson(res);
-    if(!res.ok){ msg.textContent = 'Erro HTTP ' + res.status + ' ao conectar ao servidor.'; return false; }
-    if(!respostaApi.json){
-      msg.textContent = 'O Apps Script não retornou JSON válido. Confira se a implantação publicada está atualizada e acessível.';
-      _ultimoDiagnosticoConexao = 'Resposta inválida do Apps Script: ' + String(respostaApi.text||'').slice(0,220);
-      return false;
-    }
-    const json = respostaApi.json;
+    if(!res.ok){ msg.textContent = 'Erro ao conectar (' + res.status + ').'; return false; }
+    const json = await res.json();
     if(json.ok === false){
       msg.textContent = json.error || 'Chave inválida ou sem permissão.';
       return false;
@@ -4874,139 +4839,6 @@ function mergeDB_(remoto, local){
   return combinado;
 }
 
-/* ------------------------------------------------------------------
-   RESOLUÇÃO SEGURA DE CONFLITOS / APARELHO COM CACHE ANTIGO
-   No merge comum, o valor local ganhava quando dois registros tinham o
-   mesmo ID. Isso é perigoso depois de uma reconexão: um aparelho antigo
-   pode voltar a enviar um registro desatualizado. Aqui o servidor é a
-   referência para IDs já existentes; somente registros que não existem
-   no servidor são adicionados automaticamente. Alterações locais em
-   IDs existentes, configurações conflitantes e exclusões locais ainda não
-   confirmadas ficam guardadas para exportação, sem sobrescrever o atual.
------------------------------------------------------------------- */
-let _conflitosSyncMemoria = [];
-let _ultimoResultadoConflitosSync = {quantidade:0,persistido:true};
-function jsonIgualSync_(a,b){
-  try{ return JSON.stringify(a)===JSON.stringify(b); }catch(e){ return a===b; }
-}
-function lerConflitosSync_(){
-  let salvos=[];
-  try{ salvos=JSON.parse(localStorage.getItem(SYNC_CONFLICT_STORAGE)||'[]'); }catch(e){}
-  if(!Array.isArray(salvos)) salvos=[];
-  const ids=new Set(salvos.map(x=>x&&x.id).filter(Boolean));
-  _conflitosSyncMemoria.forEach(x=>{ if(x&&!ids.has(x.id)){ salvos.push(x); ids.add(x.id); } });
-  return salvos;
-}
-function registrarConflitosSync_(itens, versaoServidor){
-  if(!itens.length){ _ultimoResultadoConflitosSync={quantidade:0,persistido:true}; return; }
-  const lote={id:'sync-'+Date.now()+'-'+Math.random().toString(36).slice(2,8),dataHora:new Date().toISOString(),deviceId:getDeviceId(),versaoServidor:versaoServidor,conflitos:itens};
-  _conflitosSyncMemoria.push(lote);
-  let persistido=true;
-  try{
-    let salvos=JSON.parse(localStorage.getItem(SYNC_CONFLICT_STORAGE)||'[]');
-    if(!Array.isArray(salvos)) salvos=[];
-    if(!salvos.some(x=>x&&x.id===lote.id)) salvos.push(lote);
-    localStorage.setItem(SYNC_CONFLICT_STORAGE,JSON.stringify(salvos));
-  }catch(e){
-    persistido=false;
-    console.error('Não foi possível persistir os conflitos de sincronização no localStorage. Exporte-os antes de fechar este aparelho.',e);
-  }
-  _ultimoResultadoConflitosSync={quantidade:itens.length,persistido:persistido};
-}
-function avisarConflitosSync_(){
-  const r=_ultimoResultadoConflitosSync;
-  if(!r || !r.quantidade) return;
-  const destino=' Configurações → Backup Manual e Importação → Exportar conflitos de sincronização.';
-  const persistencia=r.persistido?'Os valores conflitantes foram preservados neste aparelho.':'ATENÇÃO: o navegador não confirmou que os conflitos foram gravados; exporte-os agora e não feche esta aba.';
-  const msg='A sincronização encontrou '+r.quantidade+' conflito(s) em registros existentes. Os dados atuais do servidor foram mantidos; as versões locais conflitantes não foram aplicadas. '+persistencia+destino;
-  setSaveStatus('Conflito detectado — dados atuais preservados',fmtAgora());
-  try{ alertModal(msg); }catch(e){ console.warn(msg); }
-}
-function exportarConflitosSync(){
-  const lotes=lerConflitosSync_();
-  if(!lotes.length){ alertModal('Não há conflitos de sincronização guardados neste aparelho.'); return; }
-  const pacote={tipo:'slmsys_sync_conflicts',exportadoEm:new Date().toISOString(),deviceId:getDeviceId(),lotes:lotes};
-  const blob=new Blob([JSON.stringify(pacote,null,2)],{type:'application/json'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');
-  a.href=url;
-  a.download='slmsys-conflitos-'+new Date().toISOString().replace(/[:.]/g,'-')+'.json';
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(()=>URL.revokeObjectURL(url),1500);
-}
-function mergeDBSeguroConflito_(remoto, local, versaoServidorAtual){
-  remoto=remoto&&typeof remoto==='object'?remoto:{};
-  local=local&&typeof local==='object'?local:{};
-  garantirEstruturaDeletados(remoto); garantirEstruturaDeletados(local);
-  const combinado=JSON.parse(JSON.stringify(remoto));
-  const conflitos=[];
-  // Em caso de conflito, as lápides do servidor são autoritativas. Lápides
-  // locais diferentes são guardadas para revisão, não aplicadas cegamente.
-  combinado.deleted=JSON.parse(JSON.stringify(remoto.deleted||{}));
-  garantirEstruturaDeletados(combinado);
-  CAMPOS_POR_ID.forEach(function(campo){
-    const doServidor=Array.isArray(remoto[campo])?remoto[campo]:[];
-    const doAparelho=Array.isArray(local[campo])?local[campo]:[];
-    const mapa=new Map();
-    doServidor.forEach(function(item){if(item&&item.id!=null) mapa.set(String(item.id),item);});
-    const idsExcluidosRemotos=(remoto.deleted||{})[campo]||{};
-    doAparelho.forEach(function(item){
-      if(!item||item.id==null) return;
-      const id=String(item.id), existente=mapa.get(id);
-      if(Object.prototype.hasOwnProperty.call(idsExcluidosRemotos,id)){
-        conflitos.push({tipo:'registro-local-de-item-excluido-no-servidor',campo:campo,id:id,valorLocal:item,exclusaoServidor:idsExcluidosRemotos[id]});
-        return;
-      }
-      if(!existente){ mapa.set(id,item); return; } // ID novo: mantém cadastro local
-      if(!jsonIgualSync_(existente,item)){
-        // A cópia do servidor prevalece; a cópia local fica recuperável no arquivo de conflitos.
-        conflitos.push({tipo:'mesmo-id-com-valores-diferentes',campo:campo,id:id,valorServidor:existente,valorLocal:item});
-      }
-    });
-    combinado[campo]=Array.from(mapa.values()).filter(function(item){return item&& !Object.prototype.hasOwnProperty.call(idsExcluidosRemotos,String(item.id));});
-    // Exclusões locais não confirmadas não apagam registros do servidor durante a recuperação.
-    const deletadosLocais=(local.deleted||{})[campo]||{};
-    Object.keys(deletadosLocais).forEach(function(id){
-      const localTs=deletadosLocais[id], remotoTs=((remoto.deleted||{})[campo]||{})[id];
-      if(remotoTs===undefined || !jsonIgualSync_(localTs,remotoTs)){
-        conflitos.push({tipo:'exclusao-local-pendente-de-revisao',campo:campo,id:id,exclusaoLocal:localTs,exclusaoServidor:remotoTs===undefined?null:remotoTs});
-      }
-    });
-  });
-  CAMPOS_SEM_ID.forEach(function(campo){
-    const doServidor=Array.isArray(remoto[campo])?remoto[campo]:[];
-    const doAparelho=Array.isArray(local[campo])?local[campo]:[];
-    const existentes=new Set(doServidor.map(function(x){return JSON.stringify(x);}));
-    combinado[campo]=doServidor.concat(doAparelho.filter(function(x){const k=JSON.stringify(x);if(existentes.has(k)) return false;existentes.add(k);return true;}));
-  });
-  // Não reintroduz configurações antigas só porque o campo local está preenchido.
-  combinado.settings=JSON.parse(JSON.stringify(remoto.settings||{}));
-  const settingsLocal=local.settings||{}, settingsRemoto=remoto.settings||{};
-  new Set(Object.keys(settingsLocal).concat(Object.keys(settingsRemoto))).forEach(function(campo){
-    const temLocal=Object.prototype.hasOwnProperty.call(settingsLocal,campo);
-    const temRemoto=Object.prototype.hasOwnProperty.call(settingsRemoto,campo);
-    if(temLocal && (!temRemoto || !jsonIgualSync_(settingsLocal[campo],settingsRemoto[campo]))){
-      conflitos.push({tipo:'configuracao-conflitante',campo:campo,valorServidor:temRemoto?settingsRemoto[campo]:null,valorLocal:settingsLocal[campo]});
-    }
-  });
-  if(!jsonIgualSync_(local.cashCurrentOpenId,remoto.cashCurrentOpenId)){
-    conflitos.push({tipo:'estado-de-caixa-conflitante',campo:'cashCurrentOpenId',valorServidor:remoto.cashCurrentOpenId===undefined?null:remoto.cashCurrentOpenId,valorLocal:local.cashCurrentOpenId===undefined?null:local.cashCurrentOpenId});
-  }
-  const sessaoAbertaLocal=(combinado.cashSessions||[]).find(function(s){return s.id===local.cashCurrentOpenId&&!s.closeDate;});
-  const sessaoAbertaRemota=(combinado.cashSessions||[]).find(function(s){return s.id===remoto.cashCurrentOpenId&&!s.closeDate;});
-  combinado.cashCurrentOpenId=sessaoAbertaLocal?sessaoAbertaLocal.id:(sessaoAbertaRemota?sessaoAbertaRemota.id:null);
-  const conhecidos=new Set(CAMPOS_POR_ID.concat(CAMPOS_SEM_ID,['deleted','settings','cashCurrentOpenId']));
-  Object.keys(local).forEach(function(campo){
-    if(conhecidos.has(campo)) return;
-    if(!Object.prototype.hasOwnProperty.call(remoto,campo) || !jsonIgualSync_(local[campo],remoto[campo])){
-      conflitos.push({tipo:'campo-geral-conflitante',campo:campo,valorServidor:Object.prototype.hasOwnProperty.call(remoto,campo)?remoto[campo]:null,valorLocal:local[campo]});
-    }
-  });
-  registrarConflitosSync_(conflitos,versaoServidorAtual===undefined?driveVersion:versaoServidorAtual);
-  resolverIdsDuplicados(combinado);
-  return combinado;
-}
-
 /* ------------------------------------------------------------
    FOTOS SEPARADAS (video.json)
    As fotos de produtos e as fotos de perfil de funcionários NÃO
@@ -5160,11 +4992,8 @@ async function salvarFotosNoServidor(){
       headers: {'Content-Type':'text/plain;charset=utf-8'},
       body: JSON.stringify(Object.assign({ tipo:'fotos', fotos:paraEnviar }, cloudCredentials()))
     });
-    const respostaFotos = await lerRespostaJson(res);
-    const json = (res.ok && respostaFotos.json) ? respostaFotos.json : {ok:false,error:!res.ok ? ('HTTP '+res.status) : 'Resposta do Apps Script não é JSON válido'};
+    const json = res.ok ? await res.json() : { ok:false };
     if(!json.ok){
-      console.error('Falha ao salvar fotos no servidor:', json.error || 'erro sem detalhe', String(respostaFotos.text||'').slice(0,300));
-      setSaveStatus('Falha ao salvar fotos: '+String(json.error||'erro do servidor').slice(0,120), fmtAgora());
       // devolve pra fila e tenta de novo depois, com espera cada vez maior (sem perder o que já estava pendente)
       Object.assign(paraEnviar, _fotosPendentes);
       _fotosPendentes = paraEnviar;
@@ -5172,8 +5001,6 @@ async function salvarFotosNoServidor(){
       agendarSalvarFotos(true);
     }
   }catch(e){
-    console.error('Erro de comunicação ao salvar fotos:', e);
-    setSaveStatus(e && e.name==='AbortError' ? 'Tempo esgotado ao salvar fotos no servidor; nova tentativa agendada.' : 'Erro de comunicação ao salvar fotos; nova tentativa agendada.', fmtAgora());
     Object.assign(paraEnviar, _fotosPendentes);
     _fotosPendentes = paraEnviar;
     _fotosBackoffMs = Math.min(_fotosBackoffMs * 2, 30000);
@@ -5232,27 +5059,21 @@ async function saveToGitHubNow(){
     const res = await fetchComTimeout(APPSCRIPT_URL, {
       method:'POST',
       headers: {'Content-Type':'text/plain;charset=utf-8'}, // evita preflight CORS no Apps Script
-      body: JSON.stringify(Object.assign({version:driveVersion,conflictToken:_conflictWriteToken||'',data:prepararDadosSemFotos_(DB)},cloudCredentials()))
+      body: JSON.stringify(Object.assign({version:driveVersion,data:prepararDadosSemFotos_(DB)},cloudCredentials()))
     }, controllerDesteSalvamento);
-    const respostaApi = await lerRespostaJson(res);
-    if(!res.ok || !respostaApi.json){
-      const detalhe = !res.ok ? ('Erro HTTP ' + res.status) : 'O Apps Script respondeu em formato inválido (não JSON)';
-      console.error('Falha ao salvar no Drive:', detalhe, String(respostaApi.text||'').slice(0,600));
-      setSaveStatus(detalhe + '. Confira a implantação e a URL do servidor.', fmtAgora());
+    if(!res.ok){
+      console.error('Falha ao salvar no Drive:', res.status);
+      setSaveStatus('Falha ao salvar no servidor', fmtAgora());
       return false;
     }
-    const json = respostaApi.json;
+    const json = await res.json();
     if(json.ok === false){
       if(json.conflict){
-        // O servidor emite um token de uso controlado para impedir que clientes antigos
-        // resolvam o conflito reenviando cegamente uma cópia local desatualizada.
-        if(json.conflictToken) guardarTokenConflitoSync_(json.conflictToken);
-        // Combina com a versão mais nova sem deixar valores locais substituir registros existentes.
+        // outro dispositivo salvou primeiro: em vez de descartar a mudança feita aqui,
+        // combina com a versão mais nova do servidor e tenta salvar de novo
         const dadosDesteAparelho = DB;
-        DB = mergeDBSeguroConflito_(json.data, dadosDesteAparelho, json.version);
-        autoSaveLocal();
-        avisarConflitosSync_();
-        driveVersion = (typeof json.version === 'number') ? json.version : driveVersion;
+        DB = mergeDB_(json.data, dadosDesteAparelho);
+        driveVersion = json.version || driveVersion;
         await carregarFotosDoServidor(); // busca fotos que outro aparelho possa ter salvo, e reaplica as fotos deste aparelho também
         normalizePerfis(); fixDuplicateBarcodes(); ensureCatalogDefaults();
         if(currentUser){
@@ -5263,13 +5084,12 @@ async function saveToGitHubNow(){
         setSaveStatus('Combinando com dados de outro aparelho...', fmtAgora());
         autoSaveGitHub(); // tenta salvar de novo com os dados já combinados
       } else {
-        setSaveStatus((json && json.error) ? String(json.error).slice(0,180) : 'Falha ao salvar no servidor', fmtAgora());
+        setSaveStatus('Falha ao salvar no servidor', fmtAgora());
       }
       console.error('Falha ao salvar no Drive:', json.error);
       return false;
     }
     driveVersion = json.version;
-    guardarTokenConflitoSync_(null); // token de conflito consumido pelo servidor
     setSaveStatus('Salvo no servidor', fmtAgora());
     limparAlteracaoPendente(); // só agora, com confirmação de verdade do servidor
     return true;
@@ -5280,13 +5100,7 @@ async function saveToGitHubNow(){
     // na hora (ver adiarSalvamentoParaImpressao_) — não sobrescreve ele aqui com uma
     // mensagem de "sem conexão" que seria enganosa (a internet está normal).
     if(!controllerDesteSalvamento._interrompidoPorImpressao){
-      if(e && e.name === 'AbortError'){
-        setSaveStatus('Tempo esgotado ao salvar no servidor. A alteração ficou neste aparelho e será tentada novamente.', fmtAgora());
-      }else if(!navigator.onLine){
-        setSaveStatus('Sem internet — alteração mantida neste aparelho e pendente de envio.', fmtAgora());
-      }else{
-        setSaveStatus('Falha ao comunicar com o Apps Script. A alteração ficou neste aparelho; consulte o console para o erro.', fmtAgora());
-      }
+      setSaveStatus('Sem conexão — salvo só neste aparelho', fmtAgora());
     }
     return false;
   }finally{
@@ -5406,9 +5220,7 @@ async function despejarAlteracoesPendentesAoReconectar(){
     }
     // Combina o que já veio do servidor (agora em DB) com o que foi feito
     // aqui offline (mergeDB_ cuida de não perder nada dos dois lados) e envia.
-    DB = mergeDBSeguroConflito_(DB, dadosDesteAparelho, driveVersion);
-    autoSaveLocal();
-    avisarConflitosSync_();
+    DB = mergeDB_(DB, dadosDesteAparelho);
     // Tenta salvar no servidor até 3 vezes seguidas (com uma pequena pausa
     // entre elas) antes de desistir — a internet pode ter voltado "pela
     // metade" e a primeira tentativa falhar, mas a segunda/terceira vingar.
@@ -5532,9 +5344,6 @@ async function checkRemoteVersion(){
   // a resposta chegar) — isso fecha a antiga corrida em que essa checagem podia rodar
   // no meio do nosso próprio salvamento e confundir ele com uma mudança de outro aparelho.
   if(_ghSaveTimer || _fotosSaveTimer || _salvandoAgora) return;
-  // Nunca baixa a cópia remota por cima de alterações locais ainda não confirmadas.
-  // Isso evita perder mudanças quando um salvamento falha por rede/cota e o polling continua ativo.
-  if(existeAlteracaoPendenteSalva()) return;
   // Enquanto o carregamento inicial deste aparelho ainda não terminou, driveVersion
   // continua null — e comparar "null" com a versão do servidor sempre dá diferente,
   // mesmo que nenhum outro aparelho tenha salvo nada. Isso fazia o aviso de
@@ -5753,9 +5562,7 @@ async function finishAutoConnect(){
       // do servidor e perder isso, combina com o que estava salvo aqui e
       // manda de novo agora que a conexão está funcionando.
       if(existeAlteracaoPendenteSalva()){
-        DB = mergeDBSeguroConflito_(DB, _dbAoAbrirApp, driveVersion);
-        autoSaveLocal();
-        avisarConflitosSync_();
+        DB = mergeDB_(DB, _dbAoAbrirApp);
         normalizePerfis(); fixDuplicateBarcodes(); ensureCatalogDefaults();
         setSaveStatus('Havia alterações não enviadas — despejando agora...', fmtAgora());
         saveToGitHubNow();
